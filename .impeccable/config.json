@@ -11,6 +11,24 @@
         ],
         "createdAt": "2026-11-13T22:08:10.487Z",
         "reason": "Claude: hero text sits on navy #071631-#12306B; detector averages the faint radial glow (rendered screenshot shows ≥12:1)"
+      },
+      {
+        "rule": "cramped-padding",
+        "value": "*",
+        "files": [
+          "docs/conception/maquettes/design-system.html"
+        ],
+        "createdAt": "2026-11-13T22:10:38.970Z",
+        "reason": "Claude: table-wrap cells carry 10-14px padding; detector reads the wrapper only"
+      },
+      {
+        "rule": "nested-cards",
+        "value": "*",
+        "files": [
+          "docs/conception/maquettes/design-system.html"
+        ],
+        "createdAt": "2026-11-13T22:10:38.977Z",
+        "reason": "Claude: panels shown inside a screen-mockup frame in a spec document, not a product page"
       }
     ]
   }
