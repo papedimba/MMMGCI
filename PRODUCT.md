@@ -8,7 +8,7 @@ web
 
 ## Stack
 
-PHP 8.2+ / MySQL-MariaDB, hébergement mutualisé cPanel, sans Node.js ni processus permanent en production (exigence du commanditaire). Choix du framework : à valider en phase 1 (recommandation : Laravel 12, voir `docs/conception/03-architecture.md`).
+PHP 8.2+ natif sans framework ni Composer en production (décision du commanditaire du 13/11/2026 : « Laravel a trop de dépendances »), MySQL-MariaDB, hébergement mutualisé cPanel (pas encore choisi), sans Node.js ni processus permanent. Voir `docs/conception/03-architecture.md` B1.
 
 ## Users
 
@@ -37,6 +37,7 @@ Abidjan, fuseau Africa/Abidjan, devise XOF (sans décimales en pratique), langue
 
 ## Brand Commitments
 
+- Règles : le cahier des charges 2026–2027 est le seul texte de référence fourni (décision du 13/11/2026).
 - Nom : Mutuelle des Marins Marchands et Gens de Mer de Côte d'Ivoire (MMMGCI).
 - Slogan : « Un nouveau jour se lève ».
 - Logo complet obligatoire (décision du commanditaire, 2026-11-13) : emblème circulaire MMMGCI (cordage, carte d'Afrique avec la Côte d'Ivoire aux couleurs nationales, ancre, mer) **et** bandeau « Maritime Oceans and Hospitality Services — The soul sings only in the sea ». Fichier source : `docs/conception/maquettes/logo-mmmgci-mohs.jpg` (JPEG sur fond blanc ; une version vectorielle ou PNG transparente reste à fournir).

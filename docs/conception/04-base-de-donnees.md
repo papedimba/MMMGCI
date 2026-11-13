@@ -1,7 +1,7 @@
 # 04 — Modélisation de la base de données
 
 > MySQL 8 / MariaDB 10.6+, InnoDB, `utf8mb4_unicode_ci`, fuseau stocké en UTC et affiché en Africa/Abidjan (identiques, UTC+0, sans heure d'été).
-> Statut : **proposition** — les migrations Laravel versionnées seront écrites à partir de ce schéma en lot L0+.
+> Statut : **proposition** — les migrations SQL versionnées (`database/migrations/NNNN_*.sql`) seront écrites à partir de ce schéma en lot L0+.
 
 ## 1. Conventions
 
@@ -20,9 +20,10 @@
 
 ```mermaid
 erDiagram
-  users ||--o{ model_has_roles : has
-  roles ||--o{ role_has_permissions : grants
-  permissions ||--o{ role_has_permissions : in
+  users ||--o{ user_roles : has
+  roles ||--o{ user_roles : given
+  roles ||--o{ role_permissions : grants
+  permissions ||--o{ role_permissions : in
   members ||--o{ member_beneficiaries : has
   members ||--o{ member_documents : has
   members ||--o{ member_status_history : tracks
@@ -59,7 +60,10 @@ Le **fonds de solidarité** est un `financial_accounts` de type `solidarity_fund
 | Table | Colonnes principales | Contraintes / index |
 |---|---|---|
 | `users` | name, email, phone, password (hash), is_active, two_factor_secret (chiffré), last_login_at, member_id (nullable, si l'utilisateur est aussi membre), delegate_id (nullable) | UNIQUE(email) |
-| `roles`, `permissions`, `model_has_roles`, `role_has_permissions`, `model_has_permissions` | Schéma `spatie/laravel-permission` (équivaut à roles / permissions / user_roles / role_permissions) | UNIQUE(name, guard) |
+| `roles` | name, label, description, is_system | UNIQUE(name) |
+| `permissions` | name (`module.action`), label, module | UNIQUE(name) |
+| `role_permissions` | role_id, permission_id (CASCADE) | PK(role_id, permission_id) |
+| `user_roles` | user_id, role_id (CASCADE), scope_zone_id NULL, scope_body_id NULL | PK(user_id, role_id) ; périmètre optionnel |
 | `sessions` | id, user_id, ip, user_agent, payload, last_activity | INDEX(user_id) |
 | `login_attempts` | email, ip, succeeded, created_at | INDEX(email, created_at) |
 | `audit_logs` | user_id, action, auditable_type, auditable_id, old_values JSON, new_values JSON, ip, user_agent, reference, prev_hash, hash, created_at | **Aucun** update/delete applicatif ; INDEX(auditable_type, auditable_id), INDEX(created_at) ; utilisateur SQL applicatif sans droit `UPDATE/DELETE` sur cette table si l'hébergeur le permet |
@@ -67,7 +71,9 @@ Le **fonds de solidarité** est un `financial_accounts` de type `solidarity_fund
 | `settings` | group, key, value JSON, status (`non_configure` / `valide`), validated_by, validated_at, decision_ref | UNIQUE(group, key) — porte les paramètres VAL |
 | `files` | disk (`private`/`public`), path, original_name, mime, size, sha256, uploaded_by | INDEX(sha256) |
 | `sequences` | name, year, last_value | UNIQUE(name, year) |
-| `notifications` | Schéma Laravel (notifications internes) | — |
+| `notifications` | user_id, type, title, link, read_at | INDEX(user_id, read_at) |
+| `schema_migrations` | version, applied_at, checksum | Migrations appliquées |
+| `scheduled_runs` | task, started_at, finished_at, status | Verrou et suivi des tâches Cron |
 
 ### 3.2 CMS
 

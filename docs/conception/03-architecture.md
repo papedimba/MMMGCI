@@ -205,7 +205,7 @@ Permissions de la forme `module.action` (actions : `view`, `create`, `update`, `
 | Lecture seule | — | — | V (sans pièces ni données sensibles) | V | V | V | — | V | V | V | V | — | V | — |
 
 Notes :
-- L'attribution de **A** (approuver) au PCA et au 1er VP n'est qu'une **hypothèse de conception** (D3). Le logiciel n'attribue aucun pouvoir sur la base d'un titre : seules les permissions comptent.
+- L'attribution de **A** (approuver) au PCA et au 1er VP n'est qu'une **suggestion** (D3 sans réponse). À l'installation, **aucun rôle** ne détient la permission d'approuver ou de payer : le super administrateur l'attribue explicitement, et le module refuse de fonctionner tant que moins de deux personnes distinctes peuvent approuver. Le logiciel n'attribue aucun pouvoir sur la base d'un titre.
 - Un utilisateur peut cumuler plusieurs rôles ; la règle initiateur ≠ approbateur s'applique quelle que soit la combinaison.
 - Les pièces d'identité et les données de santé ont des permissions dédiées (`members.documents.view`, `social.medical.view`) ; leur consultation est journalisée.
 - Le périmètre « délégué » est restreint aux membres de sa zone (filtre serveur).
@@ -222,44 +222,49 @@ Notes :
 
 ## Partie B — Architecture technique
 
-### B1. Choix du socle (décision D1 à valider)
+### B1. Choix du socle — décision du commanditaire : PHP natif, sans framework
 
-| | **Option 1 — Laravel 12 (recommandée)** | Option 2 — Micro-socle PHP maison (PDO + routeur léger) | Option 3 — CMS existant (WordPress) + extensions |
-|---|---|---|---|
-| Compatibilité cPanel sans SSH | Oui : `vendor/` inclus dans l'archive, docroot → `public/`, migrations lancées depuis l'installateur web | Oui, la plus simple | Oui |
-| Sécurité par défaut | CSRF, hash bcrypt/argon2, validation, policies, chiffrement, limiteur de tentatives, requêtes préparées (PDO) | Tout à écrire et à auditer soi-même | Bonne pour le CMS, faible pour la gestion financière sur mesure |
-| Volume de code à écrire | Faible (le cadre fournit l'essentiel) | Élevé (auth, migrations, validation, files, mails…) | Faible pour le site, très élevé et fragile pour la gestion |
-| Maintenance / recrutement local | Framework PHP le plus répandu en Afrique de l'Ouest francophone | Dépend de l'auteur | Courant, mais pas pour la logique métier |
-| Contrainte | Archive plus lourde (~40 Mo avec `vendor/`) ; PHP ≥ 8.2 requis | Risque sécurité et maintenabilité | Double système, double base de droits |
+Le commanditaire a écarté Laravel (« trop de dépendances »). Retenu : **un socle PHP 8.2+ écrit pour le projet, sans framework et sans Composer en production**. Principe : n'utiliser que ce que PHP fournit déjà (PDO, `password_hash`, `random_bytes`, `hash_equals`, `finfo`, `ZipArchive`, `DOMDocument`, `intl`, `bcmath`), et écrire le reste en petites classes lisibles et testées.
 
-**Recommandation : Option 1.** Elle donne une architecture MVC standard, des migrations SQL versionnées et les protections exigées au § 22, avec beaucoup moins de code propre à maintenir. L'option 3 est écartée car le CMD exige une base et des droits **centralisés** pour site, CMS et gestion.
-
-Bibliothèques envisagées (toutes PHP, embarquées dans `vendor/`) :
-
-| Besoin | Bibliothèque | Remarque |
+| Besoin | Solution sans dépendance | Taille estimée |
 |---|---|---|
-| PDF (cartes, reçus, rapports, PV) | `barryvdh/laravel-dompdf` | Pur PHP |
-| QR code | `chillerlan/php-qrcode` | Pur PHP, sans extension imagick |
-| Export Excel/CSV | `openspout/openspout` | Faible mémoire, adapté au mutualisé |
-| Nettoyage HTML de l'éditeur | `mews/purifier` (HTML Purifier) | Anti-XSS sur contenus riches |
-| Permissions | `spatie/laravel-permission` | Rôles/permissions en base, standard |
-| 2FA (si validée) | `pragmarx/google2fa` | TOTP |
+| Routage, requête/réponse, middleware | `Core\Router`, `Core\Request`, `Core\Response` | ~300 lignes |
+| Vues | Gabarits PHP natifs + fonction `e()` d'échappement systématique, mises en page et partiels | ~150 lignes |
+| Base de données | `Core\Database` (PDO, requêtes préparées obligatoires, transactions, verrous) + requêtes écrites à la main dans des *repositories* par module | ~250 lignes |
+| Migrations versionnées | Fichiers `.sql` numérotés + table `schema_migrations` ; exécutables depuis l'installateur web et la page « Mise à jour » | ~120 lignes |
+| Validation | `Core\Validator` (règles déclaratives, messages en français) | ~250 lignes |
+| Sessions, CSRF, authentification, limitation des tentatives | Sessions PHP natives durcies, jeton CSRF par session, `password_hash(PASSWORD_ARGON2ID)` | ~350 lignes |
+| Rôles et permissions | Tables propres `roles`, `permissions`, `role_permissions`, `user_roles` + `Core\Gate` | ~150 lignes |
+| Fichiers | `Core\Uploads` (liste blanche, `finfo`, renommage, stockage privé, ré-encodage GD) | ~200 lignes |
+| E-mail | `mail()` de cPanel par défaut, client SMTP minimal en option | ~150 lignes |
+| Tâches planifiées | `bin/cron.php` appelé par une seule tâche Cron cPanel | ~100 lignes |
+| Journal d'audit | `Core\Audit` (ajout seul, chaîne de hachage) | ~120 lignes |
+| PDF (reçus, cartes, PV, rapports) | **Pages HTML imprimables** (CSS `@media print`, format A4 et carte CR80) ; l'utilisateur imprime ou choisit « Enregistrer en PDF » dans le navigateur | — |
+| Export Excel | CSV UTF-8 avec BOM (ouvert directement par Excel) ; XLSX simple écrit avec `ZipArchive` | ~150 lignes |
+| Nettoyage du contenu riche | Liste blanche de balises et d'attributs avec `DOMDocument` | ~150 lignes |
+| Graphiques | SVG générés côté serveur, accompagnés de leur tableau de données | ~200 lignes |
+| QR code de la carte | **Seul fichier tiers proposé** : générateur QR en un fichier, licence MIT (*qrcode-generator* de Kazuhiko Arase), copié dans le projet — écrire un encodeur QR fiable soi-même n'a pas de sens | 1 fichier |
+| Éditeur de contenu | Éditeur minimal maison (`contenteditable` + barre d'outils : titres, gras, italique, listes, liens, images de la médiathèque), nettoyé côté serveur | ~300 lignes JS |
+| Interactions | JavaScript natif, sans bibliothèque | — |
+| Autoload | `spl_autoload_register` (PSR-4 maison), pas de Composer | 20 lignes |
 
-Front-end : **Blade** (rendu serveur), CSS maison à jetons (variables CSS, sans framework lourd ; ~25 Ko), **Alpine.js** (~15 Ko) pour les interactions légères, **Chart.js** pour les graphiques, éditeur riche **TinyMCE auto-hébergé** (licence GPL) ou Trix — à trancher en phase 4. Les assets sont compilés en développement (Vite) et livrés en fichiers statiques : pas de Node en production.
+Outils de **développement uniquement** (jamais requis sur le serveur) : PHPUnit sous forme d'archive `.phar`, Playwright pour les tests de navigateur, les scripts du skill Taste pour le contrôle visuel.
 
-### B2. Architecture logicielle (Laravel, découpage par module)
+Conséquences assumées : environ 3 500 lignes de socle à écrire et à tester (lot L0 plus long), mais une archive de production de quelques centaines de Ko, aucune mise à jour de dépendance à suivre, et un code que tout développeur PHP peut lire. Les protections de sécurité deviennent notre responsabilité : chacune a ses tests dédiés (B7) et passe en revue de sécurité au lot L14.
+
+### B2. Architecture logicielle (modules)
 
 ```
 Requête HTTP
-  → public/index.php
-  → Middleware : HTTPS, session sécurisée, CSRF, auth, permission, limite de débit, en-têtes de sécurité
-  → Route (routes/web.php, routes/admin.php)
-  → Contrôleur (mince) → FormRequest (validation)
-  → Service métier (règles, transactions)  ← Policies (autorisation fine)
-  → Modèles Eloquent (PDO préparé)        → MySQL
-  → Vue Blade (échappement automatique)
-Événements → AuditLogger, Notifications
-Cron cPanel → php artisan schedule:run (publication programmée, archivage offres, rappels, sauvegarde)
+  → public/index.php (point d'entrée unique)
+  → Middleware : HTTPS, en-têtes de sécurité, session, CSRF, authentification, permission, limitation de débit
+  → Router (routes/public.php, routes/admin.php)
+  → Contrôleur (mince) → Validator
+  → Service métier (règles, transactions)  ← Gate (permission + périmètre)
+  → Repository (SQL préparé)                → MySQL/MariaDB
+  → Vue PHP (échappement e() par défaut)
+Événements métier → Audit, notifications internes, e-mail
+Cron cPanel → bin/cron.php (publication programmée, expiration des offres, rappels, sauvegarde)
 ```
 
 ### B3. Structure des dossiers
@@ -267,34 +272,33 @@ Cron cPanel → php artisan schedule:run (publication programmée, archivage off
 ```
 mmmgci/
 ├── app/
-│   ├── Http/Controllers/{Public,Admin,Cms}/   # contrôleurs minces par espace
-│   ├── Http/Requests/                         # validation serveur
-│   ├── Http/Middleware/
-│   ├── Models/
-│   ├── Policies/                              # autorisations par entité
-│   ├── Services/                              # règles métier (Disbursements, Members, Social…)
-│   ├── Support/Money.php                      # calculs monétaires en entiers/BCMath
-│   └── Audit/                                 # journal en ajout seul
-├── bootstrap/
-├── config/                                    # aucune valeur métier codée : paramètres en base
+│   ├── Core/                    # socle : Router, Request, Response, Database, Migrator, Validator,
+│   │                            #  Session, Csrf, Auth, Gate, RateLimiter, Uploads, Mailer, Audit, View, Money
+│   ├── Modules/
+│   │   ├── Cms/                 # chaque module : Controllers/, Services/, Repositories/, views/
+│   │   ├── Members/  Contributions/  Finance/  Social/  Employment/
+│   │   ├── Partners/ Governance/  Discipline/  Reports/  Users/
+│   │   └── PublicSite/
+│   └── helpers.php              # e(), money(), date_fr()…
+├── bin/
+│   ├── cron.php                 # point d'entrée Cron cPanel
+│   └── migrate.php              # migrations en ligne de commande (facultatif, l'interface web suffit)
+├── config/                      # config.php (lit .env) — aucune valeur métier codée
 ├── database/
-│   ├── migrations/                            # versionnées, horodatées
-│   ├── seeders/                               # rôles, permissions, listes de référence (sans montants)
-│   └── schema/                                # diagramme et dump de référence
-├── docs/                                      # conception, déploiement, administration, utilisateur
-├── lang/fr/
-├── public/                                    # SEUL dossier exposé
-│   ├── index.php  .htaccess  build/  img/  robots.txt
-│   └── media/                                 # médias PUBLICS du CMS uniquement (non exécutables)
-├── resources/{views,css,js}/
-├── routes/{web.php,admin.php,console.php}
-├── scripts/                                   # empaquetage release, sauvegarde
-├── storage/
-│   ├── app/private/                           # pièces d'identité, dossiers sociaux, justificatifs
-│   ├── backups/  logs/
-├── tests/{Unit,Feature}/                      # PHPUnit
-├── e2e/                                       # Playwright (dev uniquement)
-├── vendor/                                    # inclus dans l'archive de production
+│   ├── migrations/              # 0001_users.sql, 0002_rbac.sql… versionnées
+│   └── seeds/                   # rôles, permissions, listes du cahier des charges (sans montants)
+├── docs/
+├── public/                      # SEUL dossier exposé
+│   ├── index.php  .htaccess  robots.txt
+│   ├── assets/                  # css/, js/, fonts/, img/ — écrits à la main, aucune compilation
+│   └── media/                   # médias PUBLICS du CMS (exécution PHP interdite)
+├── routes/
+├── storage/                     # hors web
+│   ├── private/                 # pièces d'identité, dossiers sociaux, justificatifs
+│   ├── backups/  logs/  cache/
+├── tests/                       # PHPUnit (.phar) : Unit/, Feature/
+├── e2e/                         # Playwright (développement uniquement)
+├── .env.example
 └── README.md
 ```
 
@@ -302,16 +306,16 @@ mmmgci/
 
 | Menace | Mesure |
 |---|---|
-| Injection SQL | Eloquent / Query Builder (PDO préparé) exclusivement ; aucun SQL concaténé ; règle de revue |
-| XSS | Échappement Blade `{{ }}` ; contenu riche passé à HTML Purifier à l'enregistrement ; en-tête CSP stricte |
-| CSRF | Jeton Laravel sur tous les formulaires ; cookies `SameSite=Lax` |
+| Injection SQL | `Core\Database` n'accepte que des requêtes préparées avec paramètres liés ; noms de colonnes de tri pris dans une liste blanche ; test qui échoue si une requête est concaténée |
+| XSS | Échappement `e()` (htmlspecialchars, UTF-8) par défaut dans toutes les vues ; contenu riche nettoyé par liste blanche `DOMDocument` à l'enregistrement ; en-tête CSP stricte (aucun script en ligne) |
+| CSRF | Jeton aléatoire (`random_bytes`) par session, vérifié avec `hash_equals` sur toute requête POST ; cookies `SameSite=Lax` |
 | Sessions | Cookie `Secure`, `HttpOnly` ; régénération d'ID à la connexion ; expiration d'inactivité (30 min admin, paramétrable) ; sessions stockées en base |
 | Mots de passe | Argon2id (ou bcrypt si non disponible) ; longueur ≥ 12 ; vérification contre les mots de passe compromis courants (liste locale) |
 | Force brute | Limiteur : 5 tentatives / 15 min par identifiant + IP, journalisé ; verrouillage temporaire |
 | Comptes à privilèges | 2FA TOTP proposée pour finances et super admin (T06) |
-| Autorisation | Middleware + Policies sur chaque action ; filtrage par périmètre (délégué, commission) dans les requêtes |
+| Autorisation | Middleware de permission déclaré sur chaque route + `Gate` dans les services ; filtrage par périmètre (délégué, commission) dans les requêtes SQL |
 | Fichiers téléversés | Liste blanche extension + MIME réel (finfo) + taille max ; nom aléatoire ; stockage privé hors `public/` ; servis par contrôleur avec contrôle d'accès ; `public/media` : `.htaccess` interdisant l'exécution PHP ; images ré-encodées (suppression EXIF) |
-| Fichiers sensibles | Docroot → `public/` ; si l'hébergeur l'impose, `.htaccess` racine bloquant `app/`, `storage/`, `.env`, `vendor/` |
+| Fichiers sensibles | Docroot → `public/` ; si l'hébergeur l'impose, `.htaccess` racine bloquant `app/`, `storage/`, `config/`, `database/`, `.env` |
 | Opérations financières | Transactions SQL, verrous de ligne, contraintes UNIQUE, idempotence, montants en DECIMAL / BCMath |
 | Double soumission | Jeton à usage unique par formulaire sensible + désactivation du bouton côté client |
 | Erreurs | `APP_DEBUG=false` en production ; pages d'erreur génériques ; détails seulement dans `storage/logs` |
@@ -331,11 +335,11 @@ mmmgci/
 ### B6. Déploiement cPanel (sans SSH obligatoire)
 
 1. Créer la base MySQL et l'utilisateur dans cPanel (« Bases de données MySQL »).
-2. Téléverser l'archive `mmmgci-x.y.z.zip` (avec `vendor/` et assets compilés) dans le dossier personnel, l'extraire **hors** de `public_html`.
+2. Téléverser l'archive `mmmgci-x.y.z.zip` (quelques centaines de Ko, aucune dépendance à installer) dans le dossier personnel, l'extraire **hors** de `public_html`.
 3. Pointer le domaine/sous-domaine vers `mmmgci/public` (« Domaines » → racine du document). Si impossible : copier `public/` dans `public_html` et ajuster le chemin dans `index.php` (procédure documentée).
-4. Choisir PHP 8.2+ et les extensions (`pdo_mysql`, `mbstring`, `openssl`, `fileinfo`, `gd`, `zip`, `bcmath`, `intl`) via « Sélectionner la version PHP ».
-5. Ouvrir `https://domaine/install` : assistant web (vérification des prérequis, saisie de la base, génération de `.env` et de la clé, exécution des migrations et des données de référence, création du premier super administrateur, verrouillage de l'installateur).
-6. Créer **une** tâche Cron : `*/5 * * * * /usr/local/bin/php /home/USER/mmmgci/artisan schedule:run >/dev/null 2>&1`.
+4. Choisir PHP 8.2+ et les extensions (`pdo_mysql`, `mbstring`, `fileinfo`, `gd`, `zip`, `bcmath`, `intl`, `dom`) via « Sélectionner la version PHP ».
+5. Ouvrir `https://domaine/install` : assistant web (vérification des prérequis, saisie de la base, génération de `.env` et des clés, exécution des migrations SQL et des données de référence, création du premier super administrateur, verrouillage de l'installateur).
+6. Créer **une** tâche Cron : `*/5 * * * * /usr/local/bin/php /home/USER/mmmgci/bin/cron.php >/dev/null 2>&1`.
 7. Activer AutoSSL.
 
 **Mise à jour** : mode maintenance depuis l'administration → sauvegarde → remplacement des fichiers (hors `.env` et `storage/`) → page « Mise à jour » qui exécute les migrations en attente → sortie de maintenance. Retour arrière : restauration de la sauvegarde.
@@ -345,7 +349,7 @@ mmmgci/
 | Niveau | Outil | Portée | Seuil |
 |---|---|---|---|
 | Unitaire | PHPUnit | Services métier : double validation, révision/invalidation, soldes, calculs monétaires, numérotation, règles disciplinaires | 100 % des règles § 18.2 couvertes |
-| Fonctionnel | PHPUnit (tests HTTP Laravel) + base MySQL de test | Autorisations de chaque route (matrice A6), validation, uploads, exports | Chaque route admin testée en accès refusé |
+| Fonctionnel | PHPUnit (requêtes simulées sur le routeur) + base MySQL de test | Autorisations de chaque route (matrice A6), validation, uploads, exports | Chaque route admin testée en accès refusé |
 | E2E | Playwright (Chromium, viewports 360/768/1280) | Les 12 parcours du CMD § 4.4 | Suite verte avant chaque livraison |
 | Sécurité | Tests ciblés + revue | CSRF, XSS (contenu CMS), upload malveillant, IDOR, force brute | Aucun échec |
 | Accessibilité | axe-core via Playwright + clavier | Pages publiques et écrans clés | 0 violation sérieuse |

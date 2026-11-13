@@ -53,3 +53,34 @@ Le logo complet imposé est **vertical** (emblème au-dessus du bandeau MOHS). D
 
 - Rendu Playwright à 360 et 1280 px : aucun défilement horizontal (un débordement de 73 px des tableaux sur mobile a été corrigé).
 - Détecteur Impeccable : placeholder trop clair corrigé (#5C6A82) ; alerte de contraste sur le héro **ignorée pour ce seul fichier** (faux positif : le détecteur fait la moyenne du léger halo bleu, le texte repose en réalité sur un marine ≥ 12:1) ; alertes « carte dans une carte » (panneaux présentés dans un cadre de maquette), fond ivoire et lignes de houle du héro conservés comme choix délibérés.
+
+## 7. Direction artistique du site public (skill Taste)
+
+Le commanditaire a demandé le **skill Taste** (`design-taste-frontend`) à la place de « Task Skill ». Il a été appliqué ainsi :
+
+**Tirage.** `draw.mjs --sector nonprofit --keep palette,type` (couleurs et polices imposées par le logo) a proposé trois directions : *Colour chapters*, *Dressed as something else* et **The page is the object**. Retenue : **« La page est l'objet »** (graine 878571445, fiche complète dans `taste/direction-site-public.json`). C'est la seule qui peut porter un objet que seuls les marins possèdent.
+
+**L'idée.** *Sur ce site, le livret maritime du marin, et la carte de membre qui en découle, devient l'objet imprimé qui porte tout le contenu.* Test du concurrent : une mutuelle d'enseignants ou de transporteurs n'a pas de livret maritime, donc l'idée appartient bien à la MMMGCI.
+
+**La chose interactive.** « Préparer mon dossier » : le visiteur indique sa situation (marin en activité, ancien marin, livret maritime disponible, ayants droit). La page affiche la liste exacte des pièces prévues par l'article 6 du cahier des charges et un aperçu de sa future carte de membre à son nom. Elle fonctionne au pouce sur un téléphone ; sans JavaScript, la liste complète reste affichée.
+
+**Les sections tirées**, adaptées au contenu réel :
+
+| Rôle | Gabarit tiré | Contenu MMMGCI |
+|---|---|---|
+| Héro | Carte imprimée à bandes, à côté d'une grande photo | Carte au format du livret : bande de cordage tressé en haut (motif du logo), logo, « Un nouveau jour se lève », une phrase, bouton « Demander mon adhésion » ; à droite une photo réelle du port d'Abidjan |
+| Introduction | Titre, note, rangée de faits | Ce qu'est la Mutuelle ; faits tirés du cahier des charges uniquement (période 2026–2027, Abidjan, catégories admises de l'art. 5) — aucun chiffre inventé |
+| Missions | Capacités présentées comme une carte de menu | Les 8 domaines d'intervention de l'art. 9, la colonne de droite indiquant la nature de l'aide (information, orientation, après examen du dossier…) |
+| Vitrine | Fiches imprimées le long du bord | Les offres d'emploi et d'embarquement réelles, chacune sur une fiche ; état vide honnête tant qu'il n'y en a pas |
+| Liste | La feuille imprimée | Documents officiels et pièces du dossier d'adhésion |
+| À propos | La lettre | Mot du Président : **texte à fournir par la Mutuelle** (aucun texte ne sera inventé) ; section masquée tant qu'il manque |
+| Appel | La carte-réponse | Bulletin d'adhésion |
+| Pied de page | Le dos de la carte | Coordonnées, logo complet MMMGCI + MOHS, crédits des images |
+
+**Images.** La Mutuelle n'a encore aucune photo à elle. Ordre de recours : photos libres de droits du monde maritime ivoirien (port d'Abidjan, San-Pedro, navires, gens de mer), trouvées avec `assets.mjs`, téléchargées et créditées en pied de page ; à défaut, dessins en SVG des objets du métier (livret, ancre, cordage). Une image trouvée n'est jamais présentée comme une photo de la Mutuelle. Les photos d'architecture génériques proposées par le tirage sont écartées : elles ne disent rien du sujet.
+
+**Règles maison Taste adoptées** pour le site public : titres sur deux lignes au plus, aucun petit label au-dessus d'un titre, aucun dégradé, aucune ombre sur un élément au repos, aucun filet décoratif, aucun mot du titre mis en couleur, deux polices au maximum, un seul rayon d'angle, marges extérieures égales, contrôle par `lint.mjs` et `inspect.mjs` (0 FAIL à 1440, 768 et 390 px).
+
+**Conséquence sur la maquette actuelle.** La section « Accueil public » de `maquettes/design-system.html` est **remplacée** par cette direction. Elle enfreint plusieurs règles Taste : héro en dégradé, « se lève » en or, ombres, filets entre les missions. Elle sera reconstruite selon la direction ci-dessus à la tâche T4.0. Les écrans de gestion suivront le chapitre « écrans d'application » du skill : couleur réservée aux données, indicateurs en texte et non en tuiles, surfaces plates. Ce style sera tiré à la tâche T2.1.
+
+**Arbitrage entre les deux skills de conception.** Impeccable reste le garant de la qualité d'ensemble : accessibilité, états, audit final. Taste fixe la direction artistique et les règles maison du site public. En cas de conflit sur une page publique, ce sont les règles Taste qui s'appliquent.

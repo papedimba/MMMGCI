@@ -6,10 +6,8 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **Phase 1 — Validation de la conception** - commanditaire - livrables dans `docs/conception/`
 
 ## Waiting On
-- [ ] **D1 Choix du framework (Laravel 12 recommandé)** - commanditaire
-- [ ] **D2 Statuts et règlement intérieur** - Mutuelle
 - [ ] **D3 Approbateurs des décaissements** - instances
-- [ ] **D4 Domaine, hébergeur cPanel, SMTP** - commanditaire
+- [ ] **D4 Domaine, hébergeur cPanel, SMTP** - commanditaire (pas encore d'hébergement)
 - [ ] **Logo horizontal + version SVG/PNG transparente** - commanditaire
 
 ## Someday
@@ -30,5 +28,7 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **L14 Recette** (T14.1–T14.6) → V1.0
 
 ## Done
+- [x] ~~D1 Socle : PHP natif sans framework~~ (13/11/2026)
+- [x] ~~D2 Règles : cahier des charges seul~~ (13/11/2026)
 - [x] ~~Lecture et analyse du cahier des charges~~ (13/11/2026)
 - [x] ~~Livrables de conception phase 1~~ (13/11/2026)

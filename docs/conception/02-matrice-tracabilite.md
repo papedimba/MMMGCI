@@ -82,9 +82,9 @@
 
 | ID | Proposition | Justification |
 |---|---|---|
-| T01 | Laravel 12 (PHP 8.2+) livré avec `vendor/` | Sécurité éprouvée (CSRF, hash, validation, policies), migrations versionnées, communauté locale — à valider (D1) |
-| T02 | Assets compilés en développement, servis statiques | Aucun Node en production |
-| T03 | Planificateur Laravel déclenché par une seule tâche Cron cPanel | Pas de processus permanent |
+| T01 | Socle PHP 8.2+ maison, sans framework ni Composer en production | Décision du commanditaire (D1) : zéro dépendance PHP tierce ; protections écrites avec les fonctions natives de PHP |
+| T02 | CSS et JS écrits à la main, servis statiques, sans étape de compilation | Aucun Node en production ni en développement pour l'application |
+| T03 | Script `bin/cron.php` déclenché par une seule tâche Cron cPanel | Pas de processus permanent |
 | T04 | Stockage privé `storage/app/private`, téléchargement via contrôleur autorisé | Pièces confidentielles hors web |
 | T05 | Journal d'audit en ajout seul (+ chaîne de hachage) | Inaltérabilité vérifiable |
 | T06 | 2FA TOTP pour les rôles financiers et super admin | Risque R9 — à valider |
