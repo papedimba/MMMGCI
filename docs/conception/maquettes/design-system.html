@@ -1,0 +1,525 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Design system MMMGCI</title>
+<meta name="description" content="Maquette de conception : design system, accueil public, tableau de bord et écran de double validation de la plateforme MMMGCI.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+/* ===== Jetons ===== */
+:root{
+  --navy-950:#071631; --navy-900:#0B2350; --navy-800:#12306B; --navy-700:#1A3F86;
+  --ocean-600:#1F5AA6; --ocean-100:#E3ECF8; --ocean-50:#F1F5FB;
+  --gold-600:#A47C24; --gold-700:#7E5F17; --gold-400:#D2AE55; --gold-100:#F6EDD6;
+  --ivory:#FAF8F3; --paper:#FFFFFF; --line:#DCE2EC; --line-strong:#B9C3D3;
+  --ink:#122038; --ink-2:#3E4C66; --ink-3:#5C6A82;
+  --ci-orange:#F77F00; --ci-green:#009E60;
+  --ok:#1C7A4A; --ok-bg:#E5F3EB; --warn:#8F5600; --warn-bg:#FBF0DD;
+  --danger:#B42318; --danger-bg:#FCE9E7; --info:var(--ocean-600); --info-bg:var(--ocean-100);
+  --font-display:"Marcellus", "Times New Roman", serif;
+  --font-body:"Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --s1:4px; --s2:8px; --s3:12px; --s4:16px; --s5:24px; --s6:32px; --s7:48px; --s8:64px; --s9:96px;
+  --r-sm:6px; --r-md:10px; --r-lg:16px;
+  --shadow-1:0 1px 2px rgba(7,22,49,.06), 0 2px 6px rgba(7,22,49,.06);
+  --shadow-2:0 4px 12px rgba(7,22,49,.08), 0 12px 32px rgba(7,22,49,.10);
+  --focus:0 0 0 3px var(--paper), 0 0 0 5px var(--ocean-600);
+  color-scheme: light;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--ivory);color:var(--ink);font:400 1rem/1.55 var(--font-body);font-feature-settings:"tnum" 0}
+::selection{background:var(--gold-100);color:var(--navy-950)}
+:focus-visible{outline:none;box-shadow:var(--focus);border-radius:var(--r-sm)}
+a{color:var(--ocean-600);text-underline-offset:3px}
+h1,h2,h3{font-family:var(--font-display);font-weight:400;color:var(--navy-900);letter-spacing:.005em;text-wrap:balance;margin:0}
+h2{font-size:clamp(1.6rem,1.2rem + 1.6vw,2.25rem);line-height:1.15}
+h3{font-size:1.25rem;line-height:1.25}
+p{margin:0}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+@media (min-width:768px){.wrap{padding:0 32px}}
+.num{font-variant-numeric:tabular-nums}
+.section{padding:var(--s8) 0;border-top:1px solid var(--line)}
+.section > .wrap > h2{margin-bottom:var(--s3)}
+.lede{color:var(--ink-2);max-width:68ch;margin-bottom:var(--s6)}
+.doc-nav{position:sticky;top:0;z-index:5;background:var(--navy-950);color:#fff}
+.doc-nav .wrap{display:flex;gap:var(--s4);align-items:center;overflow-x:auto;padding-top:10px;padding-bottom:10px;font-size:.9rem;white-space:nowrap}
+.doc-nav a{color:#E6ECF7;text-decoration:none}
+.doc-nav a:hover{color:var(--gold-400)}
+.doc-nav strong{font-family:var(--font-display);font-weight:400;color:var(--gold-400);margin-right:var(--s3)}
+
+/* ===== Composants ===== */
+.btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 20px;border-radius:var(--r-sm);border:1px solid transparent;font:600 1rem/1 var(--font-body);cursor:pointer;text-decoration:none;transition:background .15s ease-out, box-shadow .15s ease-out}
+.btn svg{width:18px;height:18px}
+.btn-primary{background:var(--navy-800);color:#fff}
+.btn-primary:hover{background:var(--navy-900)}
+.btn-gold{background:var(--gold-400);color:var(--navy-950)}
+.btn-gold:hover{background:#C59E43}
+.btn-secondary{background:var(--paper);color:var(--navy-800);border-color:var(--line-strong)}
+.btn-secondary:hover{background:var(--ocean-50)}
+.btn-danger{background:var(--paper);color:var(--danger);border-color:#E7B4AE}
+.btn-danger:hover{background:var(--danger-bg)}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.btn-sm{min-height:36px;padding:0 14px;font-size:.9rem}
+.spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation-duration:3s}}
+
+.field{display:grid;gap:6px;margin-bottom:var(--s4)}
+.field label{font-weight:600;font-size:.95rem}
+.field .hint{color:var(--ink-3);font-size:.875rem}
+.input,.select,.textarea{width:100%;min-height:44px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:var(--r-sm);background:var(--paper);font:inherit;color:var(--ink)}
+.input::placeholder{color:#5C6A82}
+.input:focus{outline:none;border-color:var(--ocean-600);box-shadow:0 0 0 3px var(--ocean-100)}
+.field.error .input{border-color:var(--danger)}
+.field.error .msg{color:var(--danger);font-size:.875rem;display:flex;gap:6px;align-items:center}
+.req{color:var(--danger)}
+
+.badge{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:999px;font-size:.8125rem;font-weight:600;white-space:nowrap}
+.badge::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.b-ok{background:var(--ok-bg);color:var(--ok)} .b-warn{background:var(--warn-bg);color:var(--warn)}
+.b-danger{background:var(--danger-bg);color:var(--danger)} .b-info{background:var(--info-bg);color:var(--navy-800)}
+.b-neutral{background:#EDF0F5;color:var(--ink-2)}
+
+.alert{display:flex;gap:12px;padding:14px 16px;border-radius:var(--r-md);border:1px solid;font-size:.95rem}
+.alert svg{flex:none;width:20px;height:20px;margin-top:1px}
+.alert-info{background:var(--ocean-50);border-color:#C7D6EE;color:var(--navy-900)}
+.alert-warn{background:var(--warn-bg);border-color:#EBCF9E;color:#5E3A00}
+.alert-danger{background:var(--danger-bg);border-color:#F0BDB7;color:#7A170F}
+.alert-ok{background:var(--ok-bg);border-color:#B7DCC6;color:#11502F}
+
+.table-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--r-md);background:var(--paper)}
+table{border-collapse:collapse;width:100%;font-size:.95rem}
+th{text-align:left;font-weight:600;color:var(--ink-2);background:#F5F7FA;padding:10px 14px;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:12px 14px;border-bottom:1px solid var(--line);vertical-align:middle}
+tr:last-child td{border-bottom:0}
+tbody tr:hover{background:var(--ocean-50)}
+td.amount,th.amount{text-align:right;font-variant-numeric:tabular-nums}
+
+.panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--r-md);box-shadow:var(--shadow-1)}
+.panel-h{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:16px 20px;border-bottom:1px solid var(--line)}
+.panel-h h3{font-family:var(--font-body);font-weight:700;font-size:1rem;color:var(--ink)}
+.panel-b{padding:20px}
+
+.empty{text-align:center;padding:var(--s7) var(--s5);color:var(--ink-2)}
+.empty svg{width:40px;height:40px;color:var(--line-strong);margin-bottom:12px}
+.empty p{max-width:42ch;margin:6px auto 16px}
+.skeleton{background:linear-gradient(90deg,#EEF1F6 0,#F7F9FC 50%,#EEF1F6 100%);background-size:200% 100%;animation:sk 1.4s ease-in-out infinite;border-radius:4px;height:12px}
+@keyframes sk{to{background-position:-200% 0}}
+
+.grid{display:grid;gap:var(--s5);grid-template-columns:minmax(0,1fr)}
+.grid > *{min-width:0}
+@media(min-width:900px){.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* Spécimens */
+.swatches{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.sw{border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;background:var(--paper);font-size:.85rem}
+.sw i{display:block;height:64px}
+.sw div{padding:8px 10px}
+.sw code{color:var(--ink-3)}
+.type-row{display:grid;grid-template-columns:120px 1fr;gap:16px;padding:14px 0;border-bottom:1px solid var(--line);align-items:baseline}
+.type-row small{color:var(--ink-3)}
+@media(max-width:600px){.type-row{grid-template-columns:1fr}}
+.space-row{display:flex;align-items:center;gap:12px;font-size:.85rem;color:var(--ink-3);margin:6px 0}
+.space-row i{display:block;height:12px;background:var(--gold-400);border-radius:2px}
+
+/* ===== Écran public : accueil ===== */
+.frame{border:1px solid var(--line-strong);border-radius:var(--r-lg);overflow:hidden;background:var(--paper);box-shadow:var(--shadow-2)}
+.frame-label{font-size:.85rem;color:var(--ink-3);margin:0 0 10px}
+.site-top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 20px;background:var(--paper);border-bottom:1px solid var(--line)}
+.site-top img{height:72px;width:auto;display:block}
+@media(min-width:1000px){.site-top img{height:104px}}
+.site-menu{display:none;gap:22px;font-weight:600;font-size:.95rem}
+.site-menu a{color:var(--ink);text-decoration:none}
+.site-menu a:hover{color:var(--ocean-600)}
+.burger{width:44px;height:44px;border:1px solid var(--line);border-radius:var(--r-sm);display:grid;place-items:center;background:var(--paper)}
+@media(min-width:1000px){.site-menu{display:flex}.burger{display:none}}
+.hero{position:relative;color:#fff;background:
+  radial-gradient(120% 70% at 50% 120%, rgba(31,90,166,.35) 0, transparent 60%),
+  linear-gradient(180deg,var(--navy-950) 0%, var(--navy-900) 55%, var(--navy-800) 100%);padding:var(--s8) 20px var(--s9);overflow:hidden}
+.hero::after{content:"";position:absolute;inset:auto 0 0 0;height:90px;background:
+  repeating-linear-gradient(180deg, rgba(255,255,255,.07) 0 1px, transparent 1px 9px);mask:linear-gradient(180deg,transparent,#000)}
+.hero-in{position:relative;z-index:1;max-width:1000px;margin:0 auto;display:grid;gap:var(--s6);align-items:center}
+@media(min-width:900px){.hero-in{grid-template-columns:1.25fr .75fr}}
+.hero h1{color:#fff;font-size:clamp(2.2rem,1.4rem + 3.6vw,4.2rem);line-height:1.05;letter-spacing:-.005em}
+.hero h1 span{color:var(--gold-400)}
+.hero p{color:#D6E0F0;font-size:1.125rem;max-width:52ch;margin:var(--s4) 0 var(--s5)}
+.hero .ctas{display:flex;flex-wrap:wrap;gap:12px}
+.hero .btn-secondary{background:transparent;color:#fff;border-color:rgba(255,255,255,.45)}
+.hero .btn-secondary:hover{background:rgba(255,255,255,.08)}
+.hero-emblem{justify-self:center;width:min(300px,70vw);aspect-ratio:1;border-radius:50%;background:#fff url(logo-mmmgci-mohs.jpg) center 6%/150% auto no-repeat;box-shadow:0 0 0 8px rgba(255,255,255,.08), 0 24px 60px rgba(0,0,0,.35)}
+.flagline{display:flex;height:4px}
+.flagline i{flex:1}
+.missions{padding:var(--s7) 20px;max-width:1000px;margin:0 auto}
+.missions h2{margin-bottom:var(--s5)}
+.mission-list{display:grid;gap:0;border-top:1px solid var(--line)}
+.mission-list > div{display:grid;grid-template-columns:1fr;gap:6px;padding:18px 0;border-bottom:1px solid var(--line)}
+@media(min-width:760px){.mission-list > div{grid-template-columns:260px 1fr;gap:24px}}
+.mission-list h3{font-size:1.15rem}
+.mission-list p{color:var(--ink-2)}
+.cta-band{background:var(--gold-100);padding:var(--s6) 20px}
+.cta-band .in{max-width:1000px;margin:0 auto;display:flex;flex-wrap:wrap;gap:16px;align-items:center;justify-content:space-between}
+.cta-band h3{font-size:1.5rem}
+
+/* ===== Écran gestion : tableau de bord ===== */
+.app{display:grid;grid-template-columns:1fr;min-height:640px;background:#F4F6FA}
+@media(min-width:1000px){.app{grid-template-columns:248px 1fr}}
+.side{display:none;background:var(--navy-950);color:#C9D4E8;padding:16px 12px;font-size:.93rem}
+@media(min-width:1000px){.side{display:block}}
+.side .brand{display:flex;gap:10px;align-items:center;padding:6px 8px 18px;border-bottom:1px solid rgba(255,255,255,.08);margin-bottom:12px}
+.side .brand b{font-family:var(--font-display);font-weight:400;color:#fff;font-size:1.15rem;letter-spacing:.04em}
+.side .grp{margin:14px 8px 6px;color:#8C9AB6;font-size:.78rem;font-weight:600}
+.side a{display:flex;align-items:center;gap:10px;padding:8px 10px;color:#D7E0F0;text-decoration:none;border-radius:var(--r-sm)}
+.side a svg{width:18px;height:18px;opacity:.8}
+.side a:hover{background:rgba(255,255,255,.06)}
+.side a.on{background:rgba(210,174,85,.16);color:#fff}
+.side a .count{margin-left:auto;background:var(--gold-400);color:var(--navy-950);font-size:.75rem;font-weight:700;border-radius:999px;padding:0 7px}
+.main{min-width:0}
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;background:var(--paper);border-bottom:1px solid var(--line)}
+.search{flex:1;max-width:420px;position:relative}
+.search svg{position:absolute;left:12px;top:50%;transform:translateY(-50%);width:18px;height:18px;color:var(--ink-3)}
+.search .input{padding-left:38px;background:#F5F7FA}
+.user{display:flex;align-items:center;gap:10px;font-size:.9rem}
+@media(max-width:600px){.user span:last-child{display:none}}
+.avatar{width:36px;height:36px;border-radius:50%;background:var(--ocean-100);color:var(--navy-800);display:grid;place-items:center;font-weight:700}
+.content{padding:20px}
+.page-h{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:20px}
+.page-h h2{font-size:1.75rem}
+.page-h p{color:var(--ink-3);font-size:.95rem}
+.kpis{display:grid;grid-template-columns:repeat(2,1fr);border:1px solid var(--line);border-radius:var(--r-md);background:var(--paper);overflow:hidden;margin-bottom:20px}
+@media(max-width:420px){.kpis{grid-template-columns:1fr}}
+@media(min-width:900px){.kpis{grid-template-columns:repeat(4,1fr)}}
+.kpi{padding:16px 18px;border-right:1px solid var(--line);border-bottom:1px solid var(--line)}
+.kpi dt{color:var(--ink-3);font-size:.875rem}
+.kpi dd{white-space:nowrap;margin:4px 0 0;font-size:clamp(1.15rem,.9rem + 1.2vw,1.6rem);font-weight:700;font-variant-numeric:tabular-nums;color:var(--ink)}
+.kpi dd small{font-size:.85rem;font-weight:600;color:var(--ink-3);margin-left:4px}
+.kpi .sub{font-size:.8125rem;color:var(--ink-3)}
+.todo li{display:flex;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--line);font-size:.95rem}
+.todo li:last-child{border-bottom:0}
+.todo{list-style:none;margin:0;padding:0}
+.bars{display:grid;gap:10px;font-size:.875rem}
+.bar{display:grid;grid-template-columns:60px 1fr 110px;gap:10px;align-items:center}
+.bar .track{height:10px;background:#EDF0F5;border-radius:5px;overflow:hidden;display:flex}
+.bar .paid{background:var(--navy-700)} .bar .due{background:var(--gold-400)}
+.bar span:last-child{text-align:right;font-variant-numeric:tabular-nums;color:var(--ink-2)}
+.legend{display:flex;gap:16px;font-size:.8125rem;color:var(--ink-3);margin-top:10px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+
+/* ===== Écran double validation ===== */
+.steps{list-style:none;margin:0;padding:0;display:grid;gap:0}
+.steps li{display:grid;grid-template-columns:32px 1fr;gap:12px;padding-bottom:18px;position:relative}
+.steps li:not(:last-child)::before{content:"";position:absolute;left:15px;top:32px;bottom:0;width:2px;background:var(--line)}
+.steps li.done:not(:last-child)::before{background:var(--ok)}
+.dot{width:32px;height:32px;border-radius:50%;display:grid;place-items:center;border:2px solid var(--line-strong);background:var(--paper);color:var(--ink-3)}
+.dot svg{width:16px;height:16px}
+.done .dot{background:var(--ok);border-color:var(--ok);color:#fff}
+.current .dot{border-color:var(--ocean-600);color:var(--ocean-600);box-shadow:0 0 0 4px var(--ocean-100)}
+.steps b{display:block}
+.steps small{color:var(--ink-3)}
+.facts{display:grid;grid-template-columns:1fr;gap:0;margin:0}
+.facts > div{display:grid;grid-template-columns:1fr;gap:2px;padding:10px 0;border-bottom:1px solid var(--line)}
+@media(min-width:640px){.facts > div{grid-template-columns:180px 1fr}}
+.facts dt{color:var(--ink-3);font-size:.9rem}
+.facts dd{margin:0}
+.big-amount{font-size:2rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--navy-900)}
+.file{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:var(--r-sm);font-size:.9rem;margin-top:8px}
+.file svg{width:18px;height:18px;color:var(--ink-3)}
+.actions-bar{display:flex;flex-wrap:wrap;gap:10px;padding:16px 20px;border-top:1px solid var(--line);background:#FAFBFD}
+.mobile-preview{display:grid;gap:24px;align-items:start}
+@media(min-width:900px){.mobile-preview{grid-template-columns:1fr 340px}}
+.phone{width:100%;max-width:340px;margin:0 auto;border:10px solid var(--navy-950);border-radius:32px;overflow:hidden;background:#F4F6FA}
+.phone .topbar{padding:10px 14px}
+.phone .content{padding:14px}
+footer.doc{padding:var(--s7) 0;color:var(--ink-3);font-size:.9rem}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-users" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+  <symbol id="i-home" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1z"/></symbol>
+  <symbol id="i-coins" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.66 3.58 3 8 3s8-1.34 8-3V6M4 12v6c0 1.66 3.58 3 8 3s8-1.34 8-3v-6"/></symbol>
+  <symbol id="i-shield" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol>
+  <symbol id="i-heart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7z"/></symbol>
+  <symbol id="i-anchor" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/></symbol>
+  <symbol id="i-handshake" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m11 17 2 2a1 1 0 1 0 3-3"/><path d="m14 14 2.5 2.5a1 1 0 1 0 3-3l-3.88-3.88a3 3 0 0 0-4.24 0l-.88.88a1 1 0 1 1-3-3l2.81-2.81a5.79 5.79 0 0 1 7.06-.87l.47.28a2 2 0 0 0 1.42.25L21 4"/><path d="m21 3 1 11h-2M3 3 2 14l6.5 6.5a1 1 0 1 0 3-3M3 4h8"/></symbol>
+  <symbol id="i-landmark" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 22h18M6 18v-7M10 18v-7M14 18v-7M18 18v-7M12 2l8 5H4z"/></symbol>
+  <symbol id="i-chart" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 16v-4M12 16V8M17 16v-7"/></symbol>
+  <symbol id="i-file" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="i-info" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="i-alert" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><path d="M12 9v4M12 17h.01"/></symbol>
+  <symbol id="i-menu" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+  <symbol id="i-plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="i-inbox" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+</svg>
+
+<nav class="doc-nav" aria-label="Sommaire de la maquette">
+  <div class="wrap">
+    <strong>MMMGCI · Design system</strong>
+    <a href="#couleurs">Couleurs</a><a href="#typo">Typographie</a><a href="#espaces">Espacements</a><a href="#composants">Composants</a><a href="#accueil">Accueil public</a><a href="#tableau">Tableau de bord</a><a href="#decaissement">Double validation</a>
+  </div>
+</nav>
+
+<header class="wrap" style="padding-top:48px;padding-bottom:40px">
+  <h1 style="font-size:clamp(2rem,1.4rem + 2.4vw,3rem);line-height:1.1">Plateforme MMMGCI — design system et écrans clés</h1>
+  <p class="lede" style="margin-top:14px;margin-bottom:0">Maquette de conception soumise à validation (phase 1). Identité tirée du logo : bleu marine profond de la mer, or du bandeau, blanc du cordage. Les données affichées dans les écrans sont <strong>des exemples de maquette</strong>, jamais des chiffres de production.</p>
+</header>
+
+<!-- ===== Couleurs ===== -->
+<section class="section" id="couleurs"><div class="wrap">
+  <h2>Couleurs</h2>
+  <p class="lede">Deux familles portent l'identité : le marine (structure, texte, navigation) et l'or (accent, appel à l'action principal du site public). L'or n'est jamais utilisé pour du texte sur fond clair en dessous de <code>--gold-700</code> (contraste AA). Les couleurs nationales ivoiriennes n'apparaissent qu'en filet fin, comme dans le logo.</p>
+  <div class="swatches">
+    <div class="sw"><i style="background:var(--navy-950)"></i><div>Marine 950<br><code>#071631</code></div></div>
+    <div class="sw"><i style="background:var(--navy-900)"></i><div>Marine 900<br><code>#0B2350</code></div></div>
+    <div class="sw"><i style="background:var(--navy-800)"></i><div>Marine 800 · action<br><code>#12306B</code></div></div>
+    <div class="sw"><i style="background:var(--ocean-600)"></i><div>Océan 600 · liens<br><code>#1F5AA6</code></div></div>
+    <div class="sw"><i style="background:var(--ocean-100)"></i><div>Océan 100<br><code>#E3ECF8</code></div></div>
+    <div class="sw"><i style="background:var(--gold-400)"></i><div>Or 400 · accent<br><code>#D2AE55</code></div></div>
+    <div class="sw"><i style="background:var(--gold-700)"></i><div>Or 700 · texte<br><code>#7E5F17</code></div></div>
+    <div class="sw"><i style="background:var(--gold-100)"></i><div>Or 100<br><code>#F6EDD6</code></div></div>
+    <div class="sw"><i style="background:var(--ivory)"></i><div>Ivoire · fond<br><code>#FAF8F3</code></div></div>
+    <div class="sw"><i style="background:var(--ink)"></i><div>Encre · texte<br><code>#122038</code></div></div>
+    <div class="sw"><i style="background:var(--ok)"></i><div>Succès<br><code>#1C7A4A</code></div></div>
+    <div class="sw"><i style="background:var(--warn)"></i><div>Attention<br><code>#8F5600</code></div></div>
+    <div class="sw"><i style="background:var(--danger)"></i><div>Erreur<br><code>#B42318</code></div></div>
+    <div class="sw"><i style="background:linear-gradient(90deg,var(--ci-orange) 33%,#fff 33% 66%,var(--ci-green) 66%)"></i><div>Filet national<br><code>usage décoratif fin</code></div></div>
+  </div>
+</div></section>
+
+<!-- ===== Typographie ===== -->
+<section class="section" id="typo"><div class="wrap">
+  <h2>Typographie</h2>
+  <p class="lede"><strong>Marcellus</strong> (capitales classiques, proches du lettrage du logo) pour les titres ; <strong>Source Sans 3</strong> pour le texte, les formulaires et les tableaux (excellente lecture sur petits écrans, chiffres tabulaires, accents français complets). Les deux polices sont sous licence libre OFL et seront auto-hébergées (aucun appel externe en production).</p>
+  <div class="type-row"><small>Display · 56/60</small><h1 style="font-size:3.5rem;line-height:1.07">Un nouveau jour se lève</h1></div>
+  <div class="type-row"><small>H2 · 36/42</small><h2>Solidarité entre gens de mer</h2></div>
+  <div class="type-row"><small>H3 · 20/25</small><h3>Fonds de solidarité</h3></div>
+  <div class="type-row"><small>Texte · 16/25</small><p style="max-width:68ch">La Mutuelle accompagne les marins marchands, les gens de mer et leurs familles dans les situations difficiles, selon les règles adoptées par ses instances.</p></div>
+  <div class="type-row"><small>Données · 16 tabulaires</small><p class="num">MMMGCI-2026-00412 · 125 000 XOF · 13/11/2026</p></div>
+  <div class="type-row"><small>Petit · 14/20</small><p style="font-size:.875rem;color:var(--ink-3)">Les pièces jointes sont conservées dans un espace privé.</p></div>
+</div></section>
+
+<!-- ===== Espacements ===== -->
+<section class="section" id="espaces"><div class="wrap">
+  <h2>Espacements, rayons, ombres</h2>
+  <p class="lede">Échelle de 4 px. Groupes serrés (8–12 px), séparations généreuses (32–64 px). Rayons sobres : 6 px contrôles, 10 px panneaux, 16 px cadres. Cibles tactiles d'au moins 44 px.</p>
+  <div class="space-row"><i style="width:4px"></i>4 — s1</div>
+  <div class="space-row"><i style="width:8px"></i>8 — s2</div>
+  <div class="space-row"><i style="width:12px"></i>12 — s3</div>
+  <div class="space-row"><i style="width:16px"></i>16 — s4 (gouttière mobile)</div>
+  <div class="space-row"><i style="width:24px"></i>24 — s5</div>
+  <div class="space-row"><i style="width:32px"></i>32 — s6</div>
+  <div class="space-row"><i style="width:48px"></i>48 — s7</div>
+  <div class="space-row"><i style="width:64px"></i>64 — s8</div>
+  <div class="space-row"><i style="width:96px"></i>96 — s9</div>
+</div></section>
+
+<!-- ===== Composants ===== -->
+<section class="section" id="composants"><div class="wrap">
+  <h2>Composants</h2>
+  <p class="lede">Chaque composant a ses états : survol, focus clavier visible, désactivé, chargement, erreur, vide.</p>
+
+  <div class="grid g2">
+    <div class="panel"><div class="panel-h"><h3>Boutons</h3></div><div class="panel-b" style="display:flex;flex-wrap:wrap;gap:10px">
+      <button class="btn btn-primary"><svg><use href="#i-plus"/></svg>Nouvel adhérent</button>
+      <button class="btn btn-secondary">Exporter</button>
+      <button class="btn btn-gold">Adhérer à la Mutuelle</button>
+      <button class="btn btn-danger">Rejeter</button>
+      <button class="btn btn-primary" disabled>Désactivé</button>
+      <button class="btn btn-primary" aria-busy="true"><span class="spinner" aria-hidden="true"></span>Enregistrement…</button>
+    </div></div>
+
+    <div class="panel"><div class="panel-h"><h3>Statuts</h3></div><div class="panel-b" style="display:flex;flex-wrap:wrap;gap:8px">
+      <span class="badge b-ok">Actif</span><span class="badge b-warn">En attente</span><span class="badge b-danger">Rejeté</span>
+      <span class="badge b-info">En instruction</span><span class="badge b-neutral">Archivé</span><span class="badge b-ok">Approuvé 2/2</span><span class="badge b-warn">Approuvé 1/2</span>
+    </div></div>
+
+    <div class="panel"><div class="panel-h"><h3>Formulaire</h3></div><div class="panel-b">
+      <div class="field"><label for="f1">Nom <span class="req" aria-hidden="true">*</span></label><input class="input" id="f1" value="KOUASSI" autocomplete="family-name"></div>
+      <div class="field"><label for="f2">Profession maritime</label><select class="select" id="f2"><option>Matelot</option><option>Officier pont</option><option>Mécanicien</option></select></div>
+      <div class="field error"><label for="f3">Téléphone <span class="req" aria-hidden="true">*</span></label><input class="input" id="f3" value="07 12" aria-invalid="true" aria-describedby="f3m"><span class="msg" id="f3m"><svg width="16" height="16"><use href="#i-alert"/></svg>Numéro incomplet : saisissez les 10 chiffres (ex. 07 12 34 56 78).</span></div>
+      <div class="field"><label for="f4">Numéro du livret maritime</label><input class="input" id="f4" placeholder="Facultatif"><span class="hint">Si vous en possédez un.</span></div>
+    </div></div>
+
+    <div class="panel"><div class="panel-h"><h3>Notifications</h3></div><div class="panel-b grid" style="gap:10px">
+      <div class="alert alert-ok" role="status"><svg><use href="#i-check"/></svg><div>Paiement enregistré. Reçu REC-2026-00087 généré.</div></div>
+      <div class="alert alert-info"><svg><use href="#i-info"/></svg><div>Paramètre en attente de validation par les instances : le montant de la cotisation n'est pas encore fixé.</div></div>
+      <div class="alert alert-warn"><svg><use href="#i-alert"/></svg><div>Le montant a été modifié : les approbations précédentes sont annulées.</div></div>
+      <div class="alert alert-danger" role="alert"><svg><use href="#i-x"/></svg><div>Vous avez initié cette demande : vous ne pouvez pas l'approuver.</div></div>
+    </div></div>
+  </div>
+
+  <div class="grid g2" style="margin-top:24px">
+    <div class="panel"><div class="panel-h"><h3>Tableau</h3><span class="badge b-neutral">3 résultats</span></div>
+      <div class="table-wrap" style="border:0;border-radius:0">
+      <table><thead><tr><th>N° membre</th><th>Nom</th><th>Statut</th><th class="amount">Dû (XOF)</th></tr></thead>
+      <tbody><tr><td class="num">MMMGCI-2026-00412</td><td>Kouassi Yao</td><td><span class="badge b-ok">Actif</span></td><td class="amount">0</td></tr>
+      <tr><td class="num">MMMGCI-2026-00413</td><td>Traoré Aminata</td><td><span class="badge b-warn">À jour partiel</span></td><td class="amount">10 000</td></tr>
+      <tr><td class="num">MMMGCI-2026-00414</td><td>N'Guessan Paul</td><td><span class="badge b-neutral">Ancien marin</span></td><td class="amount">0</td></tr></tbody></table></div>
+    </div>
+    <div class="panel"><div class="panel-h"><h3>État vide et chargement</h3></div>
+      <div class="empty"><svg><use href="#i-inbox"/></svg><b>Aucune demande d'assistance pour le moment</b><p>Les demandes reçues en ligne ou enregistrées par un gestionnaire apparaîtront ici.</p><button class="btn btn-secondary btn-sm"><svg><use href="#i-plus"/></svg>Enregistrer une demande</button></div>
+      <div class="panel-b" style="border-top:1px solid var(--line);display:grid;gap:10px" aria-hidden="true"><div class="skeleton" style="width:60%"></div><div class="skeleton" style="width:85%"></div><div class="skeleton" style="width:40%"></div></div>
+    </div>
+  </div>
+</div></section>
+
+<!-- ===== Accueil ===== -->
+<section class="section" id="accueil"><div class="wrap">
+  <h2>Accueil public</h2>
+  <p class="lede">Mode « persuader » : une section héro forte sur la mer de nuit qui s'éclaire, le slogan en avant, l'adhésion en appel principal. En-tête blanc pour que le logo complet (fond blanc) s'affiche sans détourage. Les missions sont une liste éditoriale, pas une grille de cartes identiques.</p>
+  <p class="frame-label">Ordinateur — 1280 px (se replie sur mobile)</p>
+  <div class="frame">
+    <div class="site-top">
+      <img src="logo-mmmgci-mohs.jpg" alt="Mutuelle des Marins Marchands et Gens de Mer de Côte d'Ivoire — Maritime Oceans and Hospitality Services">
+      <nav class="site-menu" aria-label="Menu principal (maquette)"><a href="#">La Mutuelle</a><a href="#">Actions sociales</a><a href="#">Emploi</a><a href="#">Formation</a><a href="#">Actualités</a><a href="#">Contact</a></nav>
+      <span class="burger" aria-label="Menu"><svg width="22" height="22"><use href="#i-menu"/></svg></span>
+    </div>
+    <div class="flagline" aria-hidden="true"><i style="background:var(--ci-orange)"></i><i style="background:#fff"></i><i style="background:var(--ci-green)"></i></div>
+    <div class="hero">
+      <div class="hero-in">
+        <div>
+          <h1>Un nouveau jour <span>se lève</span></h1>
+          <p>Solidarité, entraide et accompagnement social pour les marins marchands, les gens de mer et leurs familles en Côte d'Ivoire.</p>
+          <div class="ctas"><a class="btn btn-gold" href="#">Demander mon adhésion</a><a class="btn btn-secondary" href="#">Découvrir la Mutuelle</a></div>
+        </div>
+        <div class="hero-emblem" role="img" aria-label="Emblème de la Mutuelle"></div>
+      </div>
+    </div>
+    <div class="missions">
+      <h2>Nos missions</h2>
+      <div class="mission-list">
+        <div><h3>Solidarité et entraide</h3><p>Renforcer la solidarité entre marins marchands et gens de mer, et assister les membres confrontés à des difficultés sociales.</p></div>
+        <div><h3>Familles et ayants droit</h3><p>Accompagner les familles en cas de décès et les ayants droit, selon les règles et ressources disponibles.</p></div>
+        <div><h3>Santé</h3><p>Faciliter l'accès à l'information et à l'orientation sanitaire.</p></div>
+        <div><h3>Emploi et formation</h3><p>Contribuer à l'insertion et au retour à l'emploi, diffuser les opportunités d'embarquement et orienter vers les formations.</p></div>
+        <div><h3>Anciens marins</h3><p>Accompagner les anciens marins selon les dispositifs adoptés.</p></div>
+      </div>
+    </div>
+    <div class="cta-band"><div class="in"><h3>Vous êtes marin ou gens de mer ?</h3><a class="btn btn-primary" href="#">Constituer mon dossier d'adhésion</a></div></div>
+  </div>
+</div></section>
+
+<!-- ===== Tableau de bord ===== -->
+<section class="section" id="tableau"><div class="wrap">
+  <h2>Tableau de bord de gestion</h2>
+  <p class="lede">Mode « opérer » : sobre, dense mais lisible. Une bande d'indicateurs (pas de cartes décoratives), puis « À traiter » en priorité. Le menu latéral ne montre que les modules autorisés. Chiffres d'exemple.</p>
+  <p class="frame-label">Ordinateur — 1280 px</p>
+  <div class="frame"><div class="app">
+    <aside class="side" aria-label="Navigation de gestion (maquette)">
+      <div class="brand"><svg width="26" height="26" style="color:var(--gold-400)"><use href="#i-anchor"/></svg><b>MMMGCI</b></div>
+      <a class="on" href="#"><svg><use href="#i-home"/></svg>Tableau de bord</a>
+      <div class="grp">Membres</div>
+      <a href="#"><svg><use href="#i-users"/></svg>Adhérents</a>
+      <a href="#"><svg><use href="#i-inbox"/></svg>Demandes d'adhésion<span class="count">12</span></a>
+      <div class="grp">Finances</div>
+      <a href="#"><svg><use href="#i-coins"/></svg>Cotisations</a>
+      <a href="#"><svg><use href="#i-shield"/></svg>Décaissements<span class="count">3</span></a>
+      <a href="#"><svg><use href="#i-heart"/></svg>Fonds de solidarité</a>
+      <div class="grp">Accompagnement</div>
+      <a href="#"><svg><use href="#i-heart"/></svg>Demandes sociales</a>
+      <a href="#"><svg><use href="#i-anchor"/></svg>Emploi et formation</a>
+      <a href="#"><svg><use href="#i-handshake"/></svg>Partenariats</a>
+      <div class="grp">Institution</div>
+      <a href="#"><svg><use href="#i-landmark"/></svg>Gouvernance</a>
+      <a href="#"><svg><use href="#i-chart"/></svg>Rapports</a>
+      <a href="#"><svg><use href="#i-file"/></svg>Site web (CMS)</a>
+    </aside>
+    <div class="main">
+      <div class="topbar">
+        <label class="search"><svg><use href="#i-search"/></svg><span class="sr" style="position:absolute;left:-9999px">Rechercher</span><input class="input" placeholder="Rechercher un membre, une référence…"></label>
+        <div class="user"><span class="avatar">SG</span><span>Secrétariat général</span></div>
+      </div>
+      <div class="content">
+        <div class="page-h"><div><h2>Tableau de bord</h2><p>Novembre 2026 · données au 13/11/2026 à 09:42</p></div><select class="select" style="width:auto"><option>Ce mois-ci</option><option>Ce trimestre</option></select></div>
+        <dl class="kpis">
+          <div class="kpi"><dt>Membres actifs</dt><dd>412</dd><div class="sub">+18 adhésions · 6 réadhésions</div></div>
+          <div class="kpi"><dt>Cotisations encaissées</dt><dd>1 240 000<small>XOF</small></dd><div class="sub">sur 1 650 000 appelés</div></div>
+          <div class="kpi"><dt>Fonds de solidarité</dt><dd>3 105 000<small>XOF</small></dd><div class="sub">solde disponible</div></div>
+          <div class="kpi"><dt>Demandes sociales</dt><dd>7</dd><div class="sub">dont 2 urgentes</div></div>
+        </dl>
+        <div class="grid g2" style="gap:20px">
+          <div class="panel"><div class="panel-h"><h3>À traiter</h3></div><div class="panel-b" style="padding-top:4px;padding-bottom:4px">
+            <ul class="todo">
+              <li><span>12 demandes d'adhésion à vérifier</span><a href="#">Ouvrir</a></li>
+              <li><span>3 décaissements en attente d'approbation</span><a href="#">Ouvrir</a></li>
+              <li><span>2 demandes d'assistance urgentes</span><span class="badge b-danger">Urgent</span></li>
+              <li><span>Rapport de la délégation San-Pedro reçu</span><a href="#">Lire</a></li>
+            </ul></div></div>
+          <div class="panel"><div class="panel-h"><h3>Cotisations : appelé / encaissé</h3></div><div class="panel-b">
+            <div class="bars">
+              <div class="bar"><span>Août</span><span class="track"><i class="paid" style="width:78%"></i><i class="due" style="width:22%"></i></span><span>78 %</span></div>
+              <div class="bar"><span>Sept.</span><span class="track"><i class="paid" style="width:71%"></i><i class="due" style="width:29%"></i></span><span>71 %</span></div>
+              <div class="bar"><span>Oct.</span><span class="track"><i class="paid" style="width:80%"></i><i class="due" style="width:20%"></i></span><span>80 %</span></div>
+              <div class="bar"><span>Nov.</span><span class="track"><i class="paid" style="width:75%"></i><i class="due" style="width:25%"></i></span><span>75 %</span></div>
+            </div>
+            <div class="legend"><span><i style="background:var(--navy-700)"></i>Encaissé</span><span><i style="background:var(--gold-400)"></i>Impayé</span></div>
+          </div></div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</div></section>
+
+<!-- ===== Double validation ===== -->
+<section class="section" id="decaissement"><div class="wrap">
+  <h2>Écran de double validation d'un décaissement</h2>
+  <p class="lede">L'écran le plus sensible. Le circuit est visible en permanence ; les boutons affichés dépendent des droits de l'utilisateur et de l'étape. Ici, l'utilisateur connecté est le second approbateur. La version smartphone empile les mêmes blocs.</p>
+  <div class="mobile-preview">
+    <div class="frame"><div class="content" style="background:#F4F6FA">
+      <div class="page-h"><div><p class="num">DEC-2026-0031 · révision 1</p><h2>Aide d'urgence — famille Koné</h2></div><span class="badge b-warn">Approuvé 1/2</span></div>
+      <div class="grid" style="grid-template-columns:minmax(0,1fr);gap:20px">
+        <div class="panel">
+          <div class="panel-b">
+            <div class="big-amount">150 000 XOF</div>
+            <dl class="facts" style="margin-top:12px">
+              <div><dt>Bénéficiaire</dt><dd>Famille de feu Koné Ibrahim (MMMGCI-2026-00098)</dd></div>
+              <div><dt>Compte débité</dt><dd>Fonds de solidarité · solde 3 105 000 XOF</dd></div>
+              <div><dt>Motif</dt><dd>Accompagnement de la famille suite au décès — décision du Bureau exécutif BE-2026-014</dd></div>
+              <div><dt>Dossier lié</dt><dd><a href="#">AS-2026-0019</a></dd></div>
+              <div><dt>Justificatifs</dt><dd><span class="file"><svg><use href="#i-file"/></svg>Extrait de décision BE-2026-014.pdf</span><span class="file"><svg><use href="#i-file"/></svg>Acte de décès.pdf</span></dd></div>
+            </dl>
+          </div>
+          <div class="actions-bar">
+            <button class="btn btn-primary"><svg><use href="#i-check"/></svg>Approuver (2ᵉ validation)</button>
+            <button class="btn btn-danger">Rejeter…</button>
+          </div>
+        </div>
+        <div class="panel"><div class="panel-h"><h3>Circuit de validation</h3></div><div class="panel-b">
+          <ol class="steps">
+            <li class="done"><span class="dot"><svg><use href="#i-check"/></svg></span><div><b>Initiée par A. Diallo</b><small>Trésorerie · 11/11/2026 14:05</small></div></li>
+            <li class="done"><span class="dot"><svg><use href="#i-check"/></svg></span><div><b>1ʳᵉ approbation — M. Bamba</b><small>12/11/2026 10:21 · « Pièces conformes »</small></div></li>
+            <li class="current"><span class="dot">2</span><div><b>2ᵉ approbation — en attente</b><small>Approbateur distinct de l'initiateur et du 1ᵉʳ approbateur</small></div></li>
+            <li><span class="dot">3</span><div><b>Paiement</b><small>Débloqué uniquement après 2 approbations</small></div></li>
+          </ol>
+          <div class="alert alert-info" style="margin-top:6px"><svg><use href="#i-info"/></svg><div>Toute modification du montant, du bénéficiaire ou des pièces annulera les approbations.</div></div>
+        </div></div>
+      </div>
+    </div></div>
+    <div>
+      <p class="frame-label">Smartphone — 360 px (même écran, blocs empilés)</p>
+      <div class="phone">
+        <div class="topbar"><span class="burger" style="width:40px;height:40px"><svg width="20" height="20"><use href="#i-menu"/></svg></span><b style="font-family:var(--font-display);font-weight:400;color:var(--navy-900)">MMMGCI</b><span class="avatar">MB</span></div>
+        <div class="content">
+          <p class="num" style="font-size:.85rem;color:var(--ink-3)">DEC-2026-0031</p>
+          <h3 style="margin:2px 0 8px">Aide d'urgence — famille Koné</h3>
+          <span class="badge b-warn">Approuvé 1/2</span>
+          <div class="panel" style="margin-top:12px"><div class="panel-b" style="padding:14px">
+            <div class="big-amount" style="font-size:1.6rem">150 000 XOF</div>
+            <p style="font-size:.9rem;color:var(--ink-2);margin-top:4px">Fonds de solidarité · décision BE-2026-014</p>
+            <span class="file"><svg><use href="#i-file"/></svg>2 justificatifs</span>
+          </div>
+          <div class="actions-bar" style="padding:12px 14px"><button class="btn btn-primary" style="width:100%;justify-content:center">Approuver</button><button class="btn btn-danger" style="width:100%;justify-content:center">Rejeter…</button></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div></section>
+
+<footer class="doc wrap">MMMGCI — « Un nouveau jour se lève » · Maquette de conception, novembre 2026. Les noms, montants et références affichés sont fictifs et servent uniquement à illustrer les écrans.</footer>
+</body>
+</html>

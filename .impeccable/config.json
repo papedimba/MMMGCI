@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "low-contrast",
+        "value": "*",
+        "files": [
+          "docs/conception/maquettes/design-system.html"
+        ],
+        "createdAt": "2026-11-13T22:08:10.487Z",
+        "reason": "Claude: hero text sits on navy #071631-#12306B; detector averages the faint radial glow (rendered screenshot shows ≥12:1)"
+      }
+    ]
+  }
+}
