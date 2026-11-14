@@ -67,6 +67,62 @@ final class RouterTest extends TestCase
         $this->assertStringContainsString('Page introuvable', $res->body());
     }
 
+    public function test_literal_dot_is_not_a_wildcard(): void
+    {
+        $r = (new Router())->get('/sitemap.xml', $this->ok());
+        $this->assertSame(404, $r->dispatch(new Request('GET', '/sitemapXxml'))->status());
+        $this->assertSame(200, $r->dispatch(new Request('GET', '/sitemap.xml'))->status());
+    }
+
+    public function test_trailing_newline_does_not_match_typed_param(): void
+    {
+        $r = (new Router())->get('/membres/{id:\d+}', $this->ok());
+        foreach (["/membres/42\n", '/membres/42%0A'] as $path) {
+            $this->assertNotSame(200, $r->dispatch(new Request('GET', $path))->status());
+        }
+    }
+
+    public function test_brace_quantifier_in_param_regex(): void
+    {
+        $r = (new Router())->get('/c/{id:\d{2}}', $this->ok());
+        $this->assertSame('ok:42', $r->dispatch(new Request('GET', '/c/42'))->body());
+        $this->assertSame(404, $r->dispatch(new Request('GET', '/c/421'))->status());
+    }
+
+    public function test_double_leading_slash_is_not_treated_as_host(): void
+    {
+        $_SERVER['REQUEST_URI'] = '//admin/x';
+        $this->assertSame('/admin/x', Request::fromGlobals()->path());
+    }
+
+    public function test_encoded_slash_stays_inside_param(): void
+    {
+        $r = (new Router())->get('/actualites/{slug}', static fn(Request $q): Response => new Response((string) $q->attribute('slug')));
+        $res = $r->dispatch(new Request('GET', '/actualites/a%2Fb'));
+        $this->assertSame(200, $res->status());
+        $this->assertSame('a/b', $res->body());
+    }
+
+    public function test_control_characters_in_path_are_rejected(): void
+    {
+        $r = (new Router())->get('/actualites/{slug}', $this->ok());
+        $this->assertSame(400, $r->dispatch(new Request('GET', '/actualites/a%00b'))->status());
+    }
+
+    public function test_query_string_is_stripped_from_path(): void
+    {
+        $_SERVER['REQUEST_URI'] = '/contact?a=1&b=/x';
+        $this->assertSame('/contact', Request::fromGlobals()->path());
+    }
+
+    public function test_head_is_served_like_get_without_body(): void
+    {
+        $r = (new Router())->get('/contact', $this->ok());
+        $res = $r->dispatch(new Request('HEAD', '/contact'));
+        $this->assertSame(200, $res->status());
+        $this->assertSame('', $res->body());
+    }
+
     public function test_array_handler_is_built_by_factory(): void
     {
         $r = (new Router(fn(string $c) => new $c()))->get('/h', [RouterTestHandler::class, 'index']);

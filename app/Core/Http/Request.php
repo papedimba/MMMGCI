@@ -6,6 +6,7 @@ namespace App\Core\Http;
 final class Request
 {
     private array $attributes = [];
+    private string $path;
 
     public function __construct(
         private string $method,
@@ -16,16 +17,14 @@ final class Request
         private array $server = [],
         private array $cookies = [],
     ) {
-        $path = '/' . trim($path, '/');
-        $this->path = $path;
+        $this->path = '/' . trim($path, '/');
     }
-
-    private string $path;
 
     public static function fromGlobals(): self
     {
-        $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH);
-        return new self($_SERVER['REQUEST_METHOD'] ?? 'GET', rawurldecode(is_string($path) ? $path : '/'), $_GET, $_POST, $_FILES, $_SERVER, $_COOKIE);
+        // Chemin brut (non décodé) : le routeur décode chaque paramètre, pour que %2F reste dans son segment.
+        $uri = explode('?', (string) ($_SERVER['REQUEST_URI'] ?? '/'), 2)[0];
+        return new self($_SERVER['REQUEST_METHOD'] ?? 'GET', preg_replace('#^/+#', '/', $uri), $_GET, $_POST, $_FILES, $_SERVER, $_COOKIE);
     }
 
     public function method(): string { return strtoupper($this->method); }

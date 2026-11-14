@@ -39,18 +39,23 @@ final class Router
 
     public function dispatch(Request $r): Response
     {
+        if (preg_match('/[\x00-\x1F\x7F]/', rawurldecode($r->path()))) {
+            return ($this->errorRenderer)(400, $r);
+        }
+        $head = $r->method() === 'HEAD';
+        $verb = $head ? 'GET' : $r->method();
         $allowed = [];
         foreach ($this->routes as [$method, $regex, $handler, $middleware]) {
             if (!preg_match($regex, $r->path(), $m)) {
                 continue;
             }
-            if ($method !== $r->method()) {
+            if ($method !== $verb) {
                 $allowed[] = $method;
                 continue;
             }
             foreach ($m as $k => $v) {
                 if (is_string($k)) {
-                    $r = $r->withAttribute($k, $v);
+                    $r = $r->withAttribute($k, rawurldecode($v));
                 }
             }
             $call = is_array($handler) ? [($this->factory)($handler[0]), $handler[1]] : $handler;
@@ -60,7 +65,8 @@ final class Router
                 fn(callable $next, $mw) => fn(Request $req): Response => (is_string($mw) ? ($this->factory)($mw) : $mw)->handle($req, $next),
                 $core,
             );
-            return $next($r);
+            $res = $next($r);
+            return $head ? new Response('', $res->status(), $res->headers()) : $res;
         }
         if ($allowed) {
             return ($this->errorRenderer)(405, $r)->withHeader('Allow', implode(', ', array_unique($allowed)));
@@ -71,18 +77,24 @@ final class Router
     private function add(string $method, string $pattern, callable|array $handler, array $middleware): self
     {
         $path = '/' . trim($this->prefix . $pattern, '/');
-        $regex = preg_replace_callback(
-            '/\{(\w+)(?::([^}]+))?\}/',
-            static fn(array $m): string => '(?P<' . $m[1] . '>' . ($m[2] ?? '[^/]+') . ')',
-            $path,
-        );
-        $this->routes[] = [$method, '#^' . $regex . '$#', $handler, [...$this->groupMiddleware, ...$middleware]];
+        // Littéraux échappés ; {nom} ou {nom:regex} (la regex peut contenir des quantificateurs {n,m}).
+        $parts = preg_split('/(\\{\\w+(?::(?:[^{}]|\\{\\d+(?:,\\d*)?\\})+)?\\})/', $path, -1, PREG_SPLIT_DELIM_CAPTURE);
+        $regex = '';
+        foreach ($parts as $i => $part) {
+            if ($i % 2 === 0) {
+                $regex .= preg_quote($part, '#');
+                continue;
+            }
+            [$name, $re] = explode(':', substr($part, 1, -1), 2) + [1 => '[^/]+'];
+            $regex .= "(?P<$name>$re)";
+        }
+        $this->routes[] = [$method, '#^' . $regex . '$#D', $handler, [...$this->groupMiddleware, ...$middleware]];
         return $this;
     }
 
     private static function defaultError(int $status, Request $r): Response
     {
-        $msg = $status === 405 ? 'Méthode non autorisée' : 'Page introuvable';
+        $msg = match ($status) { 400 => 'Requête invalide', 405 => 'Méthode non autorisée', default => 'Page introuvable' };
         return new Response(
             "<!DOCTYPE html><html lang=\"fr\"><head><meta charset=\"utf-8\"><title>$msg</title></head><body><h1>$msg</h1></body></html>",
             $status,
