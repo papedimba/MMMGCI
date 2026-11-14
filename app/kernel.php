@@ -21,7 +21,7 @@ use App\Modules\Auth\Auth;
 
 /**
  * Assemble l'application ; $httpSession = false pour la construire sans session PHP (tests, CLI).
- * $overrides : 'db' (Database), 'mailer' (Mailer), 'clock' (callable(): int). $services reçoit les services construits (tests) ;
+ * $overrides : 'db' (Database), 'mailer' (Mailer), 'clock' (callable(): int), 'defer' (callable(callable $job): void, travail après la réponse). $services reçoit les services construits (tests) ;
  * db, gate, auth, audit et mailer y sont des fabriques paresseuses (callable(): objet), partagées avec les routes.
  *
  * @param array<string,mixed> $overrides
@@ -49,7 +49,23 @@ return static function (Config $config, bool $httpSession, array $overrides = []
     $audit = $once(static fn (): Audit => new Audit($db(), (string) $config->get('APP_KEY')));
     $mailer = $once(static fn (): Mailer => $overrides['mailer'] ?? Mailer::fromConfig($config)); // paresseux : MAIL_FROM vide ne casse que l'envoi
     $clock = $overrides['clock'] ?? time(...);
-    $services = compact('config', 'session', 'csrf', 'db', 'gate', 'auth', 'audit', 'mailer', 'clock', 'view');
+    // shortcut: aucun gain sous mod_php ou php -S (le travail s'exécute avant que le client soit libéré) ; efficace sous PHP-FPM/LiteSpeed.
+    $defer = $overrides['defer'] ?? static function (callable $job): void {
+        register_shutdown_function(static function () use ($job): void {
+            // PHP exécute les fonctions d'arrêt avant de vider la sortie : c'est *_finish_request() qui libère le client.
+            if (function_exists('fastcgi_finish_request')) {
+                fastcgi_finish_request();
+            } elseif (function_exists('litespeed_finish_request')) {
+                litespeed_finish_request();
+            }
+            try {
+                $job();
+            } catch (\Throwable $e) {
+                error_log('Travail différé en échec : ' . get_class($e)); // sans message : il pourrait contenir un jeton
+            }
+        });
+    };
+    $services = compact('config', 'session', 'csrf', 'db', 'gate', 'auth', 'audit', 'mailer', 'defer', 'clock', 'view');
 
     $titles = [400 => 'Requête invalide', 403 => 'Accès refusé', 404 => 'Page introuvable', 405 => 'Méthode non autorisée', 419 => 'Session expirée'];
     $errors = static function (int $status, Request $r) use ($view, $titles): Response {

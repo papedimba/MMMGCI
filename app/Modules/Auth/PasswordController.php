@@ -22,15 +22,17 @@ final class PasswordController
     private const INVALID = "Ce lien n'est plus valable : demandez un nouveau lien de réinitialisation.";
     private const MISMATCH = 'Les deux mots de passe saisis sont différents : saisissez le même nouveau mot de passe dans les deux champs.';
     private const WRONG_CURRENT = 'Mot de passe actuel incorrect : saisissez le mot de passe que vous utilisez pour vous connecter.';
+    private const BLOCKED = 'Trop de tentatives : réessayez dans 15 minutes.';
     private const SUBJECT = 'Réinitialisation de votre mot de passe — MMMGCI';
 
     /**
      * @param Closure(): Mailer $mailer construit à l'envoi : une configuration e-mail invalide n'est qu'un échec d'envoi journalisé
+     * @param Closure(callable): void $defer exécute un travail après l'envoi de la réponse
      * @param Closure(): int $clock
      */
     public function __construct(private View $view, private Csrf $csrf, private Session $session, private Database $db,
         private Auth $auth, private Gate $gate, private Audit $audit, private LoginThrottle $throttle, private PasswordReset $resets,
-        private Closure $mailer, private string $appUrl, private Closure $clock)
+        private Closure $mailer, private Closure $defer, private string $appUrl, private Closure $clock)
     {
     }
 
@@ -48,7 +50,9 @@ final class PasswordController
         // Compté comme un échec de connexion : partage les limites par compte (5) et par IP (20) sur 15 minutes.
         if (!$this->throttle->tooManyAttempts('reset:' . $email, $ip, $now)) {
             $this->throttle->record('reset:' . $email, $ip, false, $now);
-            $this->sendLink($email, $r, $now);
+            // Recherche du compte, jeton, audit et e-mail après la réponse : même travail visible pour une adresse connue ou non.
+            $ua = $r->header('User-Agent');
+            ($this->defer)(fn () => $this->sendLink($email, $ip, $ua, $now));
         }
         return $this->guestPage('auth/forgot', 'Mot de passe oublié', ['sent' => true, 'message' => self::NEUTRAL]);
     }
@@ -77,7 +81,7 @@ final class PasswordController
             if ($this->resets->consume($token, $now) === null) { // utilisé ou désactivé entre-temps
                 return false;
             }
-            $this->changePassword($userId, $password);
+            $this->changePassword($userId, $password, $now);
             $this->audit->log($userId, 'auth.password_reset', 'user', $userId, null, null, null, $r->ip(), $r->header('User-Agent'));
             return true;
         });
@@ -85,7 +89,7 @@ final class PasswordController
             return $this->resetPage($token, self::INVALID);
         }
         $this->session->flash('status', 'Votre mot de passe a été réinitialisé : connectez-vous avec le nouveau mot de passe.');
-        return Response::redirect('/admin/connexion')->withHeader('Referrer-Policy', 'no-referrer');
+        return Response::redirect('/admin/connexion')->withHeader('Referrer-Policy', 'no-referrer')->withHeader('Cache-Control', 'no-store');
     }
 
     public function changeForm(Request $r): Response
@@ -96,16 +100,26 @@ final class PasswordController
     public function change(Request $r): Response
     {
         $user = $r->attribute('user');
+        $id = (int) $user['id'];
+        [$ip, $ua, $now] = [$r->ip(), $r->header('User-Agent'), ($this->clock)()];
+        // Partage la limite de 5 échecs / 15 min du couple (e-mail, IP) avec la connexion.
+        if ($this->throttle->tooManyAttempts((string) $user['email'], $ip, $now)) {
+            return $this->accountPage($user, self::BLOCKED);
+        }
+        if (!password_verify(self::str($r->post('current_password')), $user['password'])) {
+            $this->db->transaction(function () use ($user, $id, $ip, $ua, $now): void {
+                $this->throttle->record((string) $user['email'], $ip, false, $now);
+                $this->audit->log($id, 'auth.password_change_failed', 'user', $id, null, null, null, $ip, $ua);
+            });
+            return $this->accountPage($user, self::WRONG_CURRENT);
+        }
         $password = self::str($r->post('password'));
-        $error = !password_verify(self::str($r->post('current_password')), $user['password'])
-            ? self::WRONG_CURRENT
-            : $this->newPasswordError($password, self::str($r->post('password_confirmation')), $user);
+        $error = $this->newPasswordError($password, self::str($r->post('password_confirmation')), $user);
         if ($error !== null) {
             return $this->accountPage($user, $error);
         }
-        $id = (int) $user['id'];
-        $version = $this->db->transaction(function () use ($id, $password, $r): int {
-            $version = $this->changePassword($id, $password);
+        $version = $this->db->transaction(function () use ($id, $password, $r, $now): int {
+            $version = $this->changePassword($id, $password, $now);
             $this->audit->log($id, 'auth.password_changed', 'user', $id, null, null, null, $r->ip(), $r->header('User-Agent'));
             return $version;
         });
@@ -114,24 +128,33 @@ final class PasswordController
         return Response::redirect('/admin');
     }
 
-    /** Nouveau haché et session_version + 1 (ferme les autres sessions) ; retourne la nouvelle version. À appeler dans une transaction. */
-    private function changePassword(int $userId, string $password): int
+    /**
+     * Nouveau haché, session_version + 1 (ferme les autres sessions) et jetons de réinitialisation en attente annulés ;
+     * retourne la nouvelle version. À appeler dans une transaction.
+     */
+    private function changePassword(int $userId, string $password, int $now): int
     {
         $this->db->query('UPDATE users SET password = ?, session_version = session_version + 1 WHERE id = ?', [PasswordPolicy::hash($password), $userId]);
+        $this->db->query('UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL', [gmdate('Y-m-d H:i:s', $now), $userId]);
         return (int) $this->db->fetchValue('SELECT session_version FROM users WHERE id = ?', [$userId]);
     }
 
-    private function sendLink(string $email, Request $r, int $now): void
+    /** Exécuté après la réponse (voir forgot()). */
+    private function sendLink(string $email, string $ip, ?string $ua, int $now): void
     {
         $user = $this->db->fetch('SELECT id, name, email FROM users WHERE email = ? AND is_active = 1', [$email]);
         if ($user === null) {
             return;
         }
+        if (!preg_match('#^https?://[^/\s]+#i', $this->appUrl)) {
+            error_log("APP_URL doit être une adresse absolue (ex. https://mmmgci.ci) : renseignez-la dans .env ; aucun lien de réinitialisation envoyé.");
+            return;
+        }
         $id = (int) $user['id'];
-        $token = $this->db->transaction(function () use ($id, $now, $r): ?string {
+        $token = $this->db->transaction(function () use ($id, $now, $ip, $ua): ?string {
             $token = $this->resets->issue($id, $now);
             if ($token !== null) { // l'audit ne garde que l'utilisateur, jamais le jeton
-                $this->audit->log($id, 'auth.password_reset_requested', 'user', $id, null, null, null, $r->ip(), $r->header('User-Agent'));
+                $this->audit->log($id, 'auth.password_reset_requested', 'user', $id, null, null, null, $ip, $ua);
             }
             return $token;
         });
@@ -163,7 +186,8 @@ final class PasswordController
     {
         // no-referrer : le jeton présent dans l'URL ne doit pas fuiter vers un autre site par l'en-tête Referer.
         return $this->guestPage('auth/reset', 'Nouveau mot de passe', ['token' => $token, 'invalid' => $invalid, 'error' => $error])
-            ->withHeader('Referrer-Policy', 'no-referrer');
+            ->withHeader('Referrer-Policy', 'no-referrer')
+            ->withHeader('Cache-Control', 'no-store');
     }
 
     /** @param array<string,mixed> $data */

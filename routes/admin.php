@@ -13,10 +13,10 @@ use App\Modules\Auth\PasswordReset;
 
 /** @param array<string,mixed> $deps services de app/kernel.php ; db, gate, auth et audit sont des fabriques paresseuses */
 return static function (Router $r, array $deps): void {
-    ['view' => $view, 'csrf' => $csrf, 'session' => $session, 'db' => $db, 'gate' => $gate, 'auth' => $auth, 'audit' => $audit, 'mailer' => $mailer, 'clock' => $clock, 'config' => $config] = $deps;
+    ['view' => $view, 'csrf' => $csrf, 'session' => $session, 'db' => $db, 'gate' => $gate, 'auth' => $auth, 'audit' => $audit, 'mailer' => $mailer, 'defer' => $defer, 'clock' => $clock, 'config' => $config] = $deps;
     $login = static fn (): LoginController => new LoginController($view, $csrf, $db(), $auth(), $audit(), new LoginThrottle($db()), Closure::fromCallable($clock), $session);
     $password = static fn (): PasswordController => new PasswordController($view, $csrf, $session, $db(), $auth(), $gate(), $audit(),
-        new LoginThrottle($db()), new PasswordReset($db()), $mailer, (string) $config->get('APP_URL', ''), Closure::fromCallable($clock));
+        new LoginThrottle($db()), new PasswordReset($db()), $mailer, Closure::fromCallable($defer), (string) $config->get('APP_URL', ''), Closure::fromCallable($clock));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */

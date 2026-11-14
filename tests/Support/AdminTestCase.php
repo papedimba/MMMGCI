@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace Tests\Support;
 
 use App\Core\App;
+use App\Core\Config;
+use App\Core\Env;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Core\Mail\ArrayTransport;
@@ -19,13 +21,19 @@ abstract class AdminTestCase extends DatabaseTestCase
     private ?App $app = null;
     /** e-mails envoyés par l'application (corps encodé en base64) */
     protected ArrayTransport $mail;
+    /** @var array<string,mixed> surcharges du noyau (ex. 'defer') à poser avant le premier app() */
+    protected array $overrides = [];
+    /** @var array<string,string> valeurs de .env remplacées pour ce test, à poser avant le premier app() */
+    protected array $env = [];
 
     protected function app(): App
     {
         if ($this->app === null) {
             $this->mail = new ArrayTransport();
             $mailer = new Mailer($this->mail, 'no-reply@exemple.ci');
-            $this->app = (require dirname(__DIR__, 2) . '/app/kernel.php')(self::config(), false, ['db' => $this->db, 'mailer' => $mailer], $this->services);
+            $config = new Config($this->env + Env::load(dirname(__DIR__, 2) . '/.env'));
+            $overrides = $this->overrides + ['db' => $this->db, 'mailer' => $mailer, 'defer' => static fn (callable $job) => $job()]; // travail différé exécuté tout de suite
+            $this->app = (require dirname(__DIR__, 2) . '/app/kernel.php')($config, false, $overrides, $this->services);
         }
         return $this->app;
     }

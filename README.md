@@ -103,6 +103,11 @@ En `APP_ENV=production`, `ForceHttps` redirige HTTP vers HTTPS. `Request::isSecu
 sur un hébergement qui termine TLS en amont (proxy, CDN) sans renseigner `HTTPS`, la redirection bouclerait.
 `X-Forwarded-Proto` n'est volontairement pas pris en compte (en-tête falsifiable) ; vérifier le comportement de l'hébergeur avant la mise en production.
 
+## Notes de sécurité
+
+- Les demandes de « mot de passe oublié » comptent dans la limite de 20 échecs par IP sur 15 minutes partagée avec la connexion : 20 demandes depuis une même IP y bloquent aussi la connexion pendant 15 minutes (choix assumé).
+- Le travail de « mot de passe oublié » (jeton, audit, e-mail) s'exécute après la réponse sous PHP-FPM ou LiteSpeed ; sous mod_php ou `php -S`, il s'exécute avant que le client soit libéré.
+
 ## Journal d'audit — limites
 
 La chaîne d'audit est vérifiable (`Audit::verify()`) mais n'a pas d'ancrage externe : un attaquant ayant un accès complet à la base peut la réécrire entièrement.

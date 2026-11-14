@@ -81,6 +81,7 @@ final class PasswordResetTest extends AdminTestCase
         $page = $this->request('GET', '/admin/reinitialiser/' . $token);
         $this->assertSame(200, $page->status());
         $this->assertSame('no-referrer', $page->headers()['Referrer-Policy']);
+        $this->assertSame('no-store', $page->headers()['Cache-Control']);
         $this->assertStringContainsString('name="password"', $page->body());
 
         $res = $this->reset($token);
@@ -209,5 +210,91 @@ final class PasswordResetTest extends AdminTestCase
         $this->assertStringContainsString('auth.password_reset', $rows);
         $this->assertStringNotContainsString($token, $rows);
         $this->assertStringNotContainsString(hash('sha256', $token), $rows);
+    }
+
+    public function test_request_path_defers_all_account_work_for_known_and_unknown_addresses(): void
+    {
+        $jobs = [];
+        $this->overrides['defer'] = static function (callable $job) use (&$jobs): void { $jobs[] = $job; };
+        $this->createUser('differe@x.test', []);
+
+        $known = $this->forgot('differe@x.test');
+        $unknown = $this->forgot('inconnu-differe@x.test');
+
+        $this->assertSame($known->body(), $unknown->body());
+        $this->assertCount(2, $jobs, 'un travail différé par demande, adresse connue ou non');
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM password_resets'));
+        $this->assertCount(0, $this->mails());
+        foreach ($jobs as $job) {
+            $job();
+        }
+        $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM password_resets'));
+        $this->assertCount(1, $this->mails());
+    }
+
+    public function test_wrong_current_password_is_throttled_and_audited(): void
+    {
+        $id = $this->createUser('force@x.test', []);
+        $this->actingAs($id);
+        $hash = $this->passwordHash($id);
+        $post = fn (string $current) => $this->request('POST', '/admin/mon-compte/mot-de-passe', ['current_password' => $current, 'password' => self::NEW_PASSWORD, 'password_confirmation' => self::NEW_PASSWORD]);
+        for ($i = 0; $i < 5; $i++) {
+            $this->assertStringContainsString(e('Mot de passe actuel incorrect'), $post('mauvais essai numéro ' . $i)->body());
+        }
+
+        $blocked = $post('phrase secrète longue 2026');
+        $this->assertStringContainsString(e('Trop de tentatives : réessayez dans 15 minutes.'), $blocked->body());
+        $this->assertSame($hash, $this->passwordHash($id));
+        $this->assertSame(5, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE action = 'auth.password_change_failed' AND user_id = ?", [$id]));
+    }
+
+    public function test_change_password_invalidates_pending_reset_tokens(): void
+    {
+        $id = $this->createUser('jetons@x.test', []);
+        $token = (new PasswordReset($this->db))->issue($id, time());
+        $this->actingAs($id);
+
+        $ok = $this->request('POST', '/admin/mon-compte/mot-de-passe', ['current_password' => 'phrase secrète longue 2026', 'password' => self::NEW_PASSWORD, 'password_confirmation' => self::NEW_PASSWORD]);
+        $this->assertSame(302, $ok->status());
+        $this->assertNull((new PasswordReset($this->db))->check($token, time()));
+    }
+
+    public function test_relative_app_url_sends_nothing_and_logs_a_clear_error(): void
+    {
+        $this->env['APP_URL'] = '';
+        $this->createUser('sansurl@x.test', []);
+        $log = tempnam(sys_get_temp_dir(), 'errlog');
+        $previous = ini_set('error_log', $log);
+        try {
+            $res = $this->forgot('sansurl@x.test');
+        } finally {
+            ini_set('error_log', (string) $previous);
+        }
+        $this->assertStringContainsString(e(self::NEUTRAL), $res->body());
+        $this->assertCount(0, $this->mails());
+        $this->assertStringContainsString('APP_URL doit être une adresse absolue', (string) file_get_contents($log));
+        unlink($log);
+    }
+
+    public function test_consume_invalidates_the_users_other_tokens(): void
+    {
+        $id = $this->createUser('deux@x.test', []);
+        $resets = new PasswordReset($this->db);
+        [$first, $second] = [$resets->issue($id, time()), $resets->issue($id, time())];
+
+        $this->assertSame($id, $resets->consume($first, time()));
+        $this->assertNull($resets->check($second, time()));
+        $this->assertNull($resets->consume($second, time()));
+    }
+
+    public function test_token_expires_exactly_after_one_hour(): void
+    {
+        $id = $this->createUser('borne@x.test', []);
+        $resets = new PasswordReset($this->db);
+        $issuedAt = time() - 7200;
+        $token = $resets->issue($id, $issuedAt);
+
+        $this->assertSame($id, $resets->check($token, $issuedAt + 3599));
+        $this->assertNull($resets->check($token, $issuedAt + 3600));
     }
 }
