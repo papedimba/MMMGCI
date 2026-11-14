@@ -12,7 +12,6 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **Logo horizontal + version SVG/PNG transparente** - commanditaire
 
 ## Someday
-- [ ] **L0 Socle technique** (T0.1–T0.7)
 - [ ] **L1 Authentification, RBAC, audit** (T1.1–T1.8)
 - [ ] **L2 Design system et gabarits** (T2.1–T2.5)
 - [ ] **L5 Adhérents** (T5.1–T5.9) → livraison V0.1
@@ -30,6 +29,7 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **L14 Recette** (T14.1–T14.6) → V1.0
 
 ## Done
+- [x] ~~L0 Socle technique (16 tâches, revue d'ensemble faite, 213 tests)~~ (14/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-14-l0-decisions-et-reports.md
 - [x] ~~D1 Socle : PHP natif sans framework~~ (13/11/2026)
 - [x] ~~D2 Règles : cahier des charges seul~~ (13/11/2026)
 - [x] ~~Lecture et analyse du cahier des charges~~ (13/11/2026)
