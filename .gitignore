@@ -6,3 +6,5 @@
 /.taste-skill/
 .phpunit.cache/
 .phpunit.result.cache
+/public/media/*
+!/public/media/.htaccess

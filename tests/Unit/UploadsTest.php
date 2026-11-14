@@ -95,9 +95,60 @@ final class UploadsTest extends DatabaseTestCase
         $this->refused('x.png', $this->pdf(), 'Format non accepté : PDF, JPG ou PNG uniquement.');
     }
 
+    public function test_pdf_in_image_profile_is_refused_with_image_formats(): void
+    {
+        $this->expectExceptionMessage('Format non accepté : JPG, PNG ou WebP uniquement.');
+        $this->uploads->store($this->upload('a.pdf', $this->pdf()), 'image', false, null);
+    }
+
+    public function test_appended_php_payload_is_not_stored(): void
+    {
+        $id = $this->uploads->store($this->upload('a.jpg', $this->jpeg() . '<?php system($_GET["c"]); ?>'), 'image', false, null);
+        $this->assertStringNotContainsString('<?php', (string) file_get_contents($this->uploads->path($id)));
+    }
+
+    public function test_jpeg_header_claiming_65000_square_is_refused(): void
+    {
+        $j = $this->jpeg();
+        $i = strpos($j, "\xFF\xC0");
+        $this->assertNotFalse($i);
+        $j = substr_replace($j, pack('nn', 65000, 65000), $i + 5, 4);
+        $this->expectExceptionMessage('Image trop grande');
+        $this->uploads->store($this->upload('a.jpg', $j), 'image', false, null);
+    }
+
+    public function test_path_refuses_stored_path_escaping_dir(): void
+    {
+        file_put_contents($this->root . '/outside.pdf', 'x');
+        $id = $this->db->insert('files', ['disk' => 'private', 'path' => '../outside.pdf', 'original_name' => 'o', 'mime' => 'application/pdf', 'size' => 1, 'sha256' => str_repeat('a', 64)]);
+        $this->expectException(InvalidArgumentException::class);
+        $this->uploads->path($id);
+    }
+
+    public function test_write_failure_becomes_upload_error_even_with_warnings_as_exceptions(): void
+    {
+        file_put_contents($this->root . '/blocker', 'x');
+        $broken = new Uploads($this->db, $this->root . '/blocker', $this->root . '/public', 5 * 1024 * 1024, true);
+        set_error_handler(static function (int $n, string $m): bool { throw new \ErrorException($m, 0, $n); });
+        try {
+            $broken->store($this->upload('a.pdf', $this->pdf()), 'document', false, null);
+            $this->fail('UploadError attendue');
+        } catch (UploadError $e) {
+            $this->assertStringStartsWith('Le fichier n\'a pas pu être enregistré : réessayez', $e->getMessage());
+        } finally {
+            restore_error_handler();
+        }
+    }
+
+    public function test_bidi_controls_and_invalid_utf8_are_stripped_from_display_name(): void
+    {
+        $id = $this->uploads->store($this->upload("a\u{202E}fdp\xFF.pdf", $this->pdf()), 'document', false, null);
+        $this->assertSame('afdp?.pdf', $this->db->fetchValue('SELECT original_name FROM files WHERE id = ?', [$id]));
+    }
+
     public function test_empty_file_message(): void
     {
-        $this->refused('x.pdf', '', 'Le fichier est vide.');
+        $this->refused('x.pdf', '', 'Le fichier est vide : choisissez un autre fichier.');
     }
 
     public function test_ini_size_error_message_is_french_and_actionable(): void

@@ -35,7 +35,7 @@ final class Uploads
         }
         $size = (int) filesize($tmp);
         if ($size === 0) {
-            throw new UploadError('Le fichier est vide.');
+            throw new UploadError('Le fichier est vide : choisissez un autre fichier.');
         }
         if ($size > $this->maxBytes) {
             throw $tooBig;
@@ -43,7 +43,7 @@ final class Uploads
 
         $name = (string) ($phpFile['name'] ?? '');
         $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
-        $badFormat = new UploadError('Format non accepté : PDF, JPG ou PNG uniquement.');
+        $badFormat = new UploadError('Format non accepté : ' . ($profile === 'image' ? 'JPG, PNG ou WebP' : 'PDF, JPG ou PNG') . ' uniquement.');
         if (!in_array($ext, self::PROFILES[$profile], true)) {
             throw $badFormat;
         }
@@ -66,22 +66,25 @@ final class Uploads
         $relative = date('Y/m') . '/' . bin2hex(random_bytes(16)) . '.' . $ext;
         $target = $base . '/' . $relative;
         $dir = dirname($target);
-        if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
-            throw new UploadError('Le fichier n\'a pas pu être enregistré.');
-        }
         $part = $dir . '/.' . bin2hex(random_bytes(8)) . '.part';
-        if (file_put_contents($part, $content) !== strlen($content)) {
+        try {
+            if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
+                throw new \RuntimeException('mkdir');
+            }
+            if (file_put_contents($part, $content) !== strlen($content)) {
+                throw new \RuntimeException('write');
+            }
+            chmod($part, 0640);
+            if (!rename($part, $target)) {
+                throw new \RuntimeException('rename');
+            }
+        } catch (\ErrorException | \RuntimeException) {
             @unlink($part);
-            throw new UploadError('Le fichier n\'a pas pu être enregistré.');
-        }
-        chmod($part, 0640);
-        if (!rename($part, $target)) {
-            @unlink($part);
-            throw new UploadError('Le fichier n\'a pas pu être enregistré.');
+            throw new UploadError('Le fichier n\'a pas pu être enregistré : réessayez dans quelques instants ; si le problème persiste, contactez l\'administrateur.');
         }
 
         try {
-            return (int) $this->db->transaction(fn (Database $db) => $db->insert('files', [
+            $row = [
                 'disk' => $disk,
                 'path' => $relative,
                 'original_name' => $this->displayName($name),
@@ -89,7 +92,11 @@ final class Uploads
                 'size' => strlen($content),
                 'sha256' => hash('sha256', $content),
                 'uploaded_by' => $userId,
-            ]));
+            ];
+            // Rejoint la transaction de l'appelant si elle est ouverte.
+            return $this->db->pdo()->inTransaction()
+                ? $this->db->insert('files', $row)
+                : (int) $this->db->transaction(fn (Database $db) => $db->insert('files', $row));
         } catch (Throwable $e) {
             @unlink($target);
             throw $e;
@@ -127,18 +134,25 @@ final class Uploads
         imagealphablending($im, false);
         imagesavealpha($im, true);
         ob_start();
-        match ($mime) {
-            'image/jpeg' => imagejpeg($im, null, 85),
-            'image/png' => imagepng($im),
-            default => imagewebp($im, null, 85),
-        };
-        return (string) ob_get_clean();
+        try {
+            $ok = match ($mime) {
+                'image/jpeg' => imagejpeg($im, null, 85),
+                'image/png' => imagepng($im),
+                default => imagewebp($im, null, 85),
+            };
+        } finally {
+            $out = (string) ob_get_clean();
+        }
+        if (!$ok || $out === '') {
+            throw $badFormat;
+        }
+        return $out;
     }
 
     /** Affichage uniquement : jamais utilisé pour construire un chemin. */
     private function displayName(string $name): string
     {
-        $name = preg_replace('/[\x00-\x1F\x7F]/u', '', $name) ?? '';
+        $name = preg_replace('/[\x00-\x1F\x7F\x{202A}-\x{202E}\x{2066}-\x{2069}]/u', '', mb_scrub($name)) ?? '';
         $name = trim(basename(str_replace('\\', '/', $name)));
         return mb_substr($name, 0, 255);
     }
