@@ -79,7 +79,9 @@ final class Uploads
                 throw new \RuntimeException('rename');
             }
         } catch (\ErrorException | \RuntimeException) {
-            @unlink($part);
+            if (is_file($part)) {
+                unlink($part);
+            }
             throw new UploadError('Le fichier n\'a pas pu être enregistré : réessayez dans quelques instants ; si le problème persiste, contactez l\'administrateur.');
         }
 
