@@ -10,8 +10,10 @@ use App\Core\Session;
 /** Session d'administration : connexion, utilisateur courant revalidé en base à chaque requête, déconnexion. */
 final class Auth
 {
-    /** Haché factice : un e-mail inconnu ou inactif coûte le même password_verify qu'un compte réel (même algorithme et coût). */
-    private static ?string $dummyHash = null;
+    /** Hachés factices précalculés (coût par défaut de PHP) : un e-mail inconnu ou inactif coûte le même password_verify qu'un compte réel. */
+    private const DUMMY_ARGON2ID = '$argon2id$v=19$m=65536,t=4,p=1$Vk5RZloyQ3dkb2h0bnJTUw$wFxmlLUbmigmdgiPDUVFpgrGt+4FgzYkesRIOVy1WjU';
+    private const DUMMY_BCRYPT_10 = '$2y$10$nCo6Soq1SFqY8KhPBkoen.wyL2dodJMpTobveP8m1LCXCoFBy9kHy';
+    private const DUMMY_BCRYPT_12 = '$2y$12$iWwnhs/Dy1Efkm0TGIMfkuZgCg2sl8jLDTJVLE2mEZrwri3Rjo4r.'; // coût bcrypt par défaut depuis PHP 8.4
 
     public function __construct(private Session $session, private Database $db, private Gate $gate)
     {
@@ -28,7 +30,7 @@ final class Auth
     {
         $user = $this->db->fetch('SELECT id, password, is_active, session_version FROM users WHERE email = ?', [mb_strtolower(trim($email))]);
         $active = $user !== null && (int) $user['is_active'] === 1;
-        $hash = $active ? $user['password'] : (self::$dummyHash ??= PasswordPolicy::hash(bin2hex(random_bytes(16))));
+        $hash = $active ? $user['password'] : self::dummyHash();
         if (!password_verify($password, $hash) || !$active) {
             return null;
         }
@@ -38,6 +40,13 @@ final class Auth
         }
         $this->db->update('users', $row, ['id' => $user['id']]);
         return $user;
+    }
+
+    /** Jamais calculé à la requête : un password_hash par tentative inconnue rendrait l'énumération mesurable. */
+    public static function dummyHash(): string
+    {
+        // Même choix d'algorithme que PasswordPolicy::hash (AuthDummyHashTest le vérifie).
+        return defined('PASSWORD_ARGON2ID') ? self::DUMMY_ARGON2ID : (PHP_VERSION_ID >= 80400 ? self::DUMMY_BCRYPT_12 : self::DUMMY_BCRYPT_10);
     }
 
     /** @param array<string,mixed> $user ligne retournée par attempt() */
