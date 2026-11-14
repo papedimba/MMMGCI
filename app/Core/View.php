@@ -14,7 +14,7 @@ final class View
     public function render(string $name, array $data = [], ?string $layout = 'layouts/base'): string
     {
         $content = $this->partial($name, $data);
-        return $layout === null ? $content : $this->partial($layout, $data + ['content' => $content]);
+        return $layout === null ? $content : $this->partial($layout, ['content' => $content] + $data);
     }
 
     public function partial(string $name, array $data = []): string

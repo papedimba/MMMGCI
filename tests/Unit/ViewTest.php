@@ -44,6 +44,24 @@ final class ViewTest extends TestCase
         $this->assertSame('<p>A</p>', (new View($this->dir))->render('hello', ['nom' => 'A'], null));
     }
 
+    public function test_caller_data_cannot_override_layout_content(): void
+    {
+        $out = (new View($this->dir))->render('hello', ['nom' => 'A', 'content' => 'X']);
+        $this->assertSame('<main><p>A</p></main>', $out);
+    }
+
+    public function test_throwing_view_leaves_output_buffer_level_unchanged(): void
+    {
+        file_put_contents($this->dir . '/boom.php', '<?php echo "x"; throw new \RuntimeException("boom");');
+        $level = ob_get_level();
+        try {
+            (new View($this->dir))->render('boom', [], null);
+            $this->fail('exception attendue');
+        } catch (\RuntimeException) {
+        }
+        $this->assertSame($level, ob_get_level());
+    }
+
     public function test_partial_renders_without_layout(): void
     {
         $this->assertSame('<p>A</p>', (new View($this->dir))->partial('hello', ['nom' => 'A']));
