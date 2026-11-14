@@ -76,6 +76,21 @@ final class AdminRouteSweepTest extends AdminTestCase
         }
     }
 
+    public function test_user_without_roles_gets_403_on_every_permission_route(): void
+    {
+        $this->actingAs($this->createUser('sansrole@example.test', []));
+        $this->probe();
+        $checked = 0;
+        foreach ($this->protectedRoutes() as $r) {
+            if ($r['permission'] === null) {
+                continue;
+            }
+            $this->assertSame(403, $this->request($r['method'], self::concrete($r['pattern']))->status(), "{$r['method']} {$r['pattern']}");
+            $checked++;
+        }
+        $this->assertGreaterThan(0, $checked);
+    }
+
     public function test_denied_access_is_audited(): void
     {
         $uid = $this->createUser('lecteur2@example.test', ['lecture_seule']);

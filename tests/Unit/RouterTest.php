@@ -146,11 +146,6 @@ final class RouterTest extends TestCase
         $r = (new Router(fn(string $c) => new $c()))->get('/h', [RouterTestHandler::class, 'index']);
         $this->assertSame('handled', $r->dispatch(new Request('GET', '/h'))->body());
     }
-}
-
-final class RouterTestHandler
-{
-    public function index(Request $r): Response { return new Response('handled'); }
 
     public function test_routes_expose_merged_pattern_and_middleware(): void
     {
@@ -161,4 +156,9 @@ final class RouterTestHandler
         });
         $this->assertSame([['method' => 'POST', 'pattern' => '/admin/x/{id:\d+}', 'middleware' => [$mw, 'm']]], $r->routes());
     }
+}
+
+final class RouterTestHandler
+{
+    public function index(Request $r): Response { return new Response('handled'); }
 }
