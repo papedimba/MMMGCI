@@ -10,7 +10,7 @@ use App\Core\Database;
 use App\Core\Env;
 
 $db = Database::connect(new Config(Env::load(dirname(__DIR__, 2) . '/.env')), test: true);
-$audit = new Audit($db, 'cle-de-test');
+$audit = new Audit($db, 'base64:' . base64_encode(str_repeat('k', 32)));
 $failures = 0;
 for ($i = 0; $i < (int) $argv[2]; $i++) {
     try {

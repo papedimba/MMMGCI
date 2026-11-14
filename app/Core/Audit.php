@@ -11,8 +11,13 @@ final class Audit
 {
     private const GENESIS = '0000000000000000000000000000000000000000000000000000000000000000';
 
+    /** Changer APP_KEY rend verify() en échec sur tout l'historique existant : la clé ne se change jamais en production. */
     public function __construct(private Database $db, private string $appKey)
     {
+        $bytes = str_starts_with($appKey, 'base64:') ? base64_decode(substr($appKey, 7), true) : $appKey;
+        if ($bytes === false || strlen($bytes) < 32) {
+            throw new RuntimeException('APP_KEY manquante ou trop courte : générez-la avec php -r "echo \'base64:\'.base64_encode(random_bytes(32));" et placez-la dans .env.');
+        }
     }
 
     /**

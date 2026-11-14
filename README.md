@@ -20,10 +20,13 @@ Aucune dépendance PHP tierce en production : `vendor/` (PHPUnit) ne sert qu'aux
 
 ```sh
 bin/dev-db                      # démarre MariaDB (idempotent), crée l'utilisateur mmmgci et les bases mmmgci, mmmgci_test
-cp .env.example .env            # puis renseigner les valeurs ci-dessous et APP_KEY
+cp .env.example .env            # puis renseigner les valeurs ci-dessous et APP_KEY (voir plus bas)
 composer install                # PHPUnit seulement (tests)
 php bin/migrate.php             # applique les migrations ; une seconde fois : « Aucune migration en attente. »
 ```
+
+`APP_KEY` (obligatoire, au moins 32 octets) signe le journal d'audit. La générer une seule fois :
+`php -r "echo 'base64:'.base64_encode(random_bytes(32));"`. **Ne jamais la changer ensuite** : `Audit::verify()` signalerait tout l'historique existant comme altéré.
 
 Valeurs `.env` correspondant à `bin/dev-db` :
 

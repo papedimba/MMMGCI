@@ -17,7 +17,7 @@ final class AuditTest extends DatabaseTestCase
         parent::setUp();
         $this->db->query('DELETE FROM audit_logs');
         $this->db->query("UPDATE audit_chain SET last_id = NULL, last_hash = REPEAT('0', 64), row_count = 0");
-        $this->audit = new Audit($this->db, 'cle-de-test');
+        $this->audit = new Audit($this->db, 'base64:' . base64_encode(str_repeat('k', 32)));
     }
 
     private function three(): array
@@ -163,5 +163,20 @@ final class AuditTest extends DatabaseTestCase
         } finally {
             $this->db->query("INSERT INTO audit_chain (id, last_id, last_hash, row_count) VALUES (1, NULL, REPEAT('0', 64), 0)");
         }
+    }
+
+    public function test_missing_or_short_app_key_is_refused_with_the_fix(): void
+    {
+        foreach (['', 'cle-de-test', 'base64:' . base64_encode(random_bytes(31)), 'base64:pas du base64 !'] as $key) {
+            try {
+                new Audit($this->db, $key);
+                $this->fail("clé acceptée : $key");
+            } catch (\RuntimeException $e) {
+                $this->assertStringStartsWith('APP_KEY manquante ou trop courte : générez-la avec php -r', $e->getMessage());
+            }
+        }
+        new Audit($this->db, str_repeat('x', 32));
+        new Audit($this->db, base64_encode(random_bytes(32)));
+        $this->addToAssertionCount(2);
     }
 }
