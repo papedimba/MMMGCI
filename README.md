@@ -167,6 +167,7 @@ sur un hébergement qui termine TLS en amont (proxy, CDN) sans renseigner `HTTPS
 ## Notes de sécurité
 
 - Les demandes de « mot de passe oublié » comptent dans la limite de 20 échecs par IP sur 15 minutes partagée avec la connexion : 20 demandes depuis une même IP y bloquent aussi la connexion pendant 15 minutes (choix assumé).
+- L'audit des connexions bloquées est borné : une seule ligne `auth.login_blocked` par couple (e-mail, IP) sur 15 minutes ; les tentatives bloquées suivantes de la même fenêtre ne sont ni journalisées ni comptées comme des échecs.
 - Le travail de « mot de passe oublié » (jeton, audit, e-mail) s'exécute après la réponse sous PHP-FPM ou LiteSpeed ; sous mod_php ou `php -S`, il s'exécute avant que le client soit libéré.
 
 ## Journal d'audit — limites

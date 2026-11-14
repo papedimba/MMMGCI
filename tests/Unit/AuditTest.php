@@ -142,13 +142,14 @@ final class AuditTest extends DatabaseTestCase
         $this->three();
         $p = proc_open([PHP_BINARY, __DIR__ . '/../Support/audit_worker.php', '9', '400'],
             [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-        $runs = 0;
+        $results = []; // une seule assertion après la boucle : nombre d'assertions stable d'une exécution à l'autre
         do {
-            $this->assertNull($this->audit->verify());
-            $runs++;
+            $results[] = $this->audit->verify();
         } while (proc_get_status($p)['running']);
+        $runs = count($results);
         $this->assertSame('0', stream_get_contents($pipes[1]), stream_get_contents($pipes[2]));
         proc_close($p);
+        $this->assertSame([], array_filter($results, static fn (?int $bad): bool => $bad !== null));
         $this->assertGreaterThan(1, $runs);
         $this->assertNull($this->audit->verify());
     }
