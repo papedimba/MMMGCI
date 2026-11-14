@@ -5,7 +5,10 @@ namespace App\Core\Export;
 
 use InvalidArgumentException;
 
-/** CSV pour Excel en paramètres régionaux français : BOM UTF-8, `;`, CRLF. */
+/**
+ * CSV pour Excel en paramètres régionaux français : BOM UTF-8, `;`, CRLF.
+ * shortcut: la chaîne est construite en mémoire (environ 87 Mo pour 200 000 lignes XLSX), passer à l'écriture en flux au-delà.
+ */
 final class Csv
 {
     public static function build(array $headers, iterable $rows): string
@@ -34,6 +37,9 @@ final class Csv
         if (is_bool($v)) {
             return $v ? '1' : '0';
         }
+        if (is_float($v) && !is_finite($v)) {
+            return '';
+        }
         if (is_int($v) || is_float($v)) {
             return (string) $v;
         }
@@ -41,7 +47,7 @@ final class Csv
             throw new InvalidArgumentException('Valeur d\'export non prise en charge : un texte, un nombre, un booléen ou null est attendu.');
         }
         // Un vrai nombre (même négatif) n'est pas une formule : on le laisse tel quel.
-        if ($v !== '' && strpos("=+-@\t\r", $v[0]) !== false && !preg_match('/^-?\d+(?:[.,]\d+)?$/', $v)) {
+        if ($v !== '' && strpos("=+-@\t\r", $v[0]) !== false && !preg_match('/^-?\d+(?:[.,]\d+)?$/D', $v)) {
             $v = "'" . $v;
         }
         return strpbrk($v, ";\"\r\n") !== false ? '"' . str_replace('"', '""', $v) . '"' : $v;

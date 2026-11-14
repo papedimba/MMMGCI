@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Core\Export;
 
+use InvalidArgumentException;
+
 /** Histogramme empilé en SVG, suivi d'un tableau de données accessible. */
 final class SvgBarChart
 {
@@ -11,21 +13,21 @@ final class SvgBarChart
     private const H = 300;
 
     /** @param string[] $labels @param array<string, array<int, int|float>> $series nom de série => valeurs alignées sur $labels */
-    public static function render(array $labels, array $series, string $title): string
+    public static function render(array $labels, array $series, string $title, ?string $id = null): string
     {
         $t = self::e($title);
-        $id = 'chart-title-' . substr(md5($title), 0, 8);
+        $id = self::e($id ?? 'chart-title-' . substr(md5($title), 0, 8));
         if ($labels === [] || $series === []) {
             return '<figure><figcaption>' . $t . '</figcaption><p>Aucune donnée pour cette période.</p></figure>';
         }
 
         $labels = array_values($labels);
         $names = array_keys($series);
-        $series = array_values(array_map(fn($v) => array_values($v), $series));
+        $series = array_values(array_map(self::normalize(...), $series));
         $count = count($labels);
         $max = 0;
         for ($i = 0; $i < $count; $i++) {
-            $max = max($max, array_sum(array_map(fn($v) => max(0, $v[$i] ?? 0), $series)));
+            $max = max($max, array_sum(array_map(fn($v) => $v[$i] ?? 0, $series)));
         }
         $max = $max > 0 ? $max : 1; // toutes valeurs à zéro : pas de division par zéro
         $slot = self::W / $count;
@@ -37,7 +39,7 @@ final class SvgBarChart
             $y = self::H - 20;
             $x = round($i * $slot + ($slot - $bw) / 2, 2);
             foreach ($series as $k => $values) {
-                $h = round(max(0, $values[$i] ?? 0) / $max * (self::H - 40), 2);
+                $h = round(($values[$i] ?? 0) / $max * (self::H - 40), 2);
                 $y = round($y - $h, 2);
                 $svg .= '<rect x="' . $x . '" y="' . $y . '" width="' . $bw . '" height="' . $h . '" fill="' . self::COLORS[$k % 2] . '"/>';
             }
@@ -52,15 +54,34 @@ final class SvgBarChart
         foreach ($labels as $i => $label) {
             $table .= '<tr><th scope="row">' . self::e((string) $label) . '</th>';
             foreach ($series as $values) {
-                $table .= '<td>' . ($values[$i] ?? 0) . '</td>';
+                $table .= '<td>' . self::e((string) ($values[$i] ?? 0)) . '</td>';
             }
             $table .= '</tr>';
         }
         return '<figure>' . $svg . $table . '</tbody></table></figure>';
     }
 
+    /** @return array<int, int|float> */
+    private static function normalize(mixed $values): array
+    {
+        if (!is_array($values)) {
+            throw new InvalidArgumentException('Série invalide : une liste de valeurs numériques est attendue.');
+        }
+        $out = [];
+        foreach ($values as $v) {
+            if (is_string($v) && is_numeric(trim($v))) {
+                $v = trim($v) + 0;
+            }
+            if ((!is_int($v) && !is_float($v)) || !is_finite((float) $v) || $v < 0) {
+                throw new InvalidArgumentException('Valeur de graphique invalide : un nombre positif ou nul est attendu.');
+            }
+            $out[] = $v;
+        }
+        return $out;
+    }
+
     private static function e(string $s): string
     {
-        return htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        return htmlspecialchars($s, ENT_XML1 | ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }

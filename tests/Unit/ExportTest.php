@@ -110,4 +110,68 @@ final class ExportTest extends TestCase
         $this->assertStringNotContainsString('NAN', $zero);
         $this->assertStringNotContainsString('INF', $zero);
     }
+
+    public function test_non_finite_floats_become_empty_cells(): void
+    {
+        $this->assertSame("\xEF\xBB\xBFh\r\n\r\n\r\n", Csv::build(['h'], [[INF], [NAN]]));
+        $sheet = $this->sheet(Xlsx::build('S', ['h'], [[INF, NAN, 1]]));
+        $this->assertStringNotContainsString('INF', $sheet);
+        $this->assertStringNotContainsString('NAN', $sheet);
+        $this->assertStringContainsString('<c r="C2" t="n"><v>1</v></c>', $sheet);
+    }
+
+    public function test_xlsx_array_cell_throws_and_leaves_no_temp_file(): void
+    {
+        $before = glob(sys_get_temp_dir() . '/mmmgci_xlsx*') ?: [];
+        try {
+            Xlsx::build('S', ['h'], [[['x']]]);
+            $this->fail('exception attendue');
+        } catch (InvalidArgumentException) {
+        }
+        $this->assertSame($before, glob(sys_get_temp_dir() . '/mmmgci_xlsx*') ?: []);
+        $this->expectException(InvalidArgumentException::class);
+        Xlsx::build('S', ['h'], [[new \stdClass()]]);
+    }
+
+    public function test_invalid_utf8_is_substituted(): void
+    {
+        $this->assertStringContainsString("bad\u{FFFD} é", $this->sheet(Xlsx::build('S', ['h'], [["bad\xff é"]])));
+        $this->assertStringContainsString("bad\u{FFFD} é", SvgBarChart::render(["bad\xff é"], ['s' => [1]], 'T'));
+    }
+
+    public function test_svg_numeric_strings_render_and_bad_values_throw(): void
+    {
+        $html = SvgBarChart::render(['a'], ['s' => ['10.50'], 't' => [' 5 ']], 'T');
+        $this->assertStringContainsString('<td>10.5</td>', $html);
+        foreach ([['abc'], [-1], [[1]], [NAN]] as $bad) {
+            try {
+                SvgBarChart::render(['a'], ['s' => $bad], 'T');
+                $this->fail('exception attendue');
+            } catch (InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+        $this->expectException(InvalidArgumentException::class);
+        SvgBarChart::render(['a'], ['s' => 5], 'T');
+    }
+
+    public function test_svg_id_can_be_overridden(): void
+    {
+        $a = SvgBarChart::render(['a'], ['s' => [1]], 'T');
+        $b = SvgBarChart::render(['a'], ['s' => [1]], 'T', 'autre');
+        $this->assertStringContainsString('aria-labelledby="autre"', $b);
+        $this->assertNotSame($a, $b);
+    }
+
+    private function sheet(string $bytes): string
+    {
+        $tmp = tempnam(sys_get_temp_dir(), 'xt');
+        file_put_contents($tmp, $bytes);
+        $zip = new ZipArchive();
+        $zip->open($tmp);
+        $s = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
+        $zip->close();
+        unlink($tmp);
+        return $s;
+    }
 }

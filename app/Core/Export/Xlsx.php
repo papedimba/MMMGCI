@@ -3,10 +3,14 @@ declare(strict_types=1);
 
 namespace App\Core\Export;
 
+use InvalidArgumentException;
 use RuntimeException;
 use ZipArchive;
 
-/** Classeur XLSX minimal (une feuille, chaînes inlineStr). */
+/**
+ * Classeur XLSX minimal (une feuille, chaînes inlineStr).
+ * shortcut: le classeur est construit en mémoire (environ 87 Mo pour 200 000 lignes), passer à un export en flux au-delà.
+ */
 final class Xlsx
 {
     public static function build(string $sheetName, array $headers, iterable $rows): string
@@ -23,7 +27,10 @@ final class Xlsx
             $i = 0;
             foreach ($row as $v) {
                 $ref = self::col($i++) . $n;
-                if ($v === null) {
+                if (is_array($v) || is_object($v)) {
+                    throw new InvalidArgumentException('Valeur d\'export non prise en charge : un texte, un nombre, un booléen ou null est attendu.');
+                }
+                if ($v === null || (is_float($v) && !is_finite($v))) {
                     continue;
                 }
                 if (is_bool($v)) {
@@ -87,6 +94,6 @@ final class Xlsx
     private static function xml(string $s): string
     {
         $s = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F]/', '', $s) ?? '';
-        return htmlspecialchars($s, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        return htmlspecialchars($s, ENT_XML1 | ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     }
 }
