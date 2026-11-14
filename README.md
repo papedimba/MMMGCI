@@ -20,9 +20,21 @@ Aucune dépendance PHP tierce en production : `vendor/` (PHPUnit) ne sert qu'aux
 
 ```sh
 bin/dev-db                      # démarre MariaDB (idempotent), crée l'utilisateur mmmgci et les bases mmmgci, mmmgci_test
-cp .env.example .env            # puis renseigner APP_ENV=local, APP_DEBUG=true, APP_KEY, DB_*, DB_TEST_NAME=mmmgci_test
+cp .env.example .env            # puis renseigner les valeurs ci-dessous et APP_KEY
 composer install                # PHPUnit seulement (tests)
 php bin/migrate.php             # applique les migrations ; une seconde fois : « Aucune migration en attente. »
+```
+
+Valeurs `.env` correspondant à `bin/dev-db` :
+
+```
+APP_ENV=local
+APP_DEBUG=true
+DB_HOST=127.0.0.1
+DB_NAME=mmmgci
+DB_USER=mmmgci
+DB_PASS=mmmgci
+DB_TEST_NAME=mmmgci_test
 ```
 
 ## Lancer les tests

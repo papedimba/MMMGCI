@@ -26,23 +26,69 @@ final class SmokeTest extends TestCase
         $this->assertSame('nosniff', $res->headers()['X-Content-Type-Options']);
 
         // Cookie de session (porteur du jeton CSRF) : seulement observable via un vrai serveur HTTP.
-        $port = random_int(20000, 40000);
-        $root = dirname(__DIR__, 2);
-        $proc = proc_open([PHP_BINARY, '-S', "127.0.0.1:$port", '-t', "$root/public"], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
-        try {
-            $headers = [];
-            for ($i = 0; $i < 50 && $headers === []; $i++) {
-                usleep(100_000);
-                $headers = @get_headers("http://127.0.0.1:$port/") ?: [];
-            }
+        self::serve(dirname(__DIR__, 2) . '/public', function (int $port): void {
+            [$headers] = self::fetch($port, '/');
             $all = implode("\n", $headers);
-            $this->assertStringContainsString('200 OK', $headers[0] ?? '');
+            $this->assertStringContainsString('200 OK', $headers[0]);
             $this->assertMatchesRegularExpression('/^Set-Cookie: mmmgci_sid=\w+;.*HttpOnly; SameSite=Lax/mi', $all);
             $this->assertStringContainsString('Content-Security-Policy:', $all);
+            $this->assertStringNotContainsStringIgnoringCase('X-Powered-By', $all);
+
+            // Sonde de santé : aucune session ouverte, donc aucun cookie.
+            [$headers, $body] = self::fetch($port, '/sante');
+            $this->assertSame('ok', $body);
+            $this->assertStringNotContainsStringIgnoringCase('Set-Cookie', implode("\n", $headers));
+        });
+    }
+
+    public function test_exception_while_booting_is_logged_and_renders_french_500_with_security_headers(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $copy = sys_get_temp_dir() . '/mmmgci-boot-' . uniqid();
+        mkdir($copy);
+        shell_exec('cp -r ' . implode(' ', array_map(static fn(string $d): string => escapeshellarg("$root/$d"), ['app', 'routes', 'public'])) . ' ' . escapeshellarg($copy));
+        file_put_contents("$copy/.env", "APP_ENV=local\nAPP_DEBUG=false\n");
+        file_put_contents("$copy/routes/web.php", '<?php throw new RuntimeException("boot-secret-detail");');
+        try {
+            // display_errors=1 côté serveur : le gestionnaire doit quand même masquer les détails.
+            self::serve("$copy/public", function (int $port) use ($copy): void {
+                [$headers, $body] = self::fetch($port, '/');
+                $all = implode("\n", $headers);
+                $this->assertStringContainsString('500', $headers[0]);
+                $this->assertStringContainsString('Une erreur est survenue', $body);
+                $this->assertStringNotContainsString('boot-secret-detail', $body);
+                $this->assertStringNotContainsString('#0', $body);
+                $this->assertStringContainsString('Content-Security-Policy:', $all);
+                $this->assertStringContainsString('X-Frame-Options: DENY', $all);
+                $this->assertStringNotContainsStringIgnoringCase('X-Powered-By', $all);
+                $this->assertStringContainsString('boot-secret-detail', (string) @file_get_contents("$copy/storage/logs/app-" . date('Y-m-d') . '.log'));
+            }, ['-d', 'display_errors=1']);
+        } finally {
+            shell_exec('rm -rf ' . escapeshellarg($copy));
+        }
+    }
+
+    /** @param list<string> $phpArgs */
+    private static function serve(string $docroot, callable $probe, array $phpArgs = []): void
+    {
+        $port = random_int(20000, 40000);
+        $proc = proc_open([PHP_BINARY, ...$phpArgs, '-S', "127.0.0.1:$port", '-t', $docroot], [1 => ['file', '/dev/null', 'w'], 2 => ['file', '/dev/null', 'w']], $pipes);
+        try {
+            for ($i = 0; $i < 50 && !@fsockopen('127.0.0.1', $port); $i++) {
+                usleep(100_000);
+            }
+            $probe($port);
         } finally {
             proc_terminate($proc);
             proc_close($proc);
         }
+    }
+
+    /** @return array{list<string>, string} en-têtes (ligne de statut en premier) et corps, quel que soit le statut */
+    private static function fetch(int $port, string $path): array
+    {
+        $body = (string) @file_get_contents("http://127.0.0.1:$port$path", false, stream_context_create(['http' => ['ignore_errors' => true]]));
+        return [$http_response_header ?? [''], $body];
     }
 
     public function test_health_endpoint_reports_database(): void

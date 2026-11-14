@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace App\Core;
 
+use App\Core\Http\SecurityHeaders;
 use Throwable;
 
 final class ErrorHandler
@@ -32,6 +33,10 @@ final class ErrorHandler
         $render500 = static function () use ($debug): void {
             if (!headers_sent()) {
                 http_response_code(500);
+                header_remove('X-Powered-By');
+                foreach (SecurityHeaders::HEADERS as $name => $value) {
+                    header("$name: $value");
+                }
             }
             if (!$debug) {
                 require dirname(__DIR__) . '/views/errors/500.php';

@@ -5,7 +5,7 @@ namespace App\Core\Http;
 
 final class SecurityHeaders implements Middleware
 {
-    private const HEADERS = [
+    public const HEADERS = [
         'Content-Security-Policy' => "default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'",
         'X-Content-Type-Options' => 'nosniff',
         'Referrer-Policy' => 'strict-origin-when-cross-origin',
