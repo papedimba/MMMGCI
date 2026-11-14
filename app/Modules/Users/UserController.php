@@ -62,11 +62,12 @@ final class UserController
     {
         $values = $this->posted($r);
         $now = ($this->clock)();
+        $canSend = $this->links->ready(); // sinon : compte créé sans jeton, l'utilisateur passera par « Mot de passe oublié »
         try {
             // Le jeton d'invitation est émis dans la transaction de la création (et de son audit user.created).
-            [$id, $token] = $this->db->transaction(function () use ($values, $r, $now): array {
+            [$id, $token] = $this->db->transaction(function () use ($values, $r, $now, $canSend): array {
                 $id = $this->users->create($values, (int) $r->attribute('user')['id']);
-                return [$id, $this->resets->issue($id, $now, self::INVITATION_TTL)];
+                return [$id, $canSend ? $this->resets->issue($id, $now, self::INVITATION_TTL) : null];
             });
         } catch (DomainException $e) {
             return $this->form($r, null, $values, $e->getMessage());
@@ -78,7 +79,9 @@ final class UserController
                 . "Pour l'activer, choisissez votre mot de passe en ouvrant ce lien :\n\n$link\n\n"
                 . "Ce lien est valable 72 heures et ne peut servir qu'une fois. Passé ce délai, utilisez « Mot de passe oublié » sur la page de connexion.\n"));
         }
-        $this->session->flash('status', "Compte créé : une invitation à choisir un mot de passe a été envoyée à {$user['email']}.");
+        $this->session->flash('status', $token !== null
+            ? "Compte créé : une invitation à choisir un mot de passe a été envoyée à {$user['email']}."
+            : "Compte créé, mais l'invitation n'a pas pu être envoyée (adresse du site non configurée) : utilisez « Mot de passe oublié » une fois la configuration corrigée.");
         return Response::redirect("/admin/utilisateurs/$id");
     }
 
@@ -124,7 +127,12 @@ final class UserController
             return $this->notFound();
         }
         $id = (int) $target['id'];
-        $active = $r->post('active') === '1';
+        $posted = $r->post('active');
+        if ($posted !== '0' && $posted !== '1') {
+            return $this->form($r, $target, $target + ['roles' => $this->users->roleNames($id)],
+                "Demande d'activation invalide : utilisez le bouton « Désactiver » ou « Réactiver » de la fiche du compte.", 400);
+        }
+        $active = $posted === '1';
         try {
             $this->users->setActive($id, $active, (int) $r->attribute('user')['id']);
         } catch (DomainException $e) {
@@ -149,7 +157,7 @@ final class UserController
     }
 
     /** @param array<string,mixed>|null $target null : création @param array<string,mixed> $values */
-    private function form(Request $r, ?array $target, array $values, ?string $error = null): Response
+    private function form(Request $r, ?array $target, array $values, ?string $error = null, int $status = 422): Response
     {
         return $this->page($r, 'admin/users/form', $target === null ? 'Nouvel utilisateur' : 'Utilisateur : ' . $target['name'], [
             'target' => $target,
@@ -157,7 +165,7 @@ final class UserController
             'roles' => $this->db->fetchAll('SELECT name, label FROM roles ORDER BY label'),
             'self' => $target !== null && (int) $target['id'] === (int) $r->attribute('user')['id'],
             'error' => $error,
-        ], $error === null ? 200 : 422);
+        ], $error === null ? 200 : $status);
     }
 
     /** @param array<string,mixed> $data */

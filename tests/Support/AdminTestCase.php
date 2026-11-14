@@ -38,6 +38,13 @@ abstract class AdminTestCase extends DatabaseTestCase
         return $this->app;
     }
 
+    /** Reconstruit l'application au prochain app() (après un changement de $env ou $overrides) ; la session repart vide. */
+    protected function forgetApp(): void
+    {
+        $this->app = null;
+        $this->services = [];
+    }
+
     /** @param list<string> $roleNames */
     protected function createUser(string $email, array $roleNames, string $password = 'phrase secrète longue 2026', bool $active = true): int
     {

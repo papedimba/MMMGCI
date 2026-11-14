@@ -157,4 +157,47 @@ final class UsersAdminTest extends AdminTestCase
         $this->assertSame(404, $this->request('GET', '/admin/utilisateurs/999999')->status());
         $this->assertSame(404, $this->request('POST', '/admin/utilisateurs/999999/activation', ['active' => '0'])->status());
     }
+
+    public function test_admin_general_cannot_create_a_super_admin_over_http(): void
+    {
+        $this->actingAs($this->createUser('ag@x.test', ['admin_general']));
+        $res = $this->request('POST', '/admin/utilisateurs/nouveau', ['name' => 'Escalade', 'email' => 'esc@x.test', 'roles' => ['super_admin']]);
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString(e('Cette opération est réservée aux administrateurs détenant déjà ces droits : demandez-la à un super administrateur.'), $res->body());
+        $this->assertNull($this->db->fetchValue("SELECT id FROM users WHERE email = 'esc@x.test'"));
+    }
+
+    public function test_user_is_created_without_token_when_app_url_is_not_configured(): void
+    {
+        $this->env = ['APP_URL' => ''];
+        $this->forgetApp();
+        $this->actingAs($this->admin);
+        $log = tempnam(sys_get_temp_dir(), 'errlog');
+        $previous = ini_set('error_log', $log);
+        try {
+            $res = $this->request('POST', '/admin/utilisateurs/nouveau', ['name' => 'Sans lien', 'email' => 'sanslien@x.test', 'roles' => []]);
+        } finally {
+            ini_set('error_log', (string) $previous);
+            unlink($log);
+        }
+        $id = (int) $this->db->fetchValue("SELECT id FROM users WHERE email = 'sanslien@x.test'");
+        $this->assertSame(302, $res->status());
+        $this->assertGreaterThan(0, $id);
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM password_resets WHERE user_id = ?', [$id]));
+        $this->assertCount(0, $this->mail->messages);
+        $this->assertSame("Compte créé, mais l'invitation n'a pas pu être envoyée (adresse du site non configurée) : utilisez « Mot de passe oublié » une fois la configuration corrigée.",
+            $this->services['session']->pullFlash('status'));
+    }
+
+    public function test_activation_rejects_values_other_than_0_or_1(): void
+    {
+        $target = $this->createUser('valeur@x.test', ['gest_cms']);
+        foreach (['', 'x', 'false'] as $value) {
+            $res = $this->request('POST', "/admin/utilisateurs/$target/activation", ['active' => $value]);
+            $this->assertSame(400, $res->status());
+            $this->assertStringContainsString('Demande d&#039;activation invalide', $res->body());
+        }
+        $this->assertSame(1, (int) $this->db->fetchValue('SELECT is_active FROM users WHERE id = ?', [$target]));
+        $this->assertNull($this->db->fetchValue("SELECT id FROM audit_logs WHERE auditable_id = ? AND action LIKE 'user.%activated'", [$target]));
+    }
 }

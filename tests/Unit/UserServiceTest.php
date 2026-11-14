@@ -14,6 +14,7 @@ use Tests\DatabaseTestCase;
 final class UserServiceTest extends DatabaseTestCase
 {
     private const LAST_ADMIN = 'Opération impossible : il doit rester au moins un administrateur actif.';
+    private const PROTECTED = 'Cette opération est réservée aux administrateurs détenant déjà ces droits : demandez-la à un super administrateur.';
 
     protected function setUp(): void
     {
@@ -57,7 +58,7 @@ final class UserServiceTest extends DatabaseTestCase
     {
         $a = $this->user('a@x.test', ['super_admin']);
         $this->user('inactif@x.test', ['super_admin'], false); // un détenteur inactif ne compte pas
-        $actor = $this->user('cms@x.test', ['gest_cms']);
+        $actor = null; // CLI : exempté des règles de rôles protégés, pas de la règle du dernier administrateur
         $svc = $this->service();
 
         $this->assertDomain(self::LAST_ADMIN, fn () => $svc->setActive($a, false, $actor));
@@ -78,7 +79,7 @@ final class UserServiceTest extends DatabaseTestCase
     {
         $a = $this->user('a2@x.test', ['super_admin']);
         $b = $this->user('b2@x.test', ['super_admin']);
-        $actor = $this->user('cms2@x.test', ['gest_cms']);
+        $actor = null;
         $other = Database::connect(self::config(), test: true);
         $other->query('SET SESSION innodb_lock_wait_timeout = 1');
 
@@ -137,5 +138,93 @@ final class UserServiceTest extends DatabaseTestCase
         $log = $this->db->fetch("SELECT old_values, new_values FROM audit_logs WHERE action = 'user.updated' AND auditable_id = ? ORDER BY id DESC LIMIT 1", [$id]);
         $this->assertSame(['name' => 'U cible@x.test'], json_decode($log['old_values'], true));
         $this->assertSame(['name' => 'Nouveau nom'], json_decode($log['new_values'], true));
+    }
+
+    private function roleId(string $name): int
+    {
+        return (int) $this->db->fetchValue('SELECT id FROM roles WHERE name = ?', [$name]);
+    }
+
+    public function test_admin_general_cannot_assign_protected_roles(): void
+    {
+        $ag = $this->user('ag@x.test', ['admin_general']);
+        $svc = $this->service();
+        foreach (['super_admin', 'pca', 'gest_adherents', 'gest_social'] as $i => $role) {
+            $this->assertDomain(self::PROTECTED, fn () => $svc->create(['name' => 'P', 'email' => "p$i@x.test", 'roles' => ['lecture_seule', $role]], $ag));
+        }
+        $this->assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM users WHERE email LIKE 'p_@x.test'"));
+
+        $ok = ['admin_general', 'controleur', 'lecture_seule', 'redacteur', 'secretaire_general', 'tresorier_general'];
+        $id = $svc->create(['name' => 'Ok', 'email' => 'ok@x.test', 'roles' => $ok], $ag);
+        $this->assertSame($ok, $this->roles($id));
+        $this->assertDomain(self::PROTECTED, fn () => $svc->setRoles($id, [...$ok, 'pca'], $ag));
+
+        $sa = $this->user('sa@x.test', ['super_admin']); // un super administrateur peut tout attribuer
+        $all = array_column($this->db->fetchAll('SELECT name FROM roles ORDER BY name'), 'name');
+        $svc->setRoles($id, $all, $sa);
+        $this->assertCount(count($all), $this->roles($id));
+    }
+
+    public function test_admin_general_cannot_act_on_holders_of_protected_roles(): void
+    {
+        $ag = $this->user('ag2@x.test', ['admin_general']);
+        $sa = $this->user('sa2@x.test', ['super_admin']);
+        $pca = $this->user('pca2@x.test', ['pca']);
+        $svc = $this->service();
+        foreach ([$sa, $pca] as $target) {
+            $this->assertDomain(self::PROTECTED, fn () => $svc->update($target, ['name' => 'X', 'email' => "autre$target@x.test"], $ag));
+            $this->assertDomain(self::PROTECTED, fn () => $svc->setActive($target, false, $ag));
+            $this->assertDomain(self::PROTECTED, fn () => $svc->setRoles($target, ['lecture_seule'], $ag));
+        }
+        $this->assertSame(['super_admin'], $this->roles($sa));
+        $this->assertSame('sa2@x.test', $this->db->fetchValue('SELECT email FROM users WHERE id = ?', [$sa]));
+
+        $other = $this->user('ag3@x.test', ['admin_general']); // même droits que l'acteur : autorisé
+        $svc->setActive($other, false, $ag);
+        $svc->setRoles($pca, ['lecture_seule'], $sa);
+        $this->assertSame(['lecture_seule'], $this->roles($pca));
+    }
+
+    public function test_cli_without_actor_is_exempt(): void
+    {
+        $id = $this->service()->create(['name' => 'Admin', 'email' => 'cli@x.test', 'roles' => ['super_admin']], null);
+        $this->assertSame(['super_admin'], $this->roles($id));
+        $this->assertNull($this->db->fetchValue("SELECT user_id FROM audit_logs WHERE action = 'user.created' AND auditable_id = ?", [$id]));
+    }
+
+    public function test_email_change_and_deactivation_invalidate_open_tokens(): void
+    {
+        $sa = $this->user('sa4@x.test', ['super_admin']);
+        $id = $this->user('jeton@x.test', ['lecture_seule']);
+        $resets = new \App\Modules\Auth\PasswordReset($this->db);
+        $token = $resets->issue($id, time());
+
+        $this->service()->update($id, ['name' => 'Autre nom', 'email' => 'jeton@x.test'], $sa); // e-mail inchangé : jeton gardé
+        $this->assertSame($id, $resets->check($token, time()));
+        $this->service()->update($id, ['name' => 'Autre nom', 'email' => 'nouveau@x.test'], $sa);
+        $this->assertNull($resets->check($token, time()));
+
+        $token = $resets->issue($id, time());
+        $this->service()->setActive($id, false, $sa);
+        $this->service()->setActive($id, true, $sa);
+        $this->assertNull($resets->check($token, time()));
+    }
+
+    public function test_role_change_that_strips_the_last_holder_is_detected(): void
+    {
+        $this->user('seul@x.test', ['super_admin']);
+        $this->user('lecteur@x.test', ['lecture_seule']);
+        $svc = $this->service();
+        $super = $this->roleId('super_admin');
+
+        $this->assertTrue($svc->wouldLeaveNoAdminAfterRoleChange($super, ['audit.view']));
+        $this->assertTrue($svc->wouldLeaveNoAdminAfterRoleChange($super, deleted: true));
+        $this->assertFalse($svc->wouldLeaveNoAdminAfterRoleChange($super, ['audit.view', 'users.manage']));
+        $this->assertFalse($svc->wouldLeaveNoAdminAfterRoleChange($super));
+        $this->assertFalse($svc->wouldLeaveNoAdminAfterRoleChange($this->roleId('lecture_seule'), deleted: true));
+
+        $this->user('autre@x.test', ['admin_general']);
+        $this->assertFalse($svc->wouldLeaveNoAdminAfterRoleChange($super, deleted: true));
+        $this->assertFalse($svc->wouldLeaveNoAdminAfterRoleChange($this->roleId('admin_general'), [])); // le super_admin reste détenteur
     }
 }
