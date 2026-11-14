@@ -44,6 +44,8 @@ final class Request
         return ($this->server['HTTPS'] ?? '') !== '' && strtolower((string) $this->server['HTTPS']) !== 'off';
     }
 
+    public function queryString(): string { return http_build_query($this->query); }
+
     public function ip(): string { return (string) ($this->server['REMOTE_ADDR'] ?? '0.0.0.0'); }
 
     public function header(string $name): ?string
