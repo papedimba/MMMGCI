@@ -6,18 +6,24 @@ use App\Core\Http\Request;
 use App\Core\Http\RequireAuth;
 use App\Core\Http\Response;
 use App\Core\Http\Router;
+use App\Modules\Auth\LinkMailer;
 use App\Modules\Auth\LoginController;
 use App\Modules\Auth\LoginThrottle;
 use App\Modules\Auth\PasswordController;
 use App\Modules\Auth\PasswordReset;
+use App\Modules\Users\UserController;
+use App\Modules\Users\UserService;
 
 /** @param array<string,mixed> $deps services de app/kernel.php ; db, gate, auth et audit sont des fabriques paresseuses */
 return static function (Router $r, array $deps): void {
     ['view' => $view, 'csrf' => $csrf, 'session' => $session, 'db' => $db, 'gate' => $gate, 'auth' => $auth, 'audit' => $audit, 'mailer' => $mailer, 'defer' => $defer, 'clock' => $clock, 'config' => $config] = $deps;
     $login = static fn (): LoginController => new LoginController($view, $csrf, $db(), $auth(), $audit(), new LoginThrottle($db()), Closure::fromCallable($clock), $session);
+    $links = static fn (): LinkMailer => new LinkMailer($mailer, (string) $config->get('APP_URL', ''),
+        !in_array($config->get('APP_ENV', 'production'), ['local', 'testing'], true));
     $password = static fn (): PasswordController => new PasswordController($view, $csrf, $session, $db(), $auth(), $gate(), $audit(),
-        new LoginThrottle($db()), new PasswordReset($db()), $mailer, Closure::fromCallable($defer), (string) $config->get('APP_URL', ''),
-        !in_array($config->get('APP_ENV', 'production'), ['local', 'testing'], true), Closure::fromCallable($clock));
+        new LoginThrottle($db()), new PasswordReset($db()), $links(), Closure::fromCallable($defer), Closure::fromCallable($clock));
+    $users = static fn (): UserController => new UserController($view, $csrf, $session, $db(), $gate(), new UserService($db(), $audit(), $gate()),
+        new PasswordReset($db()), $links(), Closure::fromCallable($defer), Closure::fromCallable($clock));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -33,6 +39,14 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/mon-compte/mot-de-passe', static fn (Request $q): Response => $password()->changeForm($q), [$requireAuth]);
     $r->post('/admin/mon-compte/mot-de-passe', static fn (Request $q): Response => $password()->change($q), [$requireAuth]);
     $r->post('/admin/deconnexion', static fn (Request $q): Response => $login()->logout($q), [$requireAuth]);
+
+    $manageUsers = [$requireAuth, $permission('users.manage')];
+    $r->get('/admin/utilisateurs', static fn (Request $q): Response => $users()->index($q), $manageUsers);
+    $r->get('/admin/utilisateurs/nouveau', static fn (Request $q): Response => $users()->createForm($q), $manageUsers);
+    $r->post('/admin/utilisateurs/nouveau', static fn (Request $q): Response => $users()->create($q), $manageUsers);
+    $r->get('/admin/utilisateurs/{id:\d+}', static fn (Request $q): Response => $users()->editForm($q), $manageUsers);
+    $r->post('/admin/utilisateurs/{id:\d+}', static fn (Request $q): Response => $users()->edit($q), $manageUsers);
+    $r->post('/admin/utilisateurs/{id:\d+}/activation', static fn (Request $q): Response => $users()->activation($q), $manageUsers);
 
     $r->get('/admin', static function (Request $q) use ($view, $csrf, $session, $gate): Response {
         $user = $q->attribute('user');

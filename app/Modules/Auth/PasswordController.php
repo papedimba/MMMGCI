@@ -9,7 +9,6 @@ use App\Core\Database;
 use App\Core\Gate;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
-use App\Core\Mailer;
 use App\Core\Session;
 use App\Core\View;
 use Closure;
@@ -26,13 +25,12 @@ final class PasswordController
     private const SUBJECT = 'Réinitialisation de votre mot de passe — MMMGCI';
 
     /**
-     * @param Closure(): Mailer $mailer construit à l'envoi : une configuration e-mail invalide n'est qu'un échec d'envoi journalisé
      * @param Closure(callable): void $defer exécute un travail après l'envoi de la réponse
      * @param Closure(): int $clock
      */
     public function __construct(private View $view, private Csrf $csrf, private Session $session, private Database $db,
         private Auth $auth, private Gate $gate, private Audit $audit, private LoginThrottle $throttle, private PasswordReset $resets,
-        private Closure $mailer, private Closure $defer, private string $appUrl, private bool $requireHttps, private Closure $clock)
+        private LinkMailer $links, private Closure $defer, private Closure $clock)
     {
     }
 
@@ -146,12 +144,7 @@ final class PasswordController
         if ($user === null) {
             return;
         }
-        if (!preg_match('#^https?://[^/\s]+#i', $this->appUrl)) {
-            error_log("APP_URL doit être une adresse absolue (ex. https://mmmgci.ci) : renseignez-la dans .env ; aucun lien de réinitialisation envoyé.");
-            return;
-        }
-        if ($this->requireHttps && !preg_match('#^https://#i', $this->appUrl)) { // un jeton envoyé en clair sur HTTP serait interceptable
-            error_log("APP_URL doit commencer par https:// hors environnement local : corrigez-la dans .env ; aucun lien de réinitialisation envoyé.");
+        if (!$this->links->ready()) { // aucun jeton émis pour un lien qui ne partirait pas
             return;
         }
         $id = (int) $user['id'];
@@ -166,15 +159,13 @@ final class PasswordController
             if ($token === null) {
                 return;
             }
-            $link = rtrim($this->appUrl, '/') . '/admin/reinitialiser/' . $token;
-            $body = "Bonjour {$user['name']},\n\n"
+            $this->links->send($user, $token, self::SUBJECT, static fn (string $link): string => "Bonjour {$user['name']},\n\n"
                 . "Une réinitialisation du mot de passe de votre compte d'administration MMMGCI a été demandée. "
                 . "Pour choisir un nouveau mot de passe, ouvrez ce lien :\n\n$link\n\n"
                 . "Ce lien est valable 1 heure et ne peut servir qu'une fois.\n\n"
-                . "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : votre mot de passe reste inchangé.\n";
-            ($this->mailer)()->send($user['email'], self::SUBJECT, $body);
+                . "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : votre mot de passe reste inchangé.\n");
         } catch (Throwable $e) {
-            // Classe et utilisateur seulement : le message pourrait contenir le lien ou un secret SMTP.
+            // Classe et utilisateur seulement : le message pourrait contenir un secret.
             error_log('Lien de réinitialisation non envoyé (utilisateur #' . $id . ') : ' . get_class($e));
         }
     }

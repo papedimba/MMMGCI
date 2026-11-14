@@ -12,8 +12,8 @@ final class PasswordReset
     {
     }
 
-    /** Jeton en clair (64 hex), ou null si l'utilisateur a déjà reçu $maxPerHour jetons dans l'heure. */
-    public function issue(int $userId, int $now): ?string
+    /** Jeton en clair (64 hex), ou null si l'utilisateur a déjà reçu $maxPerHour jetons dans l'heure ; $ttlSeconds remplace la durée par défaut (invitation). */
+    public function issue(int $userId, int $now, ?int $ttlSeconds = null): ?string
     {
         $recent = (int) $this->db->fetchValue('SELECT COUNT(*) FROM password_resets WHERE user_id = ? AND created_at >= ?', [$userId, gmdate('Y-m-d H:i:s', $now - 3600)]);
         if ($recent >= $this->maxPerHour) {
@@ -23,7 +23,7 @@ final class PasswordReset
         $this->db->insert('password_resets', [
             'user_id' => $userId,
             'token_hash' => hash('sha256', $token),
-            'expires_at' => gmdate('Y-m-d H:i:s', $now + $this->ttlSeconds),
+            'expires_at' => gmdate('Y-m-d H:i:s', $now + ($ttlSeconds ?? $this->ttlSeconds)),
             'created_at' => gmdate('Y-m-d H:i:s', $now),
         ]);
         return $token;
