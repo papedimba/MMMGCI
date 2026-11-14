@@ -54,11 +54,11 @@ final class SchedulerTest extends DatabaseTestCase
         $this->s->register('good', 10, function () { $this->calls++; });
         $prev = ini_set('error_log', sys_get_temp_dir() . '/scheduler_test.log');
         $res = $this->s->run(1_000_000);
-        ini_set('error_log', (string) $prev);
         $this->assertSame(['bad' => 'failed', 'good' => 'ran'], $res);
         $this->assertSame('boom', $this->db->fetchValue("SELECT error FROM scheduled_runs WHERE task = 'bad'"));
         $this->assertNull($this->db->fetchValue("SELECT locked_at FROM scheduler_locks WHERE task = 'bad'"));
         $this->assertSame(['bad' => 'failed', 'good' => 'skipped_not_due'], $this->s->run(1_000_001));
+        ini_set('error_log', (string) $prev);
     }
 
     public function test_two_real_processes_run_the_task_exactly_once(): void
