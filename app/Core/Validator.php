@@ -41,16 +41,27 @@ final class Validator
     {
         foreach ($this->rules as $field => $spec) {
             $raw = $this->data[$field] ?? null;
-            $value = is_string($raw) ? trim($raw) : $raw;
+            $label = $this->labels[$field] ?? $field;
+            if (is_int($raw) || is_float($raw)) {
+                $raw = (string) $raw;
+            }
+            if ($raw !== null && !is_string($raw)) {
+                $this->values[$field] = null;
+                $this->errors[$field] = "$label : valeur invalide, saisissez un texte.";
+                continue;
+            }
+            $value = $raw === null ? null : trim($raw);
             $value = $value === '' ? null : $value;
             $this->values[$field] = $value;
-            $label = $this->labels[$field] ?? $field;
             $rules = explode('|', $spec);
             $known = ['required', 'nullable', 'string', 'max', 'min', 'email', 'phone_ci', 'date', 'before_today', 'in', 'integer', 'same'];
 
             foreach ($rules as $rule) {
                 if (!in_array(explode(':', $rule, 2)[0], $known, true)) {
                     throw new \InvalidArgumentException("Règle de validation inconnue : $rule");
+                }
+                if (preg_match('/^(max|min):(.*)$/', $rule, $m) && !ctype_digit($m[2])) {
+                    throw new \InvalidArgumentException("Paramètre numérique attendu : $rule");
                 }
             }
             if ($value === null) {
@@ -98,8 +109,12 @@ final class Validator
                 $this->values[$field] = $iso;
                 return null;
             case 'before_today':
+                $iso = self::parseDate($s);
+                if ($iso === null) {
+                    return 'Date invalide : utilisez le format JJ/MM/AAAA.';
+                }
                 $today = (new \DateTimeImmutable('now', new \DateTimeZone('Africa/Abidjan')))->format('Y-m-d');
-                return $s < $today ? null : "$label : la date doit être antérieure à aujourd'hui.";
+                return $iso < $today ? null : "$label : la date doit être antérieure à aujourd'hui.";
             case 'in':
                 return in_array($s, explode(',', $arg), true) ? null : "$label : choisissez une valeur dans la liste proposée.";
             case 'integer':

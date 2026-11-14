@@ -87,4 +87,45 @@ final class ValidatorTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         Validator::make(['a' => 'x'], ['a' => 'bogus'])->fails();
     }
+
+    public function test_array_input_is_rejected_and_not_returned(): void
+    {
+        $v = Validator::make(['n' => ['x']], ['n' => 'required|max:3'], ['n' => 'Nom']);
+        $this->assertSame('Nom : valeur invalide, saisissez un texte.', $v->errors()['n']);
+        $this->assertNull($v->validated()['n']);
+    }
+
+    public function test_int_input_is_cast_to_string(): void
+    {
+        $v = Validator::make(['n' => 5], ['n' => 'integer']);
+        $this->assertFalse($v->fails());
+        $this->assertSame('5', $v->validated()['n']);
+    }
+
+    public function test_required_accepts_zero_string(): void
+    {
+        $this->assertFalse(Validator::make(['n' => '0'], ['n' => 'required'])->fails());
+    }
+
+    public function test_same_passes_when_equal(): void
+    {
+        $this->assertFalse(Validator::make(['p' => 'a', 'q' => ' a '], ['q' => 'same:p'])->fails());
+    }
+
+    public function test_email_with_newline_is_rejected(): void
+    {
+        $this->assertTrue(Validator::make(['e' => "a@b.ci\nx"], ['e' => 'email'])->fails());
+    }
+
+    public function test_before_today_works_without_date_rule(): void
+    {
+        $this->assertFalse(Validator::make(['d' => '01/01/2000'], ['d' => 'before_today'])->fails());
+        $this->assertTrue(Validator::make(['d' => 'n/a'], ['d' => 'before_today'])->fails());
+    }
+
+    public function test_non_numeric_max_parameter_is_a_programming_error(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Validator::make(['a' => 'x'], ['a' => 'max:abc']);
+    }
 }
