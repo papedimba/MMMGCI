@@ -14,6 +14,10 @@ flowchart LR
     P5[Offres emploi & formations] --- P6[Documents officiels]
     P7[Vérification carte QR]
   end
+  subgraph ESP[Espace adhérent /espace]
+    E1[Ma fiche & ayants droit] --- E2[Mes cotisations & reçus]
+    E3[Ma carte] --- E4[Mes demandes d'assistance]
+  end
   subgraph CMS[CMS /admin/cms]
     C1[Pages & menus] --- C2[Articles, événements, documents]
     C3[Médiathèque] --- C4[Formulaires reçus]
@@ -62,6 +66,7 @@ Une seule application, une seule base, un seul système de comptes. CMS et gesti
 /contact                        Contact (+ proposition de partenariat)
 /mentions-legales
 /confidentialite
+/espace                         Espace adhérent (connexion, activation, rubriques A8)
 /verifier/{jeton}               Vérification carte de membre (QR)
 /sitemap.xml  /robots.txt
 ```
@@ -101,6 +106,7 @@ flowchart TD
 | U6 Rapport de délégué | Délégué (smartphone) | Connexion → « Nouveau rapport » → période, activités, adhésions recueillies, difficultés, photos → envoi |
 | U7 Publier une actualité | Rédacteur → Éditeur | Brouillon → « Soumettre » → éditeur relit → Publier / Programmer |
 | U8 Tenir une réunion | Secrétaire général | Convocation (ordre du jour) → réunion → PV → décisions → suivi |
+| U9 Suivre sa demande | Adhérent (smartphone) | voir A8 |
 
 ### A5. Workflows (machines d'état)
 
@@ -203,12 +209,41 @@ Permissions de la forme `module.action` (actions : `view`, `create`, `update`, `
 | Rédacteur | — | C/M ses contenus, soumettre | — | — | — | — | — | — | — | — | — | — | — | — |
 | Gestionnaire médias | — | médiathèque | — | — | — | — | — | — | — | — | — | — | — | — |
 | Lecture seule | — | — | V (sans pièces ni données sensibles) | V | V | V | — | V | V | V | V | — | V | — |
+| **Adhérent** (compte de l'Espace adhérent, hors RBAC du personnel) | — | — | **sa** fiche (V), demande de correction | **ses** cotisations (V, imprimer) | — | — | **ses** demandes (V statut, C pièces, C nouvelle demande*) | V (offres publiques) | — | — | — | — | — | — |
 
 Notes :
 - L'attribution de **A** (approuver) au PCA et au 1er VP n'est qu'une **suggestion** (D3 sans réponse). À l'installation, **aucun rôle** ne détient la permission d'approuver ou de payer : le super administrateur l'attribue explicitement, et le module refuse de fonctionner tant que moins de deux personnes distinctes peuvent approuver. Le logiciel n'attribue aucun pouvoir sur la base d'un titre.
 - Un utilisateur peut cumuler plusieurs rôles ; la règle initiateur ≠ approbateur s'applique quelle que soit la combinaison.
 - Les pièces d'identité et les données de santé ont des permissions dédiées (`members.documents.view`, `social.medical.view`) ; leur consultation est journalisée.
 - Le périmètre « délégué » est restreint aux membres de sa zone (filtre serveur).
+
+### A8. Espace adhérent (décision du commanditaire du 14/11/2026)
+
+Chaque adhérent validé dispose d'un compte personnel, distinct des comptes du personnel. Usage pensé d'abord pour le smartphone.
+
+**Ouverture du compte (proposition)**
+1. À la validation de l'adhésion, le système crée le compte, inactif, et un **code d'activation** à usage unique, valable 14 jours (durée paramétrable).
+2. Le code est envoyé par e-mail si l'adhérent en a un. Sinon, le gestionnaire ou le délégué imprime une **lettre d'activation** et la lui remet. Aucun SMS en V1, car c'est un coût récurrent non prévu ; il pourra être ajouté.
+3. L'adhérent ouvre `/espace/activer`, saisit son numéro de membre, sa date de naissance et le code, puis choisit son mot de passe.
+4. Connexion ensuite avec le **numéro de membre ou le téléphone** (ou l'e-mail) et le mot de passe.
+5. Mot de passe oublié : lien par e-mail, ou nouveau code délivré par un gestionnaire après vérification d'identité (action journalisée).
+
+**Ce que l'adhérent voit et fait**
+
+| Rubrique | Contenu | Actions |
+|---|---|---|
+| Accueil | Statut (actif, à jour ou non), dernière cotisation, demandes en cours, messages de la Mutuelle | — |
+| Ma fiche | Identité, profession, situation, coordonnées, date d'adhésion, ayants droit | **Demander une correction** : l'identité n'est jamais modifiée directement ; les coordonnées le sont après validation par un gestionnaire |
+| Mes cotisations | Appels, paiements, impayés, reçus | Imprimer ou enregistrer un reçu |
+| Ma carte | Carte de membre avec QR | Imprimer, si la carte est délivrée |
+| Mes demandes d'assistance | Référence, type, date, **statut simplifié** (reçue, en cours d'examen, pièces demandées, décision rendue, clôturée), décision et motif communiqués, montant accordé | Déposer une pièce demandée ; **nouvelle demande en ligne** (proposition C38, à valider) |
+| Mon compte | Identifiant, téléphone, mot de passe | Changer le mot de passe |
+
+**Ce que l'adhérent ne voit jamais** : avis d'instruction internes, notes et commentaires du personnel, noms des instructeurs et approbateurs, circuit de décaissement, données de tout autre membre.
+
+**Statut du membre et accès** (règle paramétrable) : actif → accès complet ; suspendu → consultation seule ; radié ou décédé → compte désactivé (les ayants droit n'ont pas de compte en V1).
+
+**Parcours U9 — Suivre sa demande** : Connexion (téléphone) → « Mes demandes » → AS-2026-0019 « Pièces demandées : certificat médical » → « Ajouter une pièce » → photo du document → envoi → statut « En cours d'examen », le gestionnaire est notifié.
 
 ### A7. Critères d'acceptation transverses
 
@@ -310,6 +345,7 @@ mmmgci/
 | XSS | Échappement `e()` (htmlspecialchars, UTF-8) par défaut dans toutes les vues ; contenu riche nettoyé par liste blanche `DOMDocument` à l'enregistrement ; en-tête CSP stricte (aucun script en ligne) |
 | CSRF | Jeton aléatoire (`random_bytes`) par session, vérifié avec `hash_equals` sur toute requête POST ; cookies `SameSite=Lax` |
 | Sessions | Cookie `Secure`, `HttpOnly` ; régénération d'ID à la connexion ; expiration d'inactivité (30 min admin, paramétrable) ; sessions stockées en base |
+| Espace adhérent | Authentification séparée de celle du personnel (table, cookie et chemin distincts) : une session adhérent ne donne jamais accès à `/admin` ; données toujours lues via le membre de la session, jamais via un identifiant d'URL ; code d'activation stocké haché, à usage unique, expirant ; limitation des tentatives sur connexion et activation ; réponses neutres (« identifiants incorrects ») ; tests d'accès croisé entre deux adhérents |
 | Mots de passe | Argon2id (ou bcrypt si non disponible) ; longueur ≥ 12 ; vérification contre les mots de passe compromis courants (liste locale) |
 | Force brute | Limiteur : 5 tentatives / 15 min par identifiant + IP, journalisé ; verrouillage temporaire |
 | Comptes à privilèges | 2FA TOTP proposée pour finances et super admin (T06) |

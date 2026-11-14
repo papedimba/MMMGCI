@@ -7,6 +7,7 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 
 ## Waiting On
 - [ ] **D3 Approbateurs des décaissements** - instances
+- [ ] **C38 Dépôt de demandes d'assistance en ligne par l'adhérent : oui/non** - commanditaire
 - [ ] **D4 Domaine, hébergeur cPanel, SMTP** - commanditaire (pas encore d'hébergement)
 - [ ] **Logo horizontal + version SVG/PNG transparente** - commanditaire
 
@@ -25,6 +26,7 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **L11 Rapports et indicateurs** (T11.1–T11.4)
 - [ ] **L12 Discipline** (T12.1–T12.3)
 - [ ] **L13 Installation, exploitation, documentation** (T13.1–T13.6)
+- [ ] **L15 Espace adhérent** (T15.1–T15.11) → V0.4
 - [ ] **L14 Recette** (T14.1–T14.6) → V1.0
 
 ## Done

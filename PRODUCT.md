@@ -15,7 +15,7 @@ PHP 8.2+ natif sans framework ni Composer en production (décision du commandita
 - **Responsables de la Mutuelle** (Bureau exécutif, Secrétariat général, Trésorerie, Communication, organe de contrôle) : gèrent adhérents, cotisations, demandes sociales, finances et gouvernance, principalement sur ordinateur au siège.
 - **Délégués et points focaux** : sur le terrain (ports, lieux de rassemblement), surtout sur smartphone avec connexion mobile parfois faible ; recensent, relaient, déposent des rapports.
 - **Visiteurs publics** : marins marchands, gens de mer, anciens marins, familles, partenaires (armements, centres de formation, institutions) qui découvrent la Mutuelle, demandent leur adhésion ou consultent les offres.
-- Les adhérents n'ont **pas** de compte personnel en V1 (décision du commanditaire, 2026-11-13).
+- **Adhérents** : chacun dispose d'un compte personnel dans l'« Espace adhérent » pour consulter sa fiche, ses cotisations et suivre ses demandes d'assistance (décision du commanditaire, 2026-11-14, qui remplace celle du 13/11). Usage surtout sur smartphone, parfois sans adresse e-mail.
 
 ## Product Purpose
 

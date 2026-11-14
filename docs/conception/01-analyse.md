@@ -37,7 +37,7 @@ La plateforme demandée regroupe trois espaces partageant une base et un systèm
 2. **CMS** (pages, menus, articles, médias, formulaires, SEO, utilisateurs éditoriaux).
 3. **Espace de gestion** (adhérents, cotisations, finances, fonds de solidarité à double validation, demandes sociales, emploi/formation, partenariats, gouvernance, délégués, discipline, rapports).
 
-Ce que le CDC **ne prévoit pas** et que la plateforme ne fera pas sans décision ultérieure : remboursement d'assurance maladie, épargne, crédit aux membres, régime de retraite, sanctions automatiques, compte personnel adhérent (exclu en V1 par le commanditaire).
+Ce que le CDC **ne prévoit pas** et que la plateforme ne fera pas sans décision ultérieure : remboursement d'assurance maladie, épargne, crédit aux membres, régime de retraite, sanctions automatiques. Le **compte personnel adhérent** n'est pas dans le CDC mais il est demandé par le commanditaire (14/11/2026) : catégorie CMD.
 
 ---
 
@@ -55,7 +55,7 @@ Ce que le CDC **ne prévoit pas** et que la plateforme ne fera pas sans décisio
 | Organe de contrôle | CDC art. 3, 14–15 | Contrôle interne, lecture des journaux et états financiers. |
 | Commissions techniques | CDC art. 3, X | Mobilisation, partenariats, emploi… ; suivi par commission. |
 | Délégués et points focaux | CDC art. 4, 11, X (prio. 5) | Terrain, smartphone ; recensement, relais, rapports périodiques. |
-| Adhérent | CDC art. 5–8, 17 | Objet de la gestion (pas de compte en V1). |
+| Adhérent | CDC art. 5–8, 17 ; CMD 14/11 | Objet de la gestion **et utilisateur** de l'Espace adhérent : consulte sa fiche, ses cotisations, sa carte, suit ses demandes d'assistance. |
 | Ayant droit | CDC art. 6, 9 | Rattaché à un adhérent ; bénéficiaire possible d'un accompagnement. |
 | Ancien marin / retraité | CDC art. 2, 5, 9 | Catégorie d'adhérent avec suivi spécifique. |
 | Partenaire | CDC art. 12 | Armements, pêche industrielle, offshore, syndicats, établissements sanitaires, centres de formation, institutions, ONG. |
@@ -83,6 +83,7 @@ Ce que le CDC **ne prévoit pas** et que la plateforme ne fera pas sans décisio
 | P13 | Délégués / points focaux | CDC art. 4, 11, X (prio. 5) | Affectation zone → fiche de mission → rapports périodiques. |
 | P14 | Manquement | CDC art. 16–18 | Signalement → information de la personne → observations → examen → décision de l'organe (mesure issue des textes) → archivage. |
 | P15 | Reporting | CDC art. 15, 19–20 | Rapports mensuels/trimestriels calculés sur les données réelles. |
+| P17 | Activation et usage du compte adhérent | CMD 14/11/2026 | Validation de l'adhésion → code d'activation (e-mail ou lettre remise) → création du mot de passe → consultation, demandes de correction, suivi des demandes. |
 | P16 | Publication de contenus | CDC art. 4 (communication) ; CMD § 7 | Rédaction → relecture → publication (« informations officielles validées »). |
 
 ---
@@ -164,6 +165,9 @@ Classés par impact sur le fonctionnement. **Aucun ne bloque la phase de dévelo
 | R11 | Failles dans le socle de sécurité écrit sur mesure (CSRF, sessions, uploads) | Moyenne | Très élevé | Fonctions natives de PHP uniquement (`password_hash`, `random_bytes`, `hash_equals`, PDO préparé, `finfo`), tests dédiés à chaque protection, revue de sécurité au lot L14. |
 | R9 | Usurpation de comptes à privilèges | Moyenne | Très élevé | Limitation des tentatives, mots de passe robustes, 2FA TOTP proposée pour les rôles financiers (TECH, à valider). |
 | R10 | Le CDC n'est pas encore adopté et peut changer | Moyenne | Moyen | Traçabilité CDC ↔ fonctionnalités ; paramétrage plutôt que code. |
+| R12 | Un adhérent voit les données d'un autre (accès par identifiant deviné) | Moyenne | Très élevé | Toute requête de l'Espace adhérent filtrée par le membre de la session, jamais par un identifiant de l'URL ; tests d'accès croisé automatiques. |
+| R13 | Charge de support (mots de passe oubliés, adhérents sans e-mail) | Haute | Moyen | Connexion par numéro de membre ou téléphone ; réinitialisation par le gestionnaire ou le délégué via un nouveau code ; guide illustré d'une page. |
+| R14 | Prise de contrôle d'un compte adhérent | Moyenne | Élevé | Mot de passe ≥ 10 caractères, limitation des tentatives, code d'activation à usage unique et à durée limitée, alerte au gestionnaire après verrouillage. |
 
 ---
 

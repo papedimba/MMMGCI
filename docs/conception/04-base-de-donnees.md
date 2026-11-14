@@ -192,6 +192,17 @@ Les coordonnées, réseaux sociaux et pied de page sont des clés de `settings` 
 | `disciplinary_observations` | case_id, author (la personne concernée ou son représentant), received_at, content, file_id |
 | `disciplinary_decisions` | case_id UNIQUE, governing_body_id, measure_id NULL (aucune mesure possible), reasoning, decided_at, decision_ref |
 
+### 3.10 Espace adhérent
+
+| Table | Colonnes principales | Notes |
+|---|---|---|
+| `member_accounts` | member_id **UNIQUE**, login_phone, login_email NULL, password (hash Argon2id), status (`en_attente`, `actif`, `verrouille`, `desactive`), activated_at, last_login_at, failed_attempts, locked_until | Séparée de `users` : deux mondes d'authentification distincts |
+| `member_activation_codes` | member_account_id, code_hash, purpose (`activation`, `reinitialisation`), delivery (`email`, `lettre`), issued_by NULL, expires_at, used_at | Usage unique ; le code en clair n'est jamais stocké |
+| `member_change_requests` | member_id, fields JSON (avant/après), status (`soumise`, `acceptee`, `refusee`), reviewed_by, reason | Corrections demandées par l'adhérent |
+| `member_messages` | member_id, title, body, link, read_at | Notifications à l'adhérent (demande avancée, reçu disponible) |
+
+Ajouts : `social_requests.channel` accepte `espace_adherent` ; `social_requests.member_visible_status` est **calculé** à partir du statut interne (table de correspondance), pour ne jamais exposer les étapes internes ; `social_decisions.member_message` est le texte de décision communiqué à l'adhérent.
+
 ## 4. Choix importants expliqués
 
 1. **Demande d'adhésion ≠ membre** : `membership_applications` stocke la saisie brute ; le membre n'existe qu'après validation (CMD § 6.3).
@@ -202,3 +213,4 @@ Les coordonnées, réseaux sociaux et pied de page sont des clés de `settings` 
 6. **Paramètres VAL avec statut** : `settings.status = non_configure` empêche l'usage d'une règle non validée et affiche un bandeau « paramètre en attente de validation par les instances ».
 7. **Pas de pouvoir par titre** : `positions` décrit une fonction, les pouvoirs viennent uniquement des permissions.
 8. **Dimensionnement** : 2 000 membres, ~24 000 appels de cotisation/an : volumes faibles pour MySQL ; les index listés suffisent.
+9. **Comptes adhérents séparés des comptes du personnel** : une faille ou une erreur de droits côté adhérent ne peut pas ouvrir l'administration ; les deux populations ont des règles de mot de passe et d'expiration distinctes.

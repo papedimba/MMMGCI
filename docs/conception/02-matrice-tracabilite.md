@@ -1,7 +1,7 @@
 # 02 — Matrice de traçabilité
 
 > Chaque exigence est reliée à sa source, à sa catégorie (CDC / CMD / TECH / VAL), au module qui la réalise, au lot de développement (`06-plan-taches.md`) et au test d'acceptation prévu.
-> Modules : **SOC** socle · **AUTH** authentification/RBAC · **CMS** · **PUB** site public · **ADH** adhérents · **COT** cotisations · **FIN** finances · **FDS** fonds de solidarité · **SOC-AS** demandes sociales · **EMP** emploi · **FOR** formation & anciens marins · **PART** partenariats · **GOV** gouvernance · **DEL** délégués · **DISC** discipline · **RAP** rapports.
+> Modules : **SOC** socle · **AUTH** authentification/RBAC · **CMS** · **PUB** site public · **ADH** adhérents · **COT** cotisations · **FIN** finances · **FDS** fonds de solidarité · **SOC-AS** demandes sociales · **EMP** emploi · **FOR** formation & anciens marins · **PART** partenariats · **GOV** gouvernance · **DEL** délégués · **DISC** discipline · **RAP** rapports · **ESP** espace adhérent.
 
 ## 1. Exigences issues du cahier des charges
 
@@ -77,6 +77,9 @@
 | C33 | Conservation, anonymisation, traçabilité des consultations, sauvegarde/restauration | § 22 | CMD + VAL | SOC/ADH | L13 | Anonymisation testée |
 | C34 | Installation cPanel, cron, sauvegarde, mise à jour, sans SSH | § 3.2, § 26 ph. 8 | CMD | SOC | L13 | Installation sur cPanel de recette |
 | C35 | Tests Playwright des parcours listés | § 4.4 | CMD | Tous | L14 | Suite E2E verte |
+| C36 | Compte personnel adhérent : fiche, cotisations, suivi des demandes d'assistance | Commanditaire, 14/11/2026 | CMD | ESP | L15 | Un adhérent activé consulte ses données et uniquement les siennes |
+| C37 | Activation sans e-mail obligatoire (lettre de code remise) | Proposition liée à C36 | TECH | ESP | L15 | Activation réussie avec le seul code imprimé |
+| C38 | Dépôt d'une demande d'assistance et de pièces complémentaires en ligne | Proposition liée à C36 | TECH (à valider) | ESP/SOC-AS | L15 | Demande créée au statut « reçue », jamais de droit automatique |
 
 ## 3. Propositions techniques (TECH)
 

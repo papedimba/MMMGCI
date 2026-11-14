@@ -23,10 +23,11 @@
 | L11 | Rapports, indicateurs, tableau de bord | L5–L10 | P1 | Art. 19–20 |
 | L12 | Discipline | L10 | P2 | Art. 16–18 |
 | L13 | Installation cPanel, sauvegardes, conservation des données, documentation | L0–L12 | P0 | — |
+| L15 | Espace adhérent (compte personnel) | L5, L6, L7 | P1 | Fichier des membres (prio. 2) ; demande du commanditaire |
 | L14 | Recette : E2E Playwright, sécurité, accessibilité, performance | tous | P0 | — |
 
 Chemin critique : **L0 → L1 → L5 → L6 → L7 → L11 → L13 → L14**.
-Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central utilisable pour le recensement) · **V0.2** = + L3–L4 (site en ligne) · **V0.3** = + L6–L7 · **V1.0** = tout.
+Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central utilisable pour le recensement) · **V0.2** = + L3–L4 (site en ligne) · **V0.3** = + L6–L7 · **V0.4** = + L15 (Espace adhérent) · **V1.0** = tout.
 
 ---
 
@@ -196,11 +197,27 @@ Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central
 | T13.5 | Conservation et anonymisation (durées VAL V13) | Anonymisation irréversible des données personnelles, conservation des écritures financières | P1 | Unitaire |
 | T13.6 | Documentation : README, installation cPanel, sauvegarde, restauration, mise à jour, administration, guide utilisateur par rôle, mesures de protection des données | Relue par un tiers | P0 | — |
 
+## L15 — Espace adhérent (décision du commanditaire du 14/11/2026)
+
+| ID | Tâche | Critères d'acceptation | Prio. | Tests |
+|---|---|---|---|---|
+| T15.1 | Comptes adhérents, authentification séparée (`/espace`), limitation des tentatives | Une session adhérent reçoit 403/redirection sur toute URL `/admin` | P0 | Fonctionnels + E2E |
+| T15.2 | Activation : code à usage unique (e-mail ou lettre imprimable), création du mot de passe | Code expiré ou déjà utilisé refusé ; activation possible sans e-mail | P0 | Unitaires + E2E |
+| T15.3 | Mot de passe oublié (e-mail) et réinitialisation par un gestionnaire (journalisée) | Ancien mot de passe invalidé, sessions fermées | P0 | Fonctionnels |
+| T15.4 | Accueil et « Ma fiche » (lecture, ayants droit) + demandes de correction validées côté gestion | Identité jamais modifiable directement ; correction tracée | P1 | E2E |
+| T15.5 | « Mes cotisations » et reçus imprimables | Montants identiques à la gestion | P1 | Fonctionnel |
+| T15.6 | « Ma carte » imprimable | Visible seulement si la carte est délivrée | P2 | Fonctionnel |
+| T15.7 | « Mes demandes d'assistance » : statut simplifié, décision communiquée, dépôt de pièces | Aucune donnée interne exposée (avis, notes, noms) | P0 | Fonctionnels + E2E |
+| T15.8 | Nouvelle demande d'assistance en ligne (si C38 validée) | Arrive au statut « reçue » côté gestion | P1 | E2E |
+| T15.9 | Messages à l'adhérent (et e-mail si disponible) quand un dossier avance | — | P2 | Fonctionnel |
+| T15.10 | Tests d'accès croisé : un adhérent ne peut lire aucune donnée d'un autre, quelle que soit l'URL | 100 % des routes `/espace` couvertes | P0 | Balayage automatique |
+| T15.11 | Écrans mobile d'abord (règles Taste « app screens », thème clair) | `inspect.mjs --app` sans FAIL à 390 px | P1 | Playwright 360/390 |
+
 ## L14 — Recette
 
 | ID | Tâche | Critères | Prio. |
 |---|---|---|---|
-| T14.1 | Suite Playwright : navigation publique, authentification, rôles, adhérent, cotisation, demande d'assistance, double validation, CMS, formulaires, uploads, responsive (360/768/1280), accès aux pages privées | 100 % verte, reproductible (`npm run e2e`, données de test réinitialisées) | P0 |
+| T14.1 | Suite Playwright : navigation publique, authentification (personnel et adhérent), Espace adhérent, rôles, adhérent, cotisation, demande d'assistance, double validation, CMS, formulaires, uploads, responsive (360/768/1280), accès aux pages privées | 100 % verte, reproductible (`npm run e2e`, données de test réinitialisées) | P0 |
 | T14.2 | Revue de sécurité (CSRF, XSS, IDOR, uploads, force brute, en-têtes) | Aucun défaut ouvert | P0 |
 | T14.3 | Accessibilité (axe-core + clavier) | 0 violation sérieuse | P1 |
 | T14.4 | Charge (2 000 membres, 20 000 paiements) | Écrans < 1 s serveur | P1 |
