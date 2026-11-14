@@ -11,9 +11,18 @@ final class SchedulerTest extends DatabaseTestCase
     private Scheduler $s;
     private int $calls = 0;
 
+    private string|false $prevLog = false;
+
+    protected function tearDown(): void
+    {
+        ini_set('error_log', (string) $this->prevLog);
+        $this->db->query('DROP TRIGGER IF EXISTS scheduler_test_trg');
+    }
+
     protected function setUp(): void
     {
         parent::setUp();
+        $this->prevLog = ini_set('error_log', sys_get_temp_dir() . '/scheduler_test.log');
         $this->db->query('DELETE FROM scheduled_runs');
         $this->db->query('DELETE FROM scheduler_locks');
         $this->s = new Scheduler($this->db);
@@ -52,13 +61,11 @@ final class SchedulerTest extends DatabaseTestCase
     {
         $this->s->register('bad', 10, function () { throw new \RuntimeException('boom'); });
         $this->s->register('good', 10, function () { $this->calls++; });
-        $prev = ini_set('error_log', sys_get_temp_dir() . '/scheduler_test.log');
         $res = $this->s->run(1_000_000);
         $this->assertSame(['bad' => 'failed', 'good' => 'ran'], $res);
         $this->assertSame('boom', $this->db->fetchValue("SELECT error FROM scheduled_runs WHERE task = 'bad'"));
         $this->assertNull($this->db->fetchValue("SELECT locked_at FROM scheduler_locks WHERE task = 'bad'"));
         $this->assertSame(['bad' => 'failed', 'good' => 'skipped_not_due'], $this->s->run(1_000_001));
-        ini_set('error_log', (string) $prev);
     }
 
     public function test_two_real_processes_run_the_task_exactly_once(): void
@@ -80,5 +87,30 @@ final class SchedulerTest extends DatabaseTestCase
         $this->assertSame(['ran', 'skipped_locked'], $out);
         $this->assertSame(1, (int) $this->db->fetchValue('SELECT n FROM scheduler_test_counter'));
         $this->db->query('DROP TABLE scheduler_test_counter');
+    }
+
+    public function test_release_after_reclaim_keeps_the_new_owner_lock_and_history(): void
+    {
+        $this->s->register('t', 10, function () {
+            // Simule B qui reprend le verrou périmé de A pendant son exécution.
+            $this->db->query("UPDATE scheduler_locks SET locked_at = ? WHERE task = 't'", [1_001_801]);
+            $this->db->query("UPDATE scheduled_runs SET status = 'failed', error = 'Verrou abandonné' WHERE task = 't'");
+        });
+        $this->s->run(1_000_000);
+        $this->assertSame(1_001_801, (int) $this->db->fetchValue("SELECT locked_at FROM scheduler_locks WHERE task = 't'"));
+        $this->assertSame('failed', $this->db->fetchValue("SELECT status FROM scheduled_runs WHERE task = 't'"));
+    }
+
+    public function test_due_is_rechecked_under_the_lock(): void
+    {
+        // Un autre processus termine la tâche entre le premier contrôle et la prise du verrou.
+        $this->db->query('DROP TRIGGER IF EXISTS scheduler_test_trg');
+        $this->db->query("CREATE TRIGGER scheduler_test_trg AFTER UPDATE ON scheduler_locks FOR EACH ROW
+            INSERT INTO scheduled_runs (task, started_at, status) VALUES (NEW.task, FROM_UNIXTIME(1000000), 'success')");
+        $this->s->register('t', 10, function () { $this->calls++; });
+        $this->assertSame(['t' => 'skipped_not_due'], $this->s->run(1_000_000));
+        $this->assertSame(0, $this->calls);
+        $this->db->query('DROP TRIGGER scheduler_test_trg');
+        $this->assertNull($this->db->fetchValue("SELECT locked_at FROM scheduler_locks WHERE task = 't'"));
     }
 }
