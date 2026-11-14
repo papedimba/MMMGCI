@@ -12,20 +12,24 @@ final class Mailer
 {
     public function __construct(private Transport $transport, private string $from)
     {
-        self::assertAddress($from, 'expéditeur');
+        if (preg_match('/[\r\n]/', $from) || filter_var($from, FILTER_VALIDATE_EMAIL) === false) {
+            throw new InvalidArgumentException("Adresse d'expédition invalide (MAIL_FROM) : renseignez une adresse e-mail valide, ex. no-reply@votredomaine.ci.");
+        }
     }
 
     public static function fromConfig(Config $c): self
     {
         $from = (string) $c->get('MAIL_FROM', '');
-        $transport = match ((string) $c->get('MAIL_DRIVER', 'mail')) {
+        $driver = (string) $c->get('MAIL_DRIVER', 'mail');
+        $transport = match ($driver === '' ? 'mail' : $driver) {
             'smtp' => new SmtpTransport(
                 (string) $c->get('SMTP_HOST', ''),
                 (int) $c->get('SMTP_PORT', 587),
                 (string) $c->get('SMTP_USER', ''),
                 (string) $c->get('SMTP_PASS', ''),
             ),
-            default => new MailTransport(),
+            'mail' => new MailTransport(),
+            default => throw new InvalidArgumentException("MAIL_DRIVER « $driver » inconnu : utilisez « mail » ou « smtp »."),
         };
         return new self($transport, $from);
     }
@@ -34,7 +38,7 @@ final class Mailer
     {
         self::assertAddress($to, 'destinataire');
         if (preg_match('/[\r\n]/', $subject)) {
-            throw new InvalidArgumentException("Le sujet de l'e-mail ne peut pas contenir de saut de ligne.");
+            throw new InvalidArgumentException("Le sujet de l'e-mail ne peut pas contenir de saut de ligne : retirez-le.");
         }
         $domain = substr((string) strrchr($this->from, '@'), 1);
         $headers = [

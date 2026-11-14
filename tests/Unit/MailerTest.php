@@ -5,6 +5,7 @@ namespace Tests\Unit;
 
 use App\Core\Mail\ArrayTransport;
 use App\Core\Mail\SmtpTransport;
+use App\Core\Config;
 use App\Core\Mailer;
 use InvalidArgumentException;
 use PHPUnit\Framework\TestCase;
@@ -59,7 +60,7 @@ final class MailerTest extends TestCase
         $proc = proc_open([PHP_BINARY, __DIR__ . '/../Support/fake_smtp_server.php', $log], [1 => ['pipe', 'w']], $pipes);
         $port = (int) fgets($pipes[1]);
         try {
-            $t = new SmtpTransport('127.0.0.1', $port, 'user', 'secret');
+            $t = new SmtpTransport('127.0.0.1', $port, 'user', 'secret', false);
             // The base64 body never has a leading dot, so test dot-stuffing through the transport directly.
             $t->send('dest@exemple.ci', 'Sujet', "ligne\r\n.point\r\n", ['From' => 'no-reply@exemple.ci']);
         } finally {
@@ -85,7 +86,7 @@ final class MailerTest extends TestCase
         $proc = proc_open([PHP_BINARY, __DIR__ . '/../Support/fake_smtp_server.php', $log], [1 => ['pipe', 'w']], $pipes);
         $port = (int) fgets($pipes[1]);
         try {
-            (new SmtpTransport('127.0.0.1', $port, 'user', 'wrong-pass'))->send('d@exemple.ci', 'S', 'b', ['From' => 'a@exemple.ci']);
+            (new SmtpTransport('127.0.0.1', $port, 'user', 'wrong-pass', false))->send('d@exemple.ci', 'S', 'b', ['From' => 'a@exemple.ci']);
             $this->fail('exception attendue');
         } catch (RuntimeException $e) {
             $this->assertStringContainsString('334', $e->getMessage());
@@ -94,5 +95,70 @@ final class MailerTest extends TestCase
             proc_close($proc);
             @unlink($log);
         }
+    }
+
+    /** @return array{resource,string,int} */
+    private function fake(string $mode = ''): array
+    {
+        $log = sys_get_temp_dir() . '/smtp-' . bin2hex(random_bytes(4)) . '.log';
+        $proc = proc_open([PHP_BINARY, __DIR__ . '/../Support/fake_smtp_server.php', $log, $mode], [1 => ['pipe', 'w']], $pipes);
+        return [$proc, $log, (int) fgets($pipes[1])];
+    }
+
+    public function test_smtp_refuses_clear_text_password_without_starttls(): void
+    {
+        [$proc, $log, $port] = $this->fake();
+        try {
+            (new SmtpTransport('127.0.0.1', $port, 'user', 'secret'))->send('d@exemple.ci', 'S', 'b', ['From' => 'a@exemple.ci']);
+            $this->fail('exception attendue');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('refus', $e->getMessage());
+        } finally {
+            proc_close($proc);
+        }
+        $conv = (string) file_get_contents($log);
+        unlink($log);
+        $this->assertStringContainsString('EHLO', $conv);
+        $this->assertStringNotContainsString('AUTH', $conv);
+        $this->assertStringNotContainsString(base64_encode('secret'), $conv);
+    }
+
+    public function test_smtp_tls_failure_gives_french_message(): void
+    {
+        [$proc, $log, $port] = $this->fake('starttls');
+        try {
+            (new SmtpTransport('127.0.0.1', $port, 'user', 'secret'))->send('d@exemple.ci', 'S', 'b', ['From' => 'a@exemple.ci']);
+            $this->fail('exception attendue');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('Connexion chiffrée impossible', $e->getMessage());
+        } finally {
+            proc_close($proc);
+            @unlink($log);
+        }
+    }
+
+    public function test_smtp_empty_body_keeps_header_separator(): void
+    {
+        [$proc, $log, $port] = $this->fake();
+        (new SmtpTransport('127.0.0.1', $port))->send('d@exemple.ci', 'S', '', ['From' => 'a@exemple.ci']);
+        proc_close($proc);
+        $conv = (string) file_get_contents($log);
+        unlink($log);
+        $this->assertStringContainsString("From: a@exemple.ci\r\n\r\n.\r\n", $conv);
+    }
+
+    public function test_from_config_drivers(): void
+    {
+        $this->assertInstanceOf(Mailer::class, Mailer::fromConfig(new Config(['MAIL_FROM' => 'a@exemple.ci', 'MAIL_DRIVER' => 'mail'])));
+        $this->assertInstanceOf(Mailer::class, Mailer::fromConfig(new Config(['MAIL_FROM' => 'a@exemple.ci', 'MAIL_DRIVER' => 'smtp', 'SMTP_HOST' => 'h', 'SMTP_PORT' => '587'])));
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('MAIL_DRIVER');
+        Mailer::fromConfig(new Config(['MAIL_FROM' => 'a@exemple.ci', 'MAIL_DRIVER' => 'sendmail']));
+    }
+
+    public function test_invalid_mail_from_names_setting(): void
+    {
+        $this->expectExceptionMessage('MAIL_FROM');
+        Mailer::fromConfig(new Config(['MAIL_FROM' => '']));
     }
 }
