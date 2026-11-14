@@ -13,4 +13,11 @@ spl_autoload_register(static function (string $class): void {
     }
 });
 
-require __DIR__ . '/helpers.php';
+require_once __DIR__ . '/helpers.php';
+
+// Câblage minimal ; complété à la Task 16.
+$config = new App\Core\Config(App\Core\Env::load(dirname(__DIR__) . '/.env'));
+$router = new App\Core\Http\Router();
+(require dirname(__DIR__) . '/routes/web.php')($router);
+
+return new App\Core\App($config, $router, []);
