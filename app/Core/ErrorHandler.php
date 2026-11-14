@@ -10,7 +10,7 @@ final class ErrorHandler
     /** Insère la date avant l'extension : app.log -> app-AAAA-MM-JJ.log */
     public static function datedPath(string $logFile): string
     {
-        return preg_replace('/(\.[^.\/]+)?$/', '-' . date('Y-m-d') . '$1', $logFile, 1);
+        return preg_replace('/(\.[^.\/]+)?$/', '-' . date('Y-m-d') . '$1', $logFile, 1) ?? $logFile;
     }
 
     public static function register(bool $debug, string $logFile): void
