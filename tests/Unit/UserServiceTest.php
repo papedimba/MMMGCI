@@ -227,4 +227,30 @@ final class UserServiceTest extends DatabaseTestCase
         $this->assertFalse($svc->wouldLeaveNoAdminAfterRoleChange($super, deleted: true));
         $this->assertFalse($svc->wouldLeaveNoAdminAfterRoleChange($this->roleId('admin_general'), [])); // le super_admin reste détenteur
     }
+
+    public function test_target_roles_are_rechecked_after_the_lock(): void
+    {
+        $sa = $this->user('sa5@x.test', ['super_admin']);
+        $ag = $this->user('ag5@x.test', ['admin_general']);
+        $target = $this->user('cible5@x.test', ['gest_cms']);
+
+        // Le super administrateur promeut la cible sans valider encore ; l'admin_general tente de la désactiver en parallèle.
+        [$proc, $pipes] = $this->db->transaction(function () use ($sa, $ag, $target): array {
+            $this->service()->setRoles($target, ['super_admin'], $sa);
+            $proc = proc_open([PHP_BINARY, dirname(__DIR__) . '/Support/user_worker.php', 'setActive', (string) $target, '0', (string) $ag],
+                [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+            $observer = Database::connect(self::config(), test: true);
+            for ($i = 0; $i < 200 && (int) $observer->fetchValue("SELECT COUNT(*) FROM information_schema.PROCESSLIST WHERE ID <> CONNECTION_ID() AND INFO LIKE '%FOR UPDATE%'") === 0; $i++) {
+                usleep(25_000); // attend que le processus fils soit bloqué sur une lecture verrouillante (sans privilège PROCESS : ses propres connexions)
+            }
+            $this->assertLessThan(200, $i, 'Le processus fils aurait dû attendre le verrou.');
+            return [$proc, $pipes];
+        });
+        $output = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
+        proc_close($proc);
+
+        $this->assertSame(self::PROTECTED, $output);
+        $this->assertSame(1, (int) $this->db->fetchValue('SELECT is_active FROM users WHERE id = ?', [$target]));
+        $this->assertSame(['super_admin'], $this->roles($target));
+    }
 }

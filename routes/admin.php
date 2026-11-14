@@ -11,6 +11,8 @@ use App\Modules\Auth\LoginController;
 use App\Modules\Auth\LoginThrottle;
 use App\Modules\Auth\PasswordController;
 use App\Modules\Auth\PasswordReset;
+use App\Modules\Roles\RoleController;
+use App\Modules\Roles\RoleService;
 use App\Modules\Users\UserController;
 use App\Modules\Users\UserService;
 
@@ -24,6 +26,7 @@ return static function (Router $r, array $deps): void {
         new LoginThrottle($db()), new PasswordReset($db()), $links(), Closure::fromCallable($defer), Closure::fromCallable($clock));
     $users = static fn (): UserController => new UserController($view, $csrf, $session, $db(), $gate(), new UserService($db(), $audit(), $gate()),
         new PasswordReset($db()), $links(), Closure::fromCallable($defer), Closure::fromCallable($clock));
+    $roles = static fn (): RoleController => new RoleController($view, $csrf, $session, $db(), $gate(), new RoleService($db(), $audit(), $gate()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -47,6 +50,14 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/utilisateurs/{id:\d+}', static fn (Request $q): Response => $users()->editForm($q), $manageUsers);
     $r->post('/admin/utilisateurs/{id:\d+}', static fn (Request $q): Response => $users()->edit($q), $manageUsers);
     $r->post('/admin/utilisateurs/{id:\d+}/activation', static fn (Request $q): Response => $users()->activation($q), $manageUsers);
+
+    $manageRoles = [$requireAuth, $permission('roles.manage')];
+    $r->get('/admin/roles', static fn (Request $q): Response => $roles()->index($q), $manageRoles);
+    $r->get('/admin/roles/nouveau', static fn (Request $q): Response => $roles()->createForm($q), $manageRoles);
+    $r->post('/admin/roles/nouveau', static fn (Request $q): Response => $roles()->create($q), $manageRoles);
+    $r->get('/admin/roles/{id:\d+}', static fn (Request $q): Response => $roles()->editForm($q), $manageRoles);
+    $r->post('/admin/roles/{id:\d+}', static fn (Request $q): Response => $roles()->edit($q), $manageRoles);
+    $r->post('/admin/roles/{id:\d+}/suppression', static fn (Request $q): Response => $roles()->delete($q), $manageRoles);
 
     $r->get('/admin', static function (Request $q) use ($view, $csrf, $session, $gate): Response {
         $user = $q->attribute('user');

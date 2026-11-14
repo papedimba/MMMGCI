@@ -17,15 +17,14 @@ final class UserService
     public const SELF = 'Vous ne pouvez pas modifier vos propres rôles ni désactiver votre propre compte : demandez-le à un autre administrateur.';
     public const LAST_ADMIN = 'Opération impossible : il doit rester au moins un administrateur actif.';
     public const DUPLICATE = 'Cette adresse e-mail est déjà utilisée par un autre compte.';
-    public const PROTECTED = 'Cette opération est réservée aux administrateurs détenant déjà ces droits : demandez-la à un super administrateur.';
+    public const PROTECTED = ProtectedRoles::DENIED;
     public const NOT_FOUND = "Cet utilisateur n'existe pas : revenez à la liste des utilisateurs.";
     private const MANAGE = 'users.manage';
-    /** Un rôle est protégé s'il est système ou porte l'une de ces permissions (administration, ou les 7 que super_admin n'a pas). */
-    private const PROTECTING = ['users.manage', 'roles.manage', 'disbursement.approve', 'disbursement.pay', 'social.decide',
-        'discipline.decide', 'settings.validate', 'members.documents.view', 'social.medical.view'];
+    private ProtectedRoles $guard;
 
     public function __construct(private Database $db, private Audit $audit, private Gate $gate)
     {
+        $this->guard = new ProtectedRoles($db);
     }
 
     /**
@@ -38,7 +37,8 @@ final class UserService
         $fields = $this->validate($data);
         $roles = $this->roleIds($data['roles'] ?? []);
         return $this->db->atomic(function () use ($fields, $roles, $actorId): int {
-            $this->assertMayHandle($actorId, array_values($roles));
+            $this->lockHolders();
+            $this->guard->assertMayHandle($actorId, array_values($roles));
             $this->assertEmailFree($fields['email'], 0);
             // Haché d'un secret aléatoire jamais conservé : aucune connexion possible avant le choix du mot de passe.
             $id = $this->uniqueEmail(fn () => $this->db->insert('users', $fields + ['password' => PasswordPolicy::hash(bin2hex(random_bytes(32)))]));
@@ -55,8 +55,9 @@ final class UserService
     {
         $fields = $this->validate($data);
         $this->db->atomic(function () use ($id, $fields, $actorId): void {
+            $this->lockHolders();
             $before = $this->db->fetch('SELECT name, email, phone FROM users WHERE id = ? FOR UPDATE', [$id]) ?? throw new DomainException(self::NOT_FOUND);
-            $this->assertMayHandle($actorId, $this->roleIdsOf($id));
+            $this->guard->assertMayHandle($actorId, $this->roleIdsOf($id));
             $this->assertEmailFree($fields['email'], $id);
             $changed = array_diff_assoc($fields, $before);
             if ($changed === []) {
@@ -77,11 +78,12 @@ final class UserService
             throw new DomainException(self::SELF);
         }
         $this->db->atomic(function () use ($id, $active, $actorId): void {
-            $this->assertMayHandle($actorId, $this->roleIdsOf($id));
+            $this->lockHolders();
+            $current = $this->db->fetchValue('SELECT is_active FROM users WHERE id = ? FOR UPDATE', [$id]) ?? throw new DomainException(self::NOT_FOUND);
+            $this->guard->assertMayHandle($actorId, $this->roleIdsOf($id)); // après les verrous : rôles à jour, pas ceux d'avant une promotion concurrente
             if (!$active && $this->wouldLeaveNoAdmin($id, deactivate: true)) {
                 throw new DomainException(self::LAST_ADMIN);
             }
-            $current = $this->db->fetchValue('SELECT is_active FROM users WHERE id = ? FOR UPDATE', [$id]) ?? throw new DomainException(self::NOT_FOUND);
             if ((bool) $current === $active) {
                 return;
             }
@@ -103,11 +105,12 @@ final class UserService
         $roles = $this->roleIds($roleNames);
         $this->db->atomic(function () use ($id, $roles, $actorId): void {
             $after = array_keys($roles);
-            $this->assertMayHandle($actorId, [...$this->roleIdsOf($id), ...array_values($roles)]);
+            $this->lockHolders();
+            $this->db->fetchValue('SELECT id FROM users WHERE id = ? FOR UPDATE', [$id]) ?? throw new DomainException(self::NOT_FOUND);
+            $this->guard->assertMayHandle($actorId, [...$this->roleIdsOf($id), ...array_values($roles)]);
             if ($this->wouldLeaveNoAdmin($id, $after)) {
                 throw new DomainException(self::LAST_ADMIN);
             }
-            $this->db->fetchValue('SELECT id FROM users WHERE id = ? FOR UPDATE', [$id]) ?? throw new DomainException(self::NOT_FOUND);
             $before = $this->roleNames($id);
             if ($before === $after) {
                 return;
@@ -164,6 +167,17 @@ final class UserService
     }
 
     /**
+     * Premier verrou de toute écriture sur les comptes et les rôles (UserService et RoleService). Ordre unique, pour éviter les
+     * interblocages : 1. lignes des détenteurs de users.manage (ici), 2. ligne cible (compte ou rôle), 3. lignes de rôles
+     * (user_roles / role_permissions). Comme toutes ces écritures prennent d'abord les mêmes verrous, elles s'exécutent
+     * l'une après l'autre : les lectures non verrouillantes qui suivent (règle des rôles protégés) voient l'état validé.
+     */
+    public function lockHolders(): void
+    {
+        $this->holderGrants();
+    }
+
+    /**
      * Couples (utilisateur actif, rôle) qui donnent users.manage, verrouillés jusqu'au commit (FOR UPDATE, dans l'ordre des id).
      * Jointures (pas de sous-requête) : chaque table est lue en lecture verrouillante, donc dans sa dernière version validée,
      * quel que soit l'instantané de la transaction ; une écriture concurrente sur ces lignes fait attendre.
@@ -182,40 +196,10 @@ final class UserService
         ));
     }
 
-    /**
-     * Règles des rôles protégés : un rôle protégé (voir PROTECTING) ne peut être attribué, ni son détenteur modifié, que par un acteur
-     * détenant un rôle système ou toutes les permissions de ce rôle. Lecture fraîche en base, pas le cache de Gate.
-     *
-     * @param list<int> $roleIds
-     */
-    private function assertMayHandle(?int $actorId, array $roleIds): void
-    {
-        if ($actorId === null || $roleIds === []) {
-            return;
-        }
-        $in = implode(',', array_fill(0, count($roleIds), '?'));
-        $denied = $this->db->fetchValue(
-            "SELECT r.id FROM roles r
-             WHERE r.id IN ($in)
-               AND NOT EXISTS (SELECT 1 FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN roles sr ON sr.id = ur.role_id
-                               WHERE u.id = ? AND u.is_active = 1 AND sr.is_system = 1)
-               AND (r.is_system = 1 OR EXISTS (SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
-                                               WHERE rp.role_id = r.id AND p.name IN (" . implode(',', array_fill(0, count(self::PROTECTING), '?')) . ")))
-               AND EXISTS (SELECT 1 FROM role_permissions rp WHERE rp.role_id = r.id AND rp.permission_id NOT IN (
-                               SELECT ap.permission_id FROM users au JOIN user_roles aur ON aur.user_id = au.id
-                               JOIN role_permissions ap ON ap.role_id = aur.role_id WHERE au.id = ? AND au.is_active = 1))
-             LIMIT 1",
-            [...$roleIds, $actorId, ...self::PROTECTING, $actorId],
-        );
-        if ($denied !== null) {
-            throw new DomainException(self::PROTECTED);
-        }
-    }
-
-    /** @return list<int> */
+    /** Rôles du compte, en lecture verrouillante (dernière version validée, quelle que soit l'ancienneté de l'instantané). @return list<int> */
     private function roleIdsOf(int $userId): array
     {
-        return array_map('intval', array_column($this->db->fetchAll('SELECT role_id FROM user_roles WHERE user_id = ?', [$userId]), 'role_id'));
+        return array_map('intval', array_column($this->db->fetchAll('SELECT role_id FROM user_roles WHERE user_id = ? FOR UPDATE', [$userId]), 'role_id'));
     }
 
     /** Jetons de réinitialisation et d'invitation encore ouverts rendus inutilisables. */
