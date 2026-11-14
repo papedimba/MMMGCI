@@ -21,14 +21,14 @@ final class LoginThrottle
         $since = gmdate('Y-m-d H:i:s', $now - $this->windowSeconds);
         $account = (int) $this->db->fetchValue(
             'SELECT COUNT(*) FROM login_attempts WHERE email = ? AND ip = ? AND succeeded = 0 AND created_at >= ?',
-            [$this->norm($email), $ip, $since],
+            [$this->norm($email), $this->ip($ip), $since],
         );
         if ($account >= $this->maxPerAccount) {
             return true;
         }
         return (int) $this->db->fetchValue(
             'SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND succeeded = 0 AND created_at >= ?',
-            [$ip, $since],
+            [$this->ip($ip), $since],
         ) >= $this->maxPerIp;
     }
 
@@ -36,7 +36,7 @@ final class LoginThrottle
     {
         $this->db->insert('login_attempts', [
             'email' => $this->norm($email),
-            'ip' => $ip,
+            'ip' => $this->ip($ip),
             'succeeded' => $success ? 1 : 0,
             'created_at' => gmdate('Y-m-d H:i:s', $now),
         ]);
@@ -49,6 +49,12 @@ final class LoginThrottle
 
     private function norm(string $email): string
     {
-        return mb_strtolower(trim($email));
+        // Tronqué à la taille de la colonne : sinon l'insertion échoue ou le compteur ne correspond plus.
+        return mb_substr(mb_strtolower(trim($email)), 0, 190);
+    }
+
+    private function ip(string $ip): string
+    {
+        return mb_substr($ip, 0, 45);
     }
 }

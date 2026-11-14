@@ -73,4 +73,24 @@ final class LoginThrottleTest extends DatabaseTestCase
         $t->purge(self::NOW);
         $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM login_attempts'));
     }
+
+    public function test_overlong_email_is_truncated_consistently(): void
+    {
+        $t = new LoginThrottle($this->db);
+        $e = str_repeat('é', 300) . '@x.test';
+        for ($i = 0; $i < 5; $i++) {
+            $t->record($e, str_repeat('9', 80), false, self::NOW);
+        }
+        $this->assertTrue($t->tooManyAttempts($e, str_repeat('9', 80), self::NOW));
+    }
+
+    public function test_window_boundary_is_pinned(): void
+    {
+        $t = new LoginThrottle($this->db, 1);
+        $t->record('a@x.test', '1.1.1.1', false, self::NOW - 900);
+        $this->assertTrue($t->tooManyAttempts('a@x.test', '1.1.1.1', self::NOW));
+        $this->db->query('DELETE FROM login_attempts');
+        $t->record('a@x.test', '1.1.1.1', false, self::NOW - 901);
+        $this->assertFalse($t->tooManyAttempts('a@x.test', '1.1.1.1', self::NOW));
+    }
 }

@@ -34,6 +34,9 @@ final class PasswordPolicyTest extends TestCase
     {
         $h = PasswordPolicy::hash('une phrase tout autre 42');
         $this->assertTrue(password_verify('une phrase tout autre 42', $h));
+        if (defined('PASSWORD_ARGON2ID')) {
+            $this->assertStringStartsWith('$argon2id$', $h);
+        }
         $this->assertFalse(PasswordPolicy::needsRehash($h));
     }
 }
