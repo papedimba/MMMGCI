@@ -259,7 +259,7 @@ Chaque adhérent validé dispose d'un compte personnel, distinct des comptes du 
 
 ### B1. Choix du socle — décision du commanditaire : PHP natif, sans framework
 
-Le commanditaire a écarté Laravel (« trop de dépendances »). Retenu : **un socle PHP 8.2+ écrit pour le projet, sans framework et sans Composer en production**. Principe : n'utiliser que ce que PHP fournit déjà (PDO, `password_hash`, `random_bytes`, `hash_equals`, `finfo`, `ZipArchive`, `DOMDocument`, `intl`, `bcmath`), et écrire le reste en petites classes lisibles et testées.
+Le commanditaire a écarté Laravel (« trop de dépendances »). Retenu : **un socle PHP 8.2+ écrit pour le projet, sans framework et sans Composer en production**. Principe : n'utiliser que ce que PHP fournit déjà (PDO, `password_hash`, `random_bytes`, `hash_equals`, `finfo`, `ZipArchive`, `DOMDocument`, `intl`), et écrire le reste en petites classes lisibles et testées.
 
 | Besoin | Solution sans dépendance | Taille estimée |
 |---|---|---|
@@ -283,7 +283,7 @@ Le commanditaire a écarté Laravel (« trop de dépendances »). Retenu : **un 
 | Interactions | JavaScript natif, sans bibliothèque | — |
 | Autoload | `spl_autoload_register` (PSR-4 maison), pas de Composer | 20 lignes |
 
-Outils de **développement uniquement** (jamais requis sur le serveur) : PHPUnit sous forme d'archive `.phar`, Playwright pour les tests de navigateur, les scripts du skill Taste pour le contrôle visuel.
+Outils de **développement uniquement** (jamais requis sur le serveur) : PHPUnit installé par Composer en dépendance de développement (`vendor/` ignoré par git et exclu de l'archive de production ; l'application a son propre autoload), Playwright pour les tests de navigateur, les scripts du skill Taste pour le contrôle visuel.
 
 Conséquences assumées : environ 3 500 lignes de socle à écrire et à tester (lot L0 plus long), mais une archive de production de quelques centaines de Ko, aucune mise à jour de dépendance à suivre, et un code que tout développeur PHP peut lire. Les protections de sécurité deviennent notre responsabilité : chacune a ses tests dédiés (B7) et passe en revue de sécurité au lot L14.
 
@@ -331,7 +331,7 @@ mmmgci/
 ├── storage/                     # hors web
 │   ├── private/                 # pièces d'identité, dossiers sociaux, justificatifs
 │   ├── backups/  logs/  cache/
-├── tests/                       # PHPUnit (.phar) : Unit/, Feature/
+├── tests/                       # PHPUnit (Composer dev) : Unit/, Feature/
 ├── e2e/                         # Playwright (développement uniquement)
 ├── .env.example
 └── README.md
@@ -352,7 +352,7 @@ mmmgci/
 | Autorisation | Middleware de permission déclaré sur chaque route + `Gate` dans les services ; filtrage par périmètre (délégué, commission) dans les requêtes SQL |
 | Fichiers téléversés | Liste blanche extension + MIME réel (finfo) + taille max ; nom aléatoire ; stockage privé hors `public/` ; servis par contrôleur avec contrôle d'accès ; `public/media` : `.htaccess` interdisant l'exécution PHP ; images ré-encodées (suppression EXIF) |
 | Fichiers sensibles | Docroot → `public/` ; si l'hébergeur l'impose, `.htaccess` racine bloquant `app/`, `storage/`, `config/`, `database/`, `.env` |
-| Opérations financières | Transactions SQL, verrous de ligne, contraintes UNIQUE, idempotence, montants en DECIMAL / BCMath |
+| Opérations financières | Transactions SQL, verrous de ligne, contraintes UNIQUE, idempotence, montants en DECIMAL côté base, entiers de centimes côté PHP |
 | Double soumission | Jeton à usage unique par formulaire sensible + désactivation du bouton côté client |
 | Erreurs | `APP_DEBUG=false` en production ; pages d'erreur génériques ; détails seulement dans `storage/logs` |
 | Audit | Table `audit_logs` en ajout seul ; chaque ligne contient le hachage de la précédente (détection d'altération) ; aucune route de modification |
@@ -373,7 +373,7 @@ mmmgci/
 1. Créer la base MySQL et l'utilisateur dans cPanel (« Bases de données MySQL »).
 2. Téléverser l'archive `mmmgci-x.y.z.zip` (quelques centaines de Ko, aucune dépendance à installer) dans le dossier personnel, l'extraire **hors** de `public_html`.
 3. Pointer le domaine/sous-domaine vers `mmmgci/public` (« Domaines » → racine du document). Si impossible : copier `public/` dans `public_html` et ajuster le chemin dans `index.php` (procédure documentée).
-4. Choisir PHP 8.2+ et les extensions (`pdo_mysql`, `mbstring`, `fileinfo`, `gd`, `zip`, `bcmath`, `intl`, `dom`) via « Sélectionner la version PHP ».
+4. Choisir PHP 8.2+ et les extensions (`pdo_mysql`, `mbstring`, `fileinfo`, `gd`, `zip`, `intl`, `dom`) via « Sélectionner la version PHP ».
 5. Ouvrir `https://domaine/install` : assistant web (vérification des prérequis, saisie de la base, génération de `.env` et des clés, exécution des migrations SQL et des données de référence, création du premier super administrateur, verrouillage de l'installateur).
 6. Créer **une** tâche Cron : `*/5 * * * * /usr/local/bin/php /home/USER/mmmgci/bin/cron.php >/dev/null 2>&1`.
 7. Activer AutoSSL.

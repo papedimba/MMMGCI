@@ -11,7 +11,7 @@
 | Clés étrangères | `<table_singulier>_id`, indexées, `ON DELETE RESTRICT` par défaut ; `CASCADE` uniquement pour les tables de détail sans valeur propre (ex. `menu_items`, `role_permissions`) |
 | Horodatage | `created_at`, `updated_at` (TIMESTAMP) sur toutes les tables ; `created_by`, `updated_by` sur les tables métier |
 | Suppression | **Logique** (`deleted_at`) sur les données métier (membres, partenaires, contenus) ; **jamais** de suppression sur finances, décisions et audit |
-| Montants | `DECIMAL(15,2)`, devise `CHAR(3) DEFAULT 'XOF'` ; calculs en BCMath côté PHP |
+| Montants | `DECIMAL(15,2)`, devise `CHAR(3) DEFAULT 'XOF'` ; côté PHP, calculs en **entiers de centimes** (`int` 64 bits), jamais en flottant — aucune extension `bcmath` requise (absente de certains hébergements) |
 | Références lisibles | `reference VARCHAR(30) UNIQUE` générée par séquence (`sequences` : année + compteur, verrouillée en transaction) |
 | Énumérations métier | Statuts techniques de workflow en `VARCHAR(30)` + contrôle applicatif ; listes **métier** (VAL) en tables de référence administrables |
 | Fichiers | Une table `files` unique (chemin privé/public, MIME, taille, hachage SHA-256) référencée par les tables métier |

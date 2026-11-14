@@ -36,7 +36,7 @@ Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central
 | ID | Tâche | Description | Dép. | Prio. | Fichiers | Critères d'acceptation | Tests |
 |---|---|---|---|---|---|---|---|
 | T0.1 | Squelette et configuration | Arborescence B3, autoload PSR-4 maison, `config.php` lisant `.env`, fuseau Africa/Abidjan, locale fr, gestion d'erreurs (journal + page générique), `.htaccess` | — | P0 | `app/Core`, `public/`, `config/` | Page d'accueil « socle OK » ; aucun détail d'erreur affiché en production | Test de démarrage |
-| T0.2 | Environnement de test | MariaDB locale, PHPUnit `.phar`, script `bin/test`, base de test recréée par les migrations | T0.1 | P0 | `tests/`, `phpunit.xml` | Suite vide verte sur MySQL | — |
+| T0.2 | Environnement de test | MariaDB locale, PHPUnit (Composer, dev uniquement), script `composer test`, base de test recréée par les migrations | T0.1 | P0 | `tests/`, `phpunit.xml` | Suite vide verte sur MySQL | — |
 | T0.3 | Routeur, requête, réponse, middleware | Routes nommées, paramètres typés, groupes avec middleware, 404/405/403 propres | T0.1 | P0 | `Core/Router.php`… | Route inconnue → 404 ; méthode interdite → 405 | Unitaires |
 | T0.4 | Vues et échappement | Gabarits PHP, mises en page, partiels, `e()` par défaut, messages flash | T0.3 | P0 | `Core/View.php` | Une chaîne `<script>` affichée en texte | Unitaire XSS |
 | T0.5 | Base de données et migrations | `Core\Database` (PDO préparé seulement, transactions, `FOR UPDATE`), `Migrator` (fichiers `.sql` numérotés, sommes de contrôle, exécution depuis le web) | T0.1 | P0 | `Core/Database.php`, `Core/Migrator.php` | Migration appliquée une seule fois ; fichier modifié après application détecté | Unitaires |
@@ -44,13 +44,13 @@ Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central
 | T0.7 | Session et CSRF | Cookies `Secure`/`HttpOnly`/`SameSite`, régénération, expiration d'inactivité, jeton CSRF, jeton à usage unique pour formulaires sensibles | T0.3 | P0 | `Core/Session.php`, `Core/Csrf.php` | POST sans jeton → 419 ; rejeu d'un jeton à usage unique refusé | Unitaires + fonctionnels |
 | T0.8 | En-têtes de sécurité et HTTPS | CSP sans script en ligne, HSTS, nosniff, frame, referrer, redirection HTTPS | T0.3 | P0 | middleware | En-têtes présents partout | Fonctionnel |
 | T0.9 | Fichiers privés/publics | Table `files`, liste blanche extension + MIME (`finfo`) + taille, nom aléatoire, SHA-256, ré-encodage GD des images, téléchargement contrôlé | T0.5 | P0 | `Core/Uploads.php` | `.php`, double extension, SVG, faux MIME refusés ; fichier privé inaccessible par URL | Unitaires + fonctionnels |
-| T0.10 | Montants et références | `Money` (BCMath, XOF), `sequences` + générateur de références en transaction | T0.5 | P0 | `Core/Money.php` | Aucun calcul en flottant ; références uniques | Unitaires |
+| T0.10 | Montants et références | `Money` (entiers de centimes, XOF), `sequences` + générateur de références en transaction | T0.5 | P0 | `Core/Money.php` | Aucun calcul en flottant ; références uniques | Unitaires |
 | T0.11 | Paramètres administrables | Table `settings` avec statut `non_configure`/`valide` et référence de décision | T0.5 | P0 | `Core/Settings.php` | Paramètre non validé inutilisable, bandeau affiché | Unitaires |
 | T0.12 | Audit | `Core\Audit` en ajout seul, chaîne de hachage, commande de vérification d'intégrité | T0.5 | P0 | `Core/Audit.php` | Altération d'une ligne détectée | Unitaires |
 | T0.13 | E-mail | `mail()` par défaut, SMTP minimal en option, gabarits texte | T0.1 | P1 | `Core/Mailer.php` | Envoi testé sur un serveur SMTP de test | Fonctionnel |
 | T0.14 | Cron | `bin/cron.php`, tâches enregistrées, verrou anti-chevauchement (`scheduled_runs`) | T0.5 | P1 | `bin/` | Deux exécutions simultanées → une seule travaille | Unitaire |
 | T0.15 | Utilitaires d'export | CSV UTF-8 BOM, XLSX via `ZipArchive`, pages imprimables A4/CR80, graphiques SVG | T0.4 | P1 | `Core/Export/` | Fichier ouvert sans erreur par Excel/LibreOffice ; impression nette | Fonctionnels |
-| T0.16 | Nettoyage HTML et éditeur | Liste blanche `DOMDocument` ; éditeur minimal `contenteditable` | T0.4 | P0 | `Core/HtmlSanitizer.php`, `public/assets/js/editor.js` | Scripts, `on*=`, `javascript:` supprimés | Unitaires XSS |
+| T0.16 | Nettoyage HTML | Liste blanche `DOMDocument` (l'éditeur est en T3.9) | T0.4 | P0 | `Core/HtmlSanitizer.php` | Scripts, `on*=`, `javascript:` supprimés | Unitaires XSS |
 
 ## L1 — Authentification, RBAC, audit
 
@@ -87,7 +87,7 @@ Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central
 | T3.6 | Paramètres du site (coordonnées, réseaux, pied de page) | Modifiables sans code | P1 | Fonctionnel |
 | T3.7 | Formulaires reçus (contact, information, partenariat) : statuts, affectation, historique, notification interne | Message traité de bout en bout | P1 | E2E |
 | T3.8 | SEO : sitemap.xml, robots.txt, canonique, Open Graph | Sitemap valide, pages non publiées absentes | P1 | Fonctionnel |
-| T3.9 | Intégration de l'éditeur et du nettoyage (T0.16) dans pages et articles | Script injecté neutralisé | P0 | Test XSS |
+| T3.9 | Éditeur minimal `contenteditable` (titres, gras, italique, listes, liens, images de la médiathèque) branché sur le nettoyage T0.16 | Script injecté neutralisé | P0 | Test XSS |
 
 ## L4 — Site public et adhésion en ligne
 
