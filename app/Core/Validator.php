@@ -39,24 +39,9 @@ final class Validator
 
     private function run(): void
     {
-        foreach ($this->rules as $field => $spec) {
-            $raw = $this->data[$field] ?? null;
-            $label = $this->labels[$field] ?? $field;
-            if (is_int($raw) || is_float($raw)) {
-                $raw = (string) $raw;
-            }
-            if ($raw !== null && !is_string($raw)) {
-                $this->values[$field] = null;
-                $this->errors[$field] = "$label : valeur invalide, saisissez un texte.";
-                continue;
-            }
-            $value = $raw === null ? null : trim($raw);
-            $value = $value === '' ? null : $value;
-            $this->values[$field] = $value;
-            $rules = explode('|', $spec);
-            $known = ['required', 'nullable', 'string', 'max', 'min', 'email', 'phone_ci', 'date', 'before_today', 'in', 'integer', 'same'];
-
-            foreach ($rules as $rule) {
+        $known = ['required', 'nullable', 'string', 'max', 'min', 'email', 'phone_ci', 'date', 'before_today', 'in', 'integer', 'same'];
+        foreach ($this->rules as $spec) {
+            foreach (explode('|', $spec) as $rule) {
                 if (!in_array(explode(':', $rule, 2)[0], $known, true)) {
                     throw new \InvalidArgumentException("Règle de validation inconnue : $rule");
                 }
@@ -64,6 +49,17 @@ final class Validator
                     throw new \InvalidArgumentException("Paramètre numérique attendu : $rule");
                 }
             }
+        }
+        foreach ($this->rules as $field => $spec) {
+            $label = $this->labels[$field] ?? $field;
+            $rules = explode('|', $spec);
+            if (!self::isTextual($this->data[$field] ?? null)) {
+                $this->values[$field] = null;
+                $this->errors[$field] = "$label : valeur invalide, saisissez un texte.";
+                continue;
+            }
+            $value = self::normalize($this->data[$field] ?? null);
+            $this->values[$field] = $value;
             if ($value === null) {
                 if (in_array('required', $rules, true)) {
                     $this->errors[$field] = "Le champ $label est obligatoire.";
@@ -114,17 +110,30 @@ final class Validator
                     return 'Date invalide : utilisez le format JJ/MM/AAAA.';
                 }
                 $today = (new \DateTimeImmutable('now', new \DateTimeZone('Africa/Abidjan')))->format('Y-m-d');
+                $this->values[$field] = $iso;
                 return $iso < $today ? null : "$label : la date doit être antérieure à aujourd'hui.";
             case 'in':
                 return in_array($s, explode(',', $arg), true) ? null : "$label : choisissez une valeur dans la liste proposée.";
             case 'integer':
                 return preg_match('/^-?\d+$/', $s) ? null : "$label : saisissez un nombre entier (ex. 12).";
             case 'same':
-                $other = $this->data[$arg] ?? null;
-                $other = is_string($other) ? trim($other) : $other;
-                return $v === ($other === '' ? null : $other) ? null : "$label : la valeur doit être identique à celle du champ de confirmation.";
+                return $v === self::normalize($this->data[$arg] ?? null) ? null : "$label : la valeur doit être identique à celle du champ de confirmation.";
         }
         return null; // required / nullable
+    }
+
+    private static function isTextual(mixed $raw): bool
+    {
+        return $raw === null || is_string($raw) || is_int($raw) || is_float($raw);
+    }
+
+    private static function normalize(mixed $raw): ?string
+    {
+        if (!self::isTextual($raw) || $raw === null) {
+            return null;
+        }
+        $t = trim((string) $raw);
+        return $t === '' ? null : $t;
     }
 
     /** Accepts AAAA-MM-JJ or JJ/MM/AAAA; returns AAAA-MM-JJ or null. */

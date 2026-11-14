@@ -128,4 +128,22 @@ final class ValidatorTest extends TestCase
         $this->expectException(\InvalidArgumentException::class);
         Validator::make(['a' => 'x'], ['a' => 'max:abc']);
     }
+
+    public function test_same_compares_normalized_values_in_any_order(): void
+    {
+        $this->assertFalse(Validator::make(['p' => 5, 'q' => 5], ['q' => 'same:p'])->fails());
+        $this->assertFalse(Validator::make(['p' => 5, 'q' => '5'], ['q' => 'same:p', 'p' => 'integer'])->fails());
+        $this->assertFalse(Validator::make(['p' => 5, 'q' => 5], ['p' => 'same:q', 'q' => 'integer'])->fails());
+    }
+
+    public function test_unknown_rule_throws_even_for_array_input(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        Validator::make(['a' => ['x']], ['a' => 'max:abc']);
+    }
+
+    public function test_before_today_alone_normalizes_to_iso(): void
+    {
+        $this->assertSame('2000-01-01', Validator::make(['d' => '01/01/2000'], ['d' => 'before_today'])->validated()['d']);
+    }
 }
