@@ -17,7 +17,10 @@ final class SecurityHeaders implements Middleware
     {
         $res = $next($r);
         foreach (self::HEADERS as $name => $value) {
-            $res = $res->withHeader($name, $value);
+            // Une politique plus stricte posée par la route est conservée (Referrer-Policy: no-referrer sur les pages à jeton).
+            if ($name !== 'Referrer-Policy' || !isset($res->headers()[$name])) {
+                $res = $res->withHeader($name, $value);
+            }
         }
         // HSTS seulement sur HTTPS : sur HTTP il serait ignoré par le navigateur, et l'envoyer en clair n'a pas de sens.
         return $r->isSecure() ? $res->withHeader('Strict-Transport-Security', 'max-age=31536000') : $res;

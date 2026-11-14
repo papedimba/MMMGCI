@@ -6,6 +6,8 @@ namespace Tests\Support;
 use App\Core\App;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
+use App\Core\Mail\ArrayTransport;
+use App\Core\Mailer;
 use App\Modules\Auth\PasswordPolicy;
 use Tests\DatabaseTestCase;
 
@@ -15,10 +17,17 @@ abstract class AdminTestCase extends DatabaseTestCase
     /** @var array<string,mixed> services exposés par app/kernel.php */
     protected array $services = [];
     private ?App $app = null;
+    /** e-mails envoyés par l'application (corps encodé en base64) */
+    protected ArrayTransport $mail;
 
     protected function app(): App
     {
-        return $this->app ??= (require dirname(__DIR__, 2) . '/app/kernel.php')(self::config(), false, ['db' => $this->db], $this->services);
+        if ($this->app === null) {
+            $this->mail = new ArrayTransport();
+            $mailer = new Mailer($this->mail, 'no-reply@exemple.ci');
+            $this->app = (require dirname(__DIR__, 2) . '/app/kernel.php')(self::config(), false, ['db' => $this->db, 'mailer' => $mailer], $this->services);
+        }
+        return $this->app;
     }
 
     /** @param list<string> $roleNames */

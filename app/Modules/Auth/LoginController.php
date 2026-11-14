@@ -8,6 +8,7 @@ use App\Core\Csrf;
 use App\Core\Database;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
+use App\Core\Session;
 use App\Core\View;
 use Closure;
 
@@ -18,7 +19,7 @@ final class LoginController
 
     /** @param Closure(): int $clock */
     public function __construct(private View $view, private Csrf $csrf, private Database $db, private Auth $auth,
-        private Audit $audit, private LoginThrottle $throttle, private Closure $clock)
+        private Audit $audit, private LoginThrottle $throttle, private Closure $clock, private Session $session)
     {
     }
 
@@ -80,6 +81,7 @@ final class LoginController
             'retour' => $retour,
             'email' => $email,
             'error' => $error,
+            'flash' => $this->session->pullFlash('status'),
         ]));
     }
 }

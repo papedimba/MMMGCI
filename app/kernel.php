@@ -14,14 +14,15 @@ use App\Core\Http\Router;
 use App\Core\Http\SecurityHeaders;
 use App\Core\Http\StartSession;
 use App\Core\Http\VerifyCsrf;
+use App\Core\Mailer;
 use App\Core\Session;
 use App\Core\View;
 use App\Modules\Auth\Auth;
 
 /**
  * Assemble l'application ; $httpSession = false pour la construire sans session PHP (tests, CLI).
- * $overrides : 'db' (Database), 'clock' (callable(): int). $services reçoit les services construits (tests) ;
- * db, gate, auth et audit y sont des fabriques paresseuses (callable(): objet), partagées avec les routes.
+ * $overrides : 'db' (Database), 'mailer' (Mailer), 'clock' (callable(): int). $services reçoit les services construits (tests) ;
+ * db, gate, auth, audit et mailer y sont des fabriques paresseuses (callable(): objet), partagées avec les routes.
  *
  * @param array<string,mixed> $overrides
  * @param array<string,mixed>|null $services
@@ -46,8 +47,9 @@ return static function (Config $config, bool $httpSession, array $overrides = []
     $gate = $once(static fn (): Gate => new Gate($db()));
     $auth = $once(static fn (): Auth => new Auth($session, $db(), $gate()));
     $audit = $once(static fn (): Audit => new Audit($db(), (string) $config->get('APP_KEY')));
+    $mailer = $once(static fn (): Mailer => $overrides['mailer'] ?? Mailer::fromConfig($config)); // paresseux : MAIL_FROM vide ne casse que l'envoi
     $clock = $overrides['clock'] ?? time(...);
-    $services = compact('session', 'csrf', 'db', 'gate', 'auth', 'audit', 'clock', 'view');
+    $services = compact('config', 'session', 'csrf', 'db', 'gate', 'auth', 'audit', 'mailer', 'clock', 'view');
 
     $titles = [400 => 'Requête invalide', 403 => 'Accès refusé', 404 => 'Page introuvable', 405 => 'Méthode non autorisée', 419 => 'Session expirée'];
     $errors = static function (int $status, Request $r) use ($view, $titles): Response {

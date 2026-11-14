@@ -11,7 +11,7 @@ use Tests\Support\AdminTestCase;
 /** Balaie les routes réelles de l'application : couvre automatiquement celles des lots suivants. */
 final class AdminRouteSweepTest extends AdminTestCase
 {
-    private const OPEN = ['/admin/connexion', '/admin/mot-de-passe-oublie', '/admin/reinitialiser/{token}'];
+    private const OPEN = ['/admin/connexion', '/admin/mot-de-passe-oublie', '/admin/reinitialiser/{token:[a-f0-9]{64}}'];
     private const LOGIN_ONLY = ['GET /admin', 'POST /admin/deconnexion', 'GET /admin/mon-compte/mot-de-passe', 'POST /admin/mon-compte/mot-de-passe'];
 
     /** @return list<array{method: string, pattern: string, permission: ?string}> routes /admin à protéger */

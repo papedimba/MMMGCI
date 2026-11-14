@@ -1,6 +1,9 @@
 <?php declare(strict_types=1); ?>
 <main>
 <h1>Connexion à l'administration</h1>
+<?php if ($flash !== null): ?>
+<p role="status"><?= e($flash) ?></p>
+<?php endif; ?>
 <?php if ($error !== null): ?>
 <p role="alert"><?= e($error) ?></p>
 <?php endif; ?>
@@ -13,4 +16,5 @@
 <input type="password" id="password" name="password" autocomplete="current-password" required></p>
 <p><button type="submit">Se connecter</button></p>
 </form>
+<p><a href="/admin/mot-de-passe-oublie">Mot de passe oublié ?</a></p>
 </main>
