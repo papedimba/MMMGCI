@@ -2,9 +2,7 @@
 declare(strict_types=1);
 
 // Unique entrée cron cPanel (toutes les 5 minutes) : php /chemin/bin/cron.php
-require dirname(__DIR__) . '/app/autoload.php';
-
-$config = new App\Core\Config(App\Core\Env::load(dirname(__DIR__) . '/.env'));
+$config = require dirname(__DIR__) . '/app/init.php';
 $scheduler = new App\Core\Scheduler(App\Core\Database::connect($config));
 // Les lots L1+ enregistrent ici leurs tâches : $scheduler->register('nom', 60, fn () => ...);
 

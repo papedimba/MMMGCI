@@ -113,4 +113,22 @@ final class SchedulerTest extends DatabaseTestCase
         $this->db->query('DROP TRIGGER scheduler_test_trg');
         $this->assertNull($this->db->fetchValue("SELECT locked_at FROM scheduler_locks WHERE task = 't'"));
     }
+
+    public function test_task_raising_a_warning_under_the_cli_init_is_recorded_as_failed(): void
+    {
+        // Même amorçage que bin/cron.php : app/init.php installe le gestionnaire d'erreurs (avertissement -> exception).
+        $script = sys_get_temp_dir() . '/mmmgci-cron-' . uniqid() . '.php';
+        file_put_contents($script, '<?php declare(strict_types=1); $config = require ' . var_export(dirname(__DIR__, 2) . '/app/init.php', true) . ';
+            $s = new App\Core\Scheduler(App\Core\Database::connect($config, test: true));
+            $s->register("warn", 10, function () { $undefined = []; return $undefined["missing"]; });
+            echo $s->run(time())["warn"];');
+        $proc = proc_open([PHP_BINARY, $script], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $out = stream_get_contents($pipes[1]);
+        stream_get_contents($pipes[2]);
+        proc_close($proc);
+        unlink($script);
+
+        $this->assertSame('failed', $out);
+        $this->assertSame('Undefined array key "missing"', $this->db->fetchValue("SELECT error FROM scheduled_runs WHERE task = 'warn'"));
+    }
 }

@@ -61,7 +61,8 @@ app/            code applicatif (jamais exposé)
   Core/         socle : Config, Database, Migrator, View, Session, Csrf, Validator, Money, Audit, Mailer…
   Core/Http/    Request, Response, Router, middleware (ForceHttps, SecurityHeaders, StartSession, VerifyCsrf)
   views/        gabarits PHP (layouts/, errors/)
-  bootstrap.php charge la configuration et retourne l'App ; kernel.php l'assemble
+  init.php      amorçage commun (fuseau, configuration, gestionnaire d'erreurs) des pages web et des scripts bin/
+  bootstrap.php retourne l'App (init.php puis kernel.php qui l'assemble)
 bin/            scripts CLI : dev-db, migrate.php, cron.php
 database/migrations/  fichiers NNNN_*.sql (ne jamais modifier une migration appliquée : en ajouter une nouvelle)
 public/         racine web : index.php, .htaccess, media/

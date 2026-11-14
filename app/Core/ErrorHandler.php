@@ -27,10 +27,15 @@ final class ErrorHandler
             }
         };
 
+        ini_set('zend.exception_ignore_args', '1'); // aucune valeur d'argument (mot de passe…) dans les traces journalisées
         if (!$debug) {
             ini_set('display_errors', '0'); // les fatales sont journalisées et rendues par la fonction d'arrêt
         }
         $render500 = static function () use ($debug): void {
+            if (PHP_SAPI === 'cli') {
+                fwrite(STDERR, "Une erreur est survenue : le détail est journalisé dans storage/logs ; corrigez la cause puis relancez la commande.\n");
+                return;
+            }
             if (!headers_sent()) {
                 http_response_code(500);
                 header_remove('X-Powered-By');
@@ -54,9 +59,13 @@ final class ErrorHandler
             }
         });
 
-        set_error_handler(static function (int $no, string $str, string $file, int $line): bool {
+        set_error_handler(static function (int $no, string $str, string $file, int $line) use ($debug, $log): bool {
             if (!(error_reporting() & $no)) {
                 return false;
+            }
+            if (!$debug && ($no & (E_DEPRECATED | E_USER_DEPRECATED)) !== 0) {
+                $log("Deprecated: $str in $file:$line"); // une dépréciation ne doit pas casser la production
+                return true;
             }
             throw new \ErrorException($str, 0, $no, $file, $line);
         });
@@ -64,7 +73,9 @@ final class ErrorHandler
         set_exception_handler(static function (Throwable $e) use ($debug, $log, $render500): void {
             $log(get_class($e) . ': ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine() . PHP_EOL . $e->getTraceAsString());
             $render500();
-            if ($debug) {
+            if ($debug && PHP_SAPI === 'cli') {
+                fwrite(STDERR, get_class($e) . ': ' . $e->getMessage() . "\n" . $e->getTraceAsString() . "\n");
+            } elseif ($debug) {
                 echo '<pre>' . e(get_class($e) . ': ' . $e->getMessage() . "\n" . $e->getTraceAsString()) . '</pre>';
             }
         });
