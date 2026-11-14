@@ -31,4 +31,22 @@ final class CsrfMiddlewareTest extends TestCase
         $this->assertSame(200, $mw->handle(new Request('POST', '/', [], [], [], ['HTTP_X_CSRF_TOKEN' => $t]), $next)->status());
         $this->assertSame(419, $mw->handle(new Request('POST', '/', [], ['_csrf' => 'bad']), $next)->status());
     }
+
+    public function test_every_unsafe_method_is_checked_and_query_token_is_ignored(): void
+    {
+        $store = [];
+        $csrf = new Csrf(new Session($store, 30));
+        $mw = new VerifyCsrf($csrf, new View(dirname(__DIR__, 2) . '/app/views'));
+        $next = static fn (Request $r): Response => new Response('ok');
+        $t = $csrf->token();
+
+        foreach (['HEAD', 'OPTIONS'] as $m) {
+            $this->assertSame(200, $mw->handle(new Request($m, '/'), $next)->status(), $m);
+        }
+        foreach (['PUT', 'DELETE', 'PATCH'] as $m) {
+            $this->assertSame(419, $mw->handle(new Request($m, '/'), $next)->status(), $m);
+            $this->assertSame(200, $mw->handle(new Request($m, '/', [], [], [], ['HTTP_X_CSRF_TOKEN' => $t]), $next)->status(), $m);
+        }
+        $this->assertSame(419, $mw->handle(new Request('POST', '/', ['_csrf' => $t]), $next)->status());
+    }
 }

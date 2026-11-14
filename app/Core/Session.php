@@ -57,7 +57,12 @@ final class Session
     {
         $this->store = [];
         if (session_status() === PHP_SESSION_ACTIVE) {
+            $params = session_get_cookie_params();
             session_destroy();
+            if (!headers_sent()) {
+                unset($params['lifetime']);
+                setcookie($this->name, '', ['expires' => 1] + $params);
+            }
         }
     }
 }

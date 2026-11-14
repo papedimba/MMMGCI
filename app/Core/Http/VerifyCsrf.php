@@ -14,13 +14,14 @@ final class VerifyCsrf implements Middleware
 
     public function handle(Request $r, callable $next): Response
     {
-        if ($r->method() !== 'POST') {
+        if (in_array($r->method(), ['GET', 'HEAD', 'OPTIONS'], true)) {
             return $next($r);
         }
-        $t = $r->input('_csrf') ?? $r->header('X-CSRF-Token');
+        // Corps ou en-tête uniquement : un jeton dans l'URL fuirait dans les journaux et le Referer.
+        $t = $r->post('_csrf') ?? $r->header('X-CSRF-Token');
         if (is_string($t) && $this->csrf->check($t)) {
             return $next($r);
         }
-        return new Response($this->view->render('errors/419'), 419);
+        return new Response($this->view->render('errors/419', ['title' => 'Session expirée']), 419);
     }
 }

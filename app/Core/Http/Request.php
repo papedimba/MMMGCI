@@ -33,6 +33,8 @@ final class Request
 
     public function input(string $k, mixed $d = null): mixed { return $this->post[$k] ?? $this->query[$k] ?? $d; }
 
+    public function post(string $k, mixed $d = null): mixed { return $this->post[$k] ?? $d; }
+
     public function all(): array { return $this->post + $this->query; }
 
     public function file(string $k): ?array { return $this->files[$k] ?? null; }

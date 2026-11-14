@@ -7,7 +7,7 @@ use InvalidArgumentException;
 
 /**
  * CSV pour Excel en paramètres régionaux français : BOM UTF-8, `;`, CRLF.
- * shortcut: la chaîne est construite en mémoire (environ 87 Mo pour 200 000 lignes XLSX), passer à l'écriture en flux au-delà.
+ * shortcut: la chaîne est construite en mémoire (environ 11 Mo pour 500 000 lignes), passer à l'écriture en flux au-delà.
  */
 final class Csv
 {
