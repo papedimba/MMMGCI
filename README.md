@@ -89,6 +89,67 @@ Une seule entrée cPanel, toutes les 5 minutes :
 */5 * * * * php /home/USER/mmmgci/bin/cron.php
 ```
 
+Tâches enregistrées (lot L1) : `login_attempts.purge` et `password_resets.purge`, chacune toutes les 60 minutes (suppression des tentatives de connexion et des jetons de réinitialisation ou d'invitation de plus de 24 h).
+
+## Premier administrateur
+
+Après `php bin/migrate.php`, créer le premier compte (rôles `super_admin` et `admin_general`) :
+
+```sh
+php bin/create-admin.php admin@exemple.ci "Prénom Nom"
+```
+
+Le mot de passe (20 caractères) s'affiche **une seule fois** : le noter, puis se connecter sur `/admin` et le changer aussitôt à
+`/admin/mon-compte/mot-de-passe`. La commande refuse de s'exécuter s'il existe déjà un utilisateur actif qui peut gérer les utilisateurs ;
+les autres comptes se créent ensuite depuis l'écran Utilisateurs.
+
+Sans Terminal cPanel, utiliser une tâche Cron **ponctuelle** (à régler quelques minutes plus tard) :
+
+```
+php /home/USER/mmmgci/bin/create-admin.php admin@exemple.ci "Prénom Nom"
+```
+
+Le mot de passe est alors envoyé dans l'e-mail du Cron : **supprimer la tâche dès qu'elle a tourné** et changer le mot de passe immédiatement.
+
+## Rôles et permissions
+
+Matrice complète : [`docs/conception/03-architecture.md`](docs/conception/03-architecture.md#a6-matrice-rôles--permissions-base-de-conception-configurable), section A6. Un compte peut cumuler plusieurs rôles (ses permissions s'additionnent).
+
+| Rôle | Usage |
+|---|---|
+| `super_admin` | Super administrateur technique : tout, sauf les décisions et les données sensibles |
+| `admin_general` | Administrateur général : utilisateurs, rôles, paramètres, contenu et gestion courante |
+| `pca` | Président du Conseil d'administration : consultation, décisions sociales et disciplinaires, validation des paramètres |
+| `vice_president` | Premier Vice-président : consultation, gouvernance, délégués |
+| `secretaire_general` | Secrétaire général : adhérents, gouvernance, délégués, discipline, initie les décaissements |
+| `tresorier_general` | Trésorier général : cotisations, solidarité, initie les décaissements |
+| `resp_communication` | Responsable de la communication : contenu du site, emploi, partenaires |
+| `resp_commission` | Responsable de commission : consultation adhérents, gouvernance, rapports |
+| `delegue` | Délégué : consulte et crée des adhérents, rapports de délégué |
+| `point_focal` | Point focal : mêmes droits que le délégué |
+| `controleur` | Contrôleur : consultation étendue, contrôle financier, journal d'audit |
+| `gest_adherents` | Gestionnaire des adhérents : fiches et documents des adhérents |
+| `gest_social` | Gestionnaire des demandes sociales : instruction des demandes, données médicales |
+| `gest_cms` | Gestionnaire du CMS : pages, publication, médias, formulaires |
+| `lecture_seule` | Utilisateur en lecture seule : consultation des modules |
+| `admin_site` | Administrateur du site : tout le contenu du site |
+| `editeur` | Éditeur : pages, publication, médias |
+| `redacteur` | Rédacteur : pages |
+| `gest_medias` | Gestionnaire des médias : médiathèque |
+
+**Aucun rôle n'approuve ni ne paie un décaissement** tant que les instances ne l'ont pas désigné : les permissions `disbursement.approve` et `disbursement.pay` ne sont attribuées à aucun rôle à l'installation.
+
+**Rôles protégés** : seul un super administrateur peut désigner les approbateurs et les décideurs, attribuer les rôles les plus élevés ou modifier les comptes qui les détiennent
+(ou un administrateur qui détient lui-même toutes les permissions du rôle concerné). La ligne de commande `bin/create-admin.php` en est exemptée.
+
+## Sécurité des accès
+
+- Connexion : 5 échecs par compte et par IP sur 15 minutes, 20 échecs par IP sur 15 minutes, puis blocage temporaire.
+- Mots de passe : 12 caractères au minimum, mots de passe courants et dérivés du nom ou de l'e-mail refusés ; hachage Argon2id.
+- Liens de réinitialisation valables 1 h, invitations valables 72 h, à usage unique.
+- L'envoi différé des e-mails (après la réponse) demande PHP-FPM ou LiteSpeed ; sous mod_php il s'exécute avant la réponse.
+- Journal d'audit : écran `/admin/journal` (permission `audit.view`), avec un bouton de vérification de l'intégrité de la chaîne ; consultations de données sensibles dans l'onglet « sensibles ».
+
 ## E-mail
 
 `MAIL_DRIVER=mail` utilise `mail()` ; `MAIL_DRIVER=smtp` utilise `SMTP_HOST/PORT/USER/PASS`.

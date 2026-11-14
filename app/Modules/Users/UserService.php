@@ -124,6 +124,14 @@ final class UserService
         });
     }
 
+    /** Vrai s'il existe au moins un utilisateur actif détenant users.manage (lecture simple, sans verrou). */
+    public function hasActiveAdmin(): bool
+    {
+        return $this->db->fetchValue(
+            'SELECT 1 FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN role_permissions rp ON rp.role_id = ur.role_id
+             JOIN permissions p ON p.id = rp.permission_id WHERE u.is_active = 1 AND p.name = ? LIMIT 1', [self::MANAGE]) !== null;
+    }
+
     /**
      * Vrai si l'opération sur $userId (nouveaux rôles, ou désactivation) ne laisserait aucun utilisateur actif détenant users.manage.
      * À appeler dans la transaction de l'écriture : les comptes détenteurs sont verrouillés (FOR UPDATE, dans l'ordre des id)
