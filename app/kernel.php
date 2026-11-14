@@ -56,6 +56,7 @@ return static function (Config $config, bool $httpSession, array $overrides = []
     };
 
     $router = new Router(null, $errors);
+    $services['router'] = $router;
     (require dirname(__DIR__) . '/routes/web.php')($router, $view, $csrf, $db);
     (require dirname(__DIR__) . '/routes/admin.php')($router, $services);
 

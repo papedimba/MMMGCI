@@ -5,7 +5,7 @@ namespace App\Core\Http;
 
 final class Router
 {
-    /** @var list<array{string,string,callable|array,array,list<string>}> */
+    /** @var list<array{string,string,callable|array,array,string}> méthode, regex, gestionnaire, middlewares, motif */
     private array $routes = [];
     private string $prefix = '';
     private array $groupMiddleware = [];
@@ -68,7 +68,7 @@ final class Router
                 array_reverse($middleware),
                 fn(callable $next, $mw) => fn(Request $req): Response => (match (true) {
                     is_string($mw) => ($this->factory)($mw),
-                    $mw instanceof \Closure => $mw(), // construit à la requête : pas de connexion base au démarrage
+                    $mw instanceof \Closure, $mw instanceof PermissionGuard => $mw(), // construit à la requête : pas de connexion base au démarrage
                     default => $mw,
                 })->handle($req, $next),
                 $core,
@@ -80,6 +80,12 @@ final class Router
             return ($this->errorRenderer)(405, $r)->withHeader('Allow', implode(', ', array_unique($allowed)));
         }
         return ($this->errorRenderer)(404, $r);
+    }
+
+    /** @return list<array{method: string, pattern: string, middleware: list<object|string>}> après fusion des groupes */
+    public function routes(): array
+    {
+        return array_map(static fn(array $r): array => ['method' => $r[0], 'pattern' => $r[4], 'middleware' => $r[3]], $this->routes);
     }
 
     private function add(string $method, string $pattern, callable|array $handler, array $middleware): self
@@ -96,7 +102,7 @@ final class Router
             [$name, $re] = explode(':', substr($part, 1, -1), 2) + [1 => '[^/]+'];
             $regex .= "(?P<$name>$re)";
         }
-        $this->routes[] = [$method, '#^' . $regex . '$#D', $handler, [...$this->groupMiddleware, ...$middleware]];
+        $this->routes[] = [$method, '#^' . $regex . '$#D', $handler, [...$this->groupMiddleware, ...$middleware], $path];
         return $this;
     }
 

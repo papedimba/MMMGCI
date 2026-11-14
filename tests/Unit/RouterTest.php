@@ -151,4 +151,14 @@ final class RouterTest extends TestCase
 final class RouterTestHandler
 {
     public function index(Request $r): Response { return new Response('handled'); }
+
+    public function test_routes_expose_merged_pattern_and_middleware(): void
+    {
+        $r = new Router();
+        $mw = static fn() => null;
+        $r->group('/admin', [$mw], function (Router $r) use ($mw): void {
+            $r->post('/x/{id:\d+}', $this->ok(), ['m']);
+        });
+        $this->assertSame([['method' => 'POST', 'pattern' => '/admin/x/{id:\d+}', 'middleware' => [$mw, 'm']]], $r->routes());
+    }
 }
