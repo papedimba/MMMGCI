@@ -3,6 +3,8 @@ declare(strict_types=1);
 
 namespace App\Core;
 
+use InvalidArgumentException;
+
 /** Journal d'audit chaîné par HMAC : ajout seul, altération et suppression détectables par verify(). */
 final class Audit
 {
@@ -14,10 +16,8 @@ final class Audit
 
     /**
      * Rejoint la transaction ouverte (écritures métier et audit validés ensemble), sinon en ouvre une.
-     * Le verrou FOR UPDATE sur la dernière ligne est tenu jusqu'au commit : deux log() ne peuvent pas
-     * se chaîner au même prev_hash. Table vide : le verrou de plage InnoDB fait échouer l'un des deux
-     * appels concurrents (interblocage signalé) au lieu de forker la chaîne ; pas de GET_LOCK, car il
-     * serait relâché avant le commit d'une transaction externe.
+     * La ligne unique d'audit_chain est verrouillée FOR UPDATE jusqu'au commit : les log() sont sérialisés
+     * sans verrou de plage ni fourche, quel que soit le niveau d'isolation, même table vide.
      *
      * @param array<string,mixed>|null $old
      * @param array<string,mixed>|null $new
@@ -25,8 +25,14 @@ final class Audit
     public function log(?int $userId, string $action, string $type, ?int $id, ?array $old, ?array $new,
         ?string $reference = null, ?string $ip = null, ?string $ua = null): int
     {
+        if ($reference !== null && mb_strlen($reference) > 30) {
+            throw new InvalidArgumentException('La référence d\'audit dépasse 30 caractères.');
+        }
+        $clean = fn (?string $v, int $max): ?string => $v === null ? null : mb_substr(mb_scrub($v, 'UTF-8'), 0, $max);
+        $ip = $clean($ip, 45);
+        $ua = $clean($ua, 255);
         $write = function () use ($userId, $action, $type, $id, $old, $new, $reference, $ip, $ua): int {
-            $prev = $this->db->fetchValue('SELECT hash FROM audit_logs ORDER BY id DESC LIMIT 1 FOR UPDATE') ?? self::GENESIS;
+            $prev = (string) $this->db->fetchValue('SELECT last_hash FROM audit_chain WHERE id = 1 FOR UPDATE');
             $row = [
                 'user_id' => $userId, 'action' => $action, 'auditable_type' => $type, 'auditable_id' => $id,
                 'old_values' => $old === null ? null : self::json($old),
@@ -36,22 +42,37 @@ final class Audit
                 'created_at' => gmdate('Y-m-d H:i:s'),
             ];
             $logId = $this->db->insert('audit_logs', $row);
-            $this->db->update('audit_logs', ['hash' => $this->hash($prev, $logId, $row)], ['id' => $logId]);
+            $hash = $this->hash($prev, $logId, $row);
+            $this->db->update('audit_logs', ['hash' => $hash], ['id' => $logId]);
+            $this->db->query('UPDATE audit_chain SET last_id = ?, last_hash = ?, row_count = row_count + 1 WHERE id = 1', [$logId, $hash]);
             return $logId;
         };
         return $this->db->pdo()->inTransaction() ? $write() : $this->db->transaction($write);
     }
 
-    /** Id de la première ligne altérée (ou dont le prédécesseur a disparu), null si la chaîne est intacte. */
+    /**
+     * Id de la première ligne altérée ou dont le prédécesseur a disparu ; si seules des lignes de fin
+     * ont été supprimées (écart avec audit_chain), id qui suit la dernière ligne intacte. null si intacte.
+     */
     public function verify(): ?int
     {
-        // shortcut: la suppression de la toute dernière ligne est indétectable sans ancre externe.
         $expected = self::GENESIS;
-        foreach ($this->db->query('SELECT * FROM audit_logs ORDER BY id') as $r) {
-            if ($r['prev_hash'] !== $expected || !hash_equals($this->hash($expected, (int) $r['id'], $r), $r['hash'])) {
-                return (int) $r['id'];
+        $lastId = 0;
+        $count = 0;
+        do {
+            $rows = $this->db->fetchAll('SELECT * FROM audit_logs WHERE id > ? ORDER BY id LIMIT 1000', [$lastId]);
+            foreach ($rows as $r) {
+                if ($r['prev_hash'] !== $expected || !hash_equals($this->hash($expected, (int) $r['id'], $r), $r['hash'])) {
+                    return (int) $r['id'];
+                }
+                $expected = $r['hash'];
+                $lastId = (int) $r['id'];
+                $count++;
             }
-            $expected = $r['hash'];
+        } while (count($rows) === 1000);
+        $chain = $this->db->fetch('SELECT last_id, last_hash, row_count FROM audit_chain WHERE id = 1');
+        if ($chain === null || $chain['last_hash'] !== $expected || (int) $chain['last_id'] !== $lastId || (int) $chain['row_count'] !== $count) {
+            return $lastId + 1;
         }
         return null;
     }
