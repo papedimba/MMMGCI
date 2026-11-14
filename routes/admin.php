@@ -6,6 +6,9 @@ use App\Core\Http\Request;
 use App\Core\Http\RequireAuth;
 use App\Core\Http\Response;
 use App\Core\Http\Router;
+use App\Modules\AuditLog\AuditLogController;
+use App\Modules\AuditLog\AuditQuery;
+use App\Modules\AuditLog\SensitiveAccess;
 use App\Modules\Auth\LinkMailer;
 use App\Modules\Auth\LoginController;
 use App\Modules\Auth\LoginThrottle;
@@ -27,6 +30,8 @@ return static function (Router $r, array $deps): void {
     $users = static fn (): UserController => new UserController($view, $csrf, $session, $db(), $gate(), new UserService($db(), $audit(), $gate()),
         new PasswordReset($db()), $links(), Closure::fromCallable($defer), Closure::fromCallable($clock));
     $roles = static fn (): RoleController => new RoleController($view, $csrf, $session, $db(), $gate(), new RoleService($db(), $audit(), $gate()));
+    $journal = static fn (): AuditLogController => new AuditLogController($view, $csrf, $session, $db(), $gate(), $audit(),
+        new AuditQuery($db()), new SensitiveAccess($db()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -58,6 +63,11 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/roles/{id:\d+}', static fn (Request $q): Response => $roles()->editForm($q), $manageRoles);
     $r->post('/admin/roles/{id:\d+}', static fn (Request $q): Response => $roles()->edit($q), $manageRoles);
     $r->post('/admin/roles/{id:\d+}/suppression', static fn (Request $q): Response => $roles()->delete($q), $manageRoles);
+
+    // Lecture seule : aucune route ne modifie ni ne supprime une ligne du journal.
+    $viewAudit = [$requireAuth, $permission('audit.view')];
+    $r->get('/admin/journal', static fn (Request $q): Response => $journal()->index($q), $viewAudit);
+    $r->post('/admin/journal/verification', static fn (Request $q): Response => $journal()->verify($q), $viewAudit);
 
     $r->get('/admin', static function (Request $q) use ($view, $csrf, $session, $gate): Response {
         $user = $q->attribute('user');
