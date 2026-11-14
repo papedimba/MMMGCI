@@ -93,4 +93,17 @@ final class LoginThrottleTest extends DatabaseTestCase
         $t->record('a@x.test', '1.1.1.1', false, self::NOW - 901);
         $this->assertFalse($t->tooManyAttempts('a@x.test', '1.1.1.1', self::NOW));
     }
+
+    public function test_mark_blocked_is_true_once_per_window_and_never_counts_as_a_failure(): void
+    {
+        $t = new LoginThrottle($this->db);
+        $this->assertTrue($t->markBlocked(' A@x.test', '1.1.1.1', self::NOW));
+        $this->assertFalse($t->markBlocked('a@x.test', '1.1.1.1', self::NOW + 10));
+        $this->assertTrue($t->markBlocked('a@x.test', '2.2.2.2', self::NOW), 'autre IP : autre clé');
+        $this->assertTrue($t->markBlocked('a@x.test', '1.1.1.1', self::NOW + 901), 'fenêtre suivante');
+        for ($i = 0; $i < 4; $i++) {
+            $t->record('a@x.test', '1.1.1.1', false, self::NOW + 901);
+        }
+        $this->assertFalse($t->tooManyAttempts('a@x.test', '1.1.1.1', self::NOW + 901));
+    }
 }

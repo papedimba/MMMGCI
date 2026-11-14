@@ -98,7 +98,7 @@ final class LoginTest extends AdminTestCase
         $this->assertSame(200, $res->status());
         $this->assertStringContainsString('Trop de tentatives : réessayez dans 15 minutes.', $res->body());
         $this->assertNull($this->loggedInId());
-        $this->assertSame(5, (int) $this->db->fetchValue('SELECT COUNT(*) FROM login_attempts'), 'une tentative bloquée n\'est pas enregistrée');
+        $this->assertSame(5, (int) $this->db->fetchValue('SELECT COUNT(*) FROM login_attempts WHERE succeeded = 0'), 'une tentative bloquée ne compte pas comme un échec');
         $this->assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE action = 'auth.login_blocked' AND new_values LIKE '%bloque@x.test%'"));
     }
 
@@ -212,6 +212,37 @@ final class LoginTest extends AdminTestCase
         foreach (['mauvais mot de passe long', self::PASSWORD, 'autre secret tres long'] as $secret) {
             $this->assertStringNotContainsString($secret, $all);
         }
+        $this->assertNull($this->services['audit']()->verify());
+    }
+
+    public function test_blocked_attempts_are_audited_once_per_window(): void
+    {
+        $now = 1_800_000_000;
+        $this->overrides['clock'] = static function () use (&$now): int {
+            return $now;
+        };
+        $this->createUser('inonde@x.test', []);
+        for ($i = 0; $i < 5; $i++) {
+            $this->login('inonde@x.test', 'mauvais mot de passe long');
+        }
+        for ($i = 0; $i < 30; $i++) {
+            $res = $this->login('inonde@x.test');
+            $this->assertStringContainsString('Trop de tentatives : réessayez dans 15 minutes.', $res->body());
+        }
+        $blocked = "SELECT COUNT(*) FROM audit_logs WHERE action = 'auth.login_blocked' AND new_values LIKE '%inonde@x.test%'";
+        $this->assertSame(1, (int) $this->db->fetchValue($blocked));
+        $this->assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM login_attempts WHERE succeeded = 2"));
+        $this->assertNull($this->loggedInId());
+
+        // Fenêtre suivante : les échecs ont expiré, on échoue à nouveau 5 fois, le premier blocage est de nouveau journalisé.
+        $now += 901;
+        for ($i = 0; $i < 5; $i++) {
+            $this->login('inonde@x.test', 'mauvais mot de passe long');
+        }
+        $this->login('inonde@x.test');
+        $this->login('inonde@x.test');
+        $this->assertSame(2, (int) $this->db->fetchValue($blocked));
+        $this->assertNull($this->loggedInId());
         $this->assertNull($this->services['audit']()->verify());
     }
 }

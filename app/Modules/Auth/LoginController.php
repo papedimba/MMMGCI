@@ -40,9 +40,13 @@ final class LoginController
         $userId = $userId === null ? null : (int) $userId;
         $log = fn (string $action) => $this->audit->log($userId, $action, 'user', $userId, null, ['email' => $email], null, $ip, $ua);
 
-        // Blocage non enregistré dans login_attempts (il gonflerait la table), mais journalisé.
+        // Seul le premier blocage de (e-mail, ip) par fenêtre est noté et journalisé : l'audit ne se purge pas.
         if ($this->throttle->tooManyAttempts($email, $ip, $now)) {
-            $log('auth.login_blocked');
+            $this->db->transaction(function () use ($email, $ip, $now, $log): void {
+                if ($this->throttle->markBlocked($email, $ip, $now)) {
+                    $log('auth.login_blocked');
+                }
+            });
             return $this->form($retour, $email, self::BLOCKED);
         }
         $user = $this->db->transaction(function () use ($email, $password, $ip, $now, $log): ?array {

@@ -42,6 +42,24 @@ final class LoginThrottle
         ]);
     }
 
+    /**
+     * Vrai pour la première tentative bloquée de (e-mail, ip) dans la fenêtre, alors notée succeeded = 2 (jamais comptée
+     * comme un échec) ; faux ensuite : l'appelant ne journalise que la première, sans quoi chaque essai ajouterait une ligne d'audit.
+     */
+    public function markBlocked(string $email, string $ip, int $now): bool
+    {
+        // shortcut: deux tentatives bloquées strictement simultanées peuvent toutes deux passer (deux lignes au plus par rafale), sans enjeu.
+        $seen = $this->db->fetchValue(
+            'SELECT 1 FROM login_attempts WHERE email = ? AND ip = ? AND succeeded = 2 AND created_at >= ? LIMIT 1',
+            [$this->norm($email), $this->ip($ip), gmdate('Y-m-d H:i:s', $now - $this->windowSeconds)],
+        );
+        if ($seen !== null) {
+            return false;
+        }
+        $this->db->insert('login_attempts', ['email' => $this->norm($email), 'ip' => $this->ip($ip), 'succeeded' => 2, 'created_at' => gmdate('Y-m-d H:i:s', $now)]);
+        return true;
+    }
+
     public function purge(int $now): void
     {
         $this->db->query('DELETE FROM login_attempts WHERE created_at < ?', [gmdate('Y-m-d H:i:s', $now - 86400)]);
