@@ -100,4 +100,60 @@ final class HtmlSanitizerTest extends TestCase
         $this->assertSame('', HtmlSanitizer::clean(''));
         $this->assertSame('<p>1 &lt; 2 &amp; 3</p>', HtmlSanitizer::clean('<p>1 &lt; 2 &amp; 3</p>'));
     }
+
+    #[DataProvider('namespacedAttributes')]
+    public function test_namespaced_attributes_are_removed(string $in): void
+    {
+        $this->assertSame('<p>a</p>', HtmlSanitizer::clean($in));
+    }
+
+    public static function namespacedAttributes(): array
+    {
+        return [
+            'xml:lang' => ['<p xml:lang="fr">a</p>'],
+            'xml:onclick' => ['<p xml:onclick="alert(1)">a</p>'],
+            'xmlns:x' => ['<p xmlns:onclick="javascript:alert(1)">a</p>'],
+            'XMLNS:X' => ['<p XMLNS:X="javascript:alert(1)">a</p>'],
+            'xmlns' => ['<p xmlns="javascript:alert(1)">a</p>'],
+        ];
+    }
+
+    public function test_xmlns_on_link_removed(): void
+    {
+        $this->assertSame('<a>x</a>', HtmlSanitizer::clean('<a xmlns="javascript:alert(1)">x</a>'));
+    }
+
+    public function test_encoding_cannot_be_overridden(): void
+    {
+        $this->assertSame('<p>é</p>', HtmlSanitizer::clean('<meta charset="windows-1252"><p>é</p>'));
+        $this->assertSame('<p>é</p>', HtmlSanitizer::clean('<p>é</p><meta http-equiv="Content-Type" content="text/html; charset=windows-1252">'));
+        $this->assertSame('<p>?</p><p>é</p>', HtmlSanitizer::clean("<p>\xFF</p><p>é</p>"));
+        $s = "<p>150\u{202F}000 XOF é 😀</p>";
+        $this->assertSame($s, HtmlSanitizer::clean($s));
+    }
+
+    public function test_stray_closing_div_keeps_following_content(): void
+    {
+        $this->assertSame('<p>a</p><p>after</p>', HtmlSanitizer::clean('<p>a</p></div><p>after</p>'));
+        $this->assertSame('<p>a</p><p>after</p>', HtmlSanitizer::clean('<p>a</p></body></html><p>after</p>'));
+    }
+
+    public function test_url_edge_cases(): void
+    {
+        $this->assertSame('<a>x</a>', HtmlSanitizer::clean('<a href="&#106;avascript:alert(1)">x</a>'));
+        $this->assertSame('<a>x</a>', HtmlSanitizer::clean('<a href="&#106avascript:alert(1)">x</a>'));
+        $this->assertSame('<a>x</a>', HtmlSanitizer::clean('<a href="&Tab;javascript:alert(1)">x</a>'));
+        $this->assertSame('<a>x</a>', HtmlSanitizer::clean('<a href="jav&#x09ascript:alert(1)">x</a>'));
+        $this->assertSame('<a>x</a>', HtmlSanitizer::clean("<a href=\"\x01javascript:alert(1)\">x</a>"));
+        $this->assertSame('<a href="#section-2">x</a>', HtmlSanitizer::clean('<a href="#section-2">x</a>'));
+        $this->assertStringContainsString('mon%20fichier.pdf', HtmlSanitizer::clean('<a href="/mon fichier.pdf">x</a>'));
+        $this->assertSame('<a>x</a>', HtmlSanitizer::clean('<a href="&amp;#106;avascript:alert(1)">x</a>'));
+    }
+
+    public function test_noscript_mutation_payload(): void
+    {
+        $out = HtmlSanitizer::clean('<noscript><p title="</noscript><img src=x onerror=alert(1)>"></noscript>');
+        $this->assertStringNotContainsString('onerror', $out);
+        $this->assertStringNotContainsString('<img', $out);
+    }
 }

@@ -7,7 +7,12 @@ use DOMDocument;
 use DOMElement;
 use DOMNode;
 
-/** Nettoyage du contenu riche par liste blanche (barrière XSS du CMS). */
+/**
+ * Nettoyage du contenu riche par liste blanche (barrière XSS du CMS).
+ * Chaque élément autorisé est reconstruit dans un document neuf : seuls les attributs
+ * listés sont copiés (aucun xmlns / attribut à espace de noms ne peut survivre).
+ * Limite : libxml tronque au-delà de 256 niveaux d'imbrication (échec fermé, contenu perdu).
+ */
 final class HtmlSanitizer
 {
     private const ALLOWED = [
@@ -28,88 +33,95 @@ final class HtmlSanitizer
         if (trim($html) === '') {
             return '';
         }
+        // UTF-8 imposé : tout octet non ASCII devient une entité numérique, donc ni <meta charset> ni octet invalide ne change l'encodage
+        $html = mb_encode_numericentity(mb_scrub($html, 'UTF-8'), [0x80, 0x10FFFF, 0, 0x1FFFFF], 'UTF-8');
+
+        // un </body> ou </html> parasite ferait ignorer la suite par libxml
+        $html = preg_replace('#</\s*(?:body|html)\b[^>]*>#i', '', $html) ?? '';
+
         $previous = libxml_use_internal_errors(true);
-        $doc = new DOMDocument();
-        $doc->loadHTML(
-            '<?xml encoding="UTF-8"?><div>' . $html . '</div>',
-            LIBXML_NOERROR | LIBXML_NONET | LIBXML_HTML_NOIMPLIED | LIBXML_HTML_NODEFDTD
-        );
+        $in = new DOMDocument();
+        $in->loadHTML('<?xml encoding="UTF-8"?><html><body>' . $html, LIBXML_NOERROR | LIBXML_NONET | LIBXML_HTML_NODEFDTD);
         libxml_clear_errors();
         libxml_use_internal_errors($previous);
 
-        $root = $doc->getElementsByTagName('div')->item(0);
-        if ($root === null) {
+        $body = $in->getElementsByTagName('body')->item(0);
+        if ($body === null) {
             return '';
         }
-        self::sanitizeChildren($root);
+        $out = new DOMDocument('1.0', 'UTF-8');
+        $root = $out->createElement('div');
+        $out->appendChild($root);
+        self::copyChildren($body, $root, $out);
 
-        $out = '';
+        $result = '';
         foreach ($root->childNodes as $child) {
-            $out .= $doc->saveHTML($child);
+            $result .= $out->saveHTML($child);
         }
-        return $out;
+        return $result;
     }
 
-    private static function sanitizeChildren(DOMNode $parent): void
+    private static function copyChildren(DOMNode $from, DOMNode $to, DOMDocument $out): void
     {
-        foreach (iterator_to_array($parent->childNodes) as $node) {
+        foreach (iterator_to_array($from->childNodes) as $node) {
             if ($node->nodeType === XML_TEXT_NODE) {
+                $to->appendChild($out->createTextNode($node->nodeValue ?? ''));
                 continue;
             }
             if (!$node instanceof DOMElement) { // commentaires, PI, CDATA...
-                $parent->removeChild($node);
                 continue;
             }
             $name = strtolower($node->nodeName);
             if (in_array($name, self::DROP_WITH_CONTENT, true)) {
-                $parent->removeChild($node);
                 continue;
             }
-            self::sanitizeChildren($node);
             if (!isset(self::ALLOWED[$name])) { // élément inconnu : on garde le contenu
-                while ($node->firstChild !== null) {
-                    $parent->insertBefore($node->firstChild, $node);
-                }
-                $parent->removeChild($node);
+                self::copyChildren($node, $to, $out);
                 continue;
             }
-            if (!self::cleanAttributes($node, $name)) {
-                $parent->removeChild($node);
+            $copy = $out->createElement($name);
+            if (!self::copyAttributes($node, $copy, $name)) {
+                continue;
             }
+            self::copyChildren($node, $copy, $out);
+            $to->appendChild($copy);
         }
     }
 
     /** @return bool false si l'élément doit être supprimé (img sans src valide). */
-    private static function cleanAttributes(DOMElement $el, string $name): bool
+    private static function copyAttributes(DOMElement $src, DOMElement $dst, string $name): bool
     {
-        foreach (iterator_to_array($el->attributes) as $attr) {
-            $attrName = strtolower($attr->nodeName);
-            $value = $attr->value;
-            if (!in_array($attrName, self::ALLOWED[$name], true)) {
-                $el->removeAttribute($attr->nodeName);
-            } elseif ($attrName === 'href' || $attrName === 'src') {
-                $safe = self::safeUrl($value);
-                $safe === null ? $el->removeAttribute($attr->nodeName) : $el->setAttribute($attrName, $safe);
-            } elseif (($attrName === 'width' || $attrName === 'height') && !preg_match('/^\d{1,4}$/', $value)) {
-                $el->removeAttribute($attr->nodeName);
+        foreach (self::ALLOWED[$name] as $attr) {
+            if (!$src->hasAttribute($attr)) {
+                continue;
+            }
+            $value = $src->getAttribute($attr);
+            if ($attr === 'href' || $attr === 'src') {
+                $value = self::safeUrl($value);
+            } elseif (($attr === 'width' || $attr === 'height') && !preg_match('/^\d{1,4}$/', $value)) {
+                $value = null;
+            }
+            if ($value !== null) {
+                $dst->setAttribute($attr, $value);
             }
         }
-        if ($name === 'img' && !$el->hasAttribute('src')) {
+        if ($name === 'img' && !$dst->hasAttribute('src')) {
             return false;
         }
-        if ($name === 'a' && preg_match('#^https?:#i', $el->getAttribute('href'))) {
-            $el->setAttribute('rel', 'noopener noreferrer');
+        if ($name === 'a' && preg_match('#^https?:#i', $dst->getAttribute('href'))) {
+            $dst->setAttribute('rel', 'noopener noreferrer');
         }
         return true;
     }
 
+    /** Valeur déjà décodée par le DOM : pas de second décodage d'entités. */
     private static function safeUrl(string $url): ?string
     {
-        $url = preg_replace('/[\x00-\x20\x7f]+/', '', html_entity_decode($url, ENT_QUOTES | ENT_HTML5, 'UTF-8')) ?? '';
+        $url = preg_replace('/^[\x00-\x20]+|[\x00-\x20]+$|[\t\r\n]+/', '', $url) ?? '';
         if (preg_match('#^(https?|mailto|tel):#i', $url)) {
             return $url;
         }
-        // '//' et '/\' sont interprétés comme protocole-relatif par les navigateurs
-        return preg_match('#^/(?![/\\\\])#', $url) ? $url : null;
+        // '//' et '/\' sont interprétés comme protocole-relatif par les navigateurs ; '#' = ancre
+        return preg_match('#^(/(?![/\\\\])|\#)#', $url) ? $url : null;
     }
 }
