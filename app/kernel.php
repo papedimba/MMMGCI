@@ -52,6 +52,11 @@ return static function (Config $config, bool $httpSession, array $overrides = []
     // shortcut: aucun gain sous mod_php ou php -S (le travail s'exécute avant que le client soit libéré) ; efficace sous PHP-FPM/LiteSpeed.
     $defer = $overrides['defer'] ?? static function (callable $job): void {
         register_shutdown_function(static function () use ($job): void {
+            // PHP n'enregistre la session qu'après les fonctions d'arrêt et *_finish_request() ne la libère pas : sans cette
+            // fermeture, le fichier de session reste verrouillé pendant le travail et la requête suivante du même cookie l'attend.
+            if (session_status() === PHP_SESSION_ACTIVE) {
+                session_write_close();
+            }
             // PHP exécute les fonctions d'arrêt avant de vider la sortie : c'est *_finish_request() qui libère le client.
             if (function_exists('fastcgi_finish_request')) {
                 fastcgi_finish_request();

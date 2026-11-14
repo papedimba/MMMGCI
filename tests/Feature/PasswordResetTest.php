@@ -259,21 +259,32 @@ final class PasswordResetTest extends AdminTestCase
         $this->assertNull((new PasswordReset($this->db))->check($token, time()));
     }
 
-    public function test_relative_app_url_sends_nothing_and_logs_a_clear_error(): void
+    /** @param array<string,string> $env */
+    private function assertForgotLogsAndSendsNothing(string $email, array $env, string $expectedLog): void
     {
-        $this->env['APP_URL'] = '';
-        $this->createUser('sansurl@x.test', []);
+        $this->env = $env;
+        $this->createUser($email, []);
         $log = tempnam(sys_get_temp_dir(), 'errlog');
         $previous = ini_set('error_log', $log);
         try {
-            $res = $this->forgot('sansurl@x.test');
+            $res = $this->forgot($email);
         } finally {
             ini_set('error_log', (string) $previous);
         }
         $this->assertStringContainsString(e(self::NEUTRAL), $res->body());
         $this->assertCount(0, $this->mails());
-        $this->assertStringContainsString('APP_URL doit être une adresse absolue', (string) file_get_contents($log));
+        $this->assertStringContainsString($expectedLog, (string) file_get_contents($log));
         unlink($log);
+    }
+
+    public function test_relative_app_url_sends_nothing_and_logs_a_clear_error(): void
+    {
+        $this->assertForgotLogsAndSendsNothing('sansurl@x.test', ['APP_URL' => ''], 'APP_URL doit être une adresse absolue');
+    }
+
+    public function test_plain_http_app_url_outside_local_sends_nothing(): void
+    {
+        $this->assertForgotLogsAndSendsNothing('http@x.test', ['APP_ENV' => 'staging', 'APP_URL' => 'http://mmmgci.example'], 'APP_URL doit commencer par https://');
     }
 
     public function test_consume_invalidates_the_users_other_tokens(): void

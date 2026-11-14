@@ -32,7 +32,7 @@ final class PasswordController
      */
     public function __construct(private View $view, private Csrf $csrf, private Session $session, private Database $db,
         private Auth $auth, private Gate $gate, private Audit $audit, private LoginThrottle $throttle, private PasswordReset $resets,
-        private Closure $mailer, private Closure $defer, private string $appUrl, private Closure $clock)
+        private Closure $mailer, private Closure $defer, private string $appUrl, private bool $requireHttps, private Closure $clock)
     {
     }
 
@@ -150,28 +150,32 @@ final class PasswordController
             error_log("APP_URL doit être une adresse absolue (ex. https://mmmgci.ci) : renseignez-la dans .env ; aucun lien de réinitialisation envoyé.");
             return;
         }
-        $id = (int) $user['id'];
-        $token = $this->db->transaction(function () use ($id, $now, $ip, $ua): ?string {
-            $token = $this->resets->issue($id, $now);
-            if ($token !== null) { // l'audit ne garde que l'utilisateur, jamais le jeton
-                $this->audit->log($id, 'auth.password_reset_requested', 'user', $id, null, null, null, $ip, $ua);
-            }
-            return $token;
-        });
-        if ($token === null) {
+        if ($this->requireHttps && !preg_match('#^https://#i', $this->appUrl)) { // un jeton envoyé en clair sur HTTP serait interceptable
+            error_log("APP_URL doit commencer par https:// hors environnement local : corrigez-la dans .env ; aucun lien de réinitialisation envoyé.");
             return;
         }
-        $link = rtrim($this->appUrl, '/') . '/admin/reinitialiser/' . $token;
-        $body = "Bonjour {$user['name']},\n\n"
-            . "Une réinitialisation du mot de passe de votre compte d'administration MMMGCI a été demandée. "
-            . "Pour choisir un nouveau mot de passe, ouvrez ce lien :\n\n$link\n\n"
-            . "Ce lien est valable 1 heure et ne peut servir qu'une fois.\n\n"
-            . "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : votre mot de passe reste inchangé.\n";
+        $id = (int) $user['id'];
         try {
+            $token = $this->db->transaction(function () use ($id, $now, $ip, $ua): ?string {
+                $token = $this->resets->issue($id, $now);
+                if ($token !== null) { // l'audit ne garde que l'utilisateur, jamais le jeton
+                    $this->audit->log($id, 'auth.password_reset_requested', 'user', $id, null, null, null, $ip, $ua);
+                }
+                return $token;
+            });
+            if ($token === null) {
+                return;
+            }
+            $link = rtrim($this->appUrl, '/') . '/admin/reinitialiser/' . $token;
+            $body = "Bonjour {$user['name']},\n\n"
+                . "Une réinitialisation du mot de passe de votre compte d'administration MMMGCI a été demandée. "
+                . "Pour choisir un nouveau mot de passe, ouvrez ce lien :\n\n$link\n\n"
+                . "Ce lien est valable 1 heure et ne peut servir qu'une fois.\n\n"
+                . "Si vous n'êtes pas à l'origine de cette demande, ignorez ce message : votre mot de passe reste inchangé.\n";
             ($this->mailer)()->send($user['email'], self::SUBJECT, $body);
         } catch (Throwable $e) {
-            // Journalisé sans le lien ; la page affichée reste la même.
-            error_log("Envoi de l'e-mail de réinitialisation impossible (utilisateur #$id) : " . $e->getMessage());
+            // Classe et utilisateur seulement : le message pourrait contenir le lien ou un secret SMTP.
+            error_log('Lien de réinitialisation non envoyé (utilisateur #' . $id . ') : ' . get_class($e));
         }
     }
 
