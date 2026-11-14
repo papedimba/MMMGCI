@@ -7,7 +7,11 @@ CREATE TABLE audit_chain (
     updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
-INSERT INTO audit_chain (id, last_id, last_hash, row_count) VALUES (1, NULL, REPEAT('0', 64), 0);
+-- Amorcée depuis le journal existant s'il n'est pas vide, sinon depuis la genèse.
+INSERT INTO audit_chain (id, last_id, last_hash, row_count) SELECT 1,
+    (SELECT MAX(id) FROM audit_logs),
+    COALESCE((SELECT hash FROM audit_logs ORDER BY id DESC LIMIT 1), REPEAT('0', 64)),
+    (SELECT COUNT(*) FROM audit_logs);
 
 -- Le texte JSON est haché tel que stocké : MySQL 8 réécrit le type JSON (ordre des clés, espaces), pas LONGTEXT.
 ALTER TABLE audit_logs

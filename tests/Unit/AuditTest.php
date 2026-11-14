@@ -125,13 +125,43 @@ final class AuditTest extends DatabaseTestCase
                 [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes[$w]);
         }
         $failures = 0;
+        $errors = '';
         foreach ($procs as $i => $p) {
             $failures += (int) stream_get_contents($pipes[$i + 1][1]);
+            $errors .= stream_get_contents($pipes[$i + 1][2]);
             proc_close($p);
         }
-        $this->assertSame(0, $failures);
+        $this->assertSame(0, $failures, $errors);
         $this->assertSame(200, (int) $this->db->fetchValue('SELECT COUNT(*) FROM audit_logs'));
         $this->assertSame(200, (int) $this->db->fetchValue('SELECT COUNT(DISTINCT prev_hash) FROM audit_logs'));
         $this->assertNull($this->audit->verify());
+    }
+
+    public function test_verify_has_no_false_alarm_while_another_process_writes(): void
+    {
+        $this->three();
+        $p = proc_open([PHP_BINARY, __DIR__ . '/../Support/audit_worker.php', '9', '400'],
+            [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        $runs = 0;
+        do {
+            $this->assertNull($this->audit->verify());
+            $runs++;
+        } while (proc_get_status($p)['running']);
+        $this->assertSame('0', stream_get_contents($pipes[1]), stream_get_contents($pipes[2]));
+        proc_close($p);
+        $this->assertGreaterThan(1, $runs);
+        $this->assertNull($this->audit->verify());
+    }
+
+    public function test_log_fails_clearly_when_chain_row_is_missing(): void
+    {
+        $this->db->query('DELETE FROM audit_chain');
+        try {
+            $this->expectException(\RuntimeException::class);
+            $this->expectExceptionMessage('0002');
+            $this->audit->log(1, 'x', 'T', 1, null, null);
+        } finally {
+            $this->db->query("INSERT INTO audit_chain (id, last_id, last_hash, row_count) VALUES (1, NULL, REPEAT('0', 64), 0)");
+        }
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace App\Core;
 
 use InvalidArgumentException;
+use RuntimeException;
 
 /** Journal d'audit chaîné par HMAC : ajout seul, altération et suppression détectables par verify(). */
 final class Audit
@@ -32,7 +33,10 @@ final class Audit
         $ip = $clean($ip, 45);
         $ua = $clean($ua, 255);
         $write = function () use ($userId, $action, $type, $id, $old, $new, $reference, $ip, $ua): int {
-            $prev = (string) $this->db->fetchValue('SELECT last_hash FROM audit_chain WHERE id = 1 FOR UPDATE');
+            $prev = $this->db->fetchValue('SELECT last_hash FROM audit_chain WHERE id = 1 FOR UPDATE');
+            if ($prev === null) {
+                throw new RuntimeException('La table audit_chain est vide : appliquez la migration 0002_audit_chain.');
+            }
             $row = [
                 'user_id' => $userId, 'action' => $action, 'auditable_type' => $type, 'auditable_id' => $id,
                 'old_values' => $old === null ? null : self::json($old),
@@ -56,11 +60,14 @@ final class Audit
      */
     public function verify(): ?int
     {
+        // audit_chain lu d'abord : une ligne validée pendant le parcours (id > last_id) est ignorée, pas une fausse alerte.
+        $chain = $this->db->fetch('SELECT last_id, last_hash, row_count FROM audit_chain WHERE id = 1');
+        $max = (int) ($chain['last_id'] ?? 0);
         $expected = self::GENESIS;
         $lastId = 0;
         $count = 0;
         do {
-            $rows = $this->db->fetchAll('SELECT * FROM audit_logs WHERE id > ? ORDER BY id LIMIT 1000', [$lastId]);
+            $rows = $this->db->fetchAll('SELECT * FROM audit_logs WHERE id > ? AND id <= ? ORDER BY id LIMIT 1000', [$lastId, $max]);
             foreach ($rows as $r) {
                 if ($r['prev_hash'] !== $expected || !hash_equals($this->hash($expected, (int) $r['id'], $r), $r['hash'])) {
                     return (int) $r['id'];
@@ -70,8 +77,7 @@ final class Audit
                 $count++;
             }
         } while (count($rows) === 1000);
-        $chain = $this->db->fetch('SELECT last_id, last_hash, row_count FROM audit_chain WHERE id = 1');
-        if ($chain === null || $chain['last_hash'] !== $expected || (int) $chain['last_id'] !== $lastId || (int) $chain['row_count'] !== $count) {
+        if ($chain === null || $chain['last_hash'] !== $expected || $lastId !== $max || (int) $chain['row_count'] !== $count) {
             return $lastId + 1;
         }
         return null;
