@@ -18,6 +18,10 @@ final class Router
         $this->errorRenderer = $errorRenderer ?? self::defaultError(...);
     }
 
+    /**
+     * Un middleware est un objet Middleware, un nom de classe (construit par la fabrique) ou une Closure
+     * retournant un Middleware, appelée seulement quand la route correspond (dépendances paresseuses).
+     */
     public function get(string $pattern, callable|array $handler, array $middleware = []): self
     {
         return $this->add('GET', $pattern, $handler, $middleware);

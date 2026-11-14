@@ -118,7 +118,7 @@ final class LoginTest extends AdminTestCase
     public function test_external_or_protocol_relative_return_is_ignored(): void
     {
         $this->createUser('evil@x.test', []);
-        foreach (['//evil.ci', 'https://evil.ci', '/admin//evil.ci', '/admin\\evil.ci', "/admin\r\nX: y"] as $retour) {
+        foreach (['//evil.ci', 'https://evil.ci', '/admin//evil.ci', '/admin\\evil.ci', "/admin\r\nX: y", '/admin/../sante', '/admin/%2e%2e/x', '/admin/..'] as $retour) {
             $this->assertSame('/admin', $this->login('evil@x.test', retour: $retour)->headers()['Location'], $retour);
         }
     }
@@ -164,6 +164,33 @@ final class LoginTest extends AdminTestCase
         $res = $this->request('POST', '/admin/deconnexion');
         $this->assertSame(302, $res->status());
         $this->assertSame('/admin/connexion', $res->headers()['Location']);
+    }
+
+    public function test_login_without_csrf_token_is_refused(): void
+    {
+        $this->createUser('csrf@x.test', []);
+        $res = $this->app()->handle(new \App\Core\Http\Request('POST', '/admin/connexion', [], ['email' => 'csrf@x.test', 'password' => self::PASSWORD]));
+        $this->assertSame(419, $res->status());
+        $this->assertNull($this->loggedInId());
+    }
+
+    public function test_failed_audit_write_leaves_user_logged_out(): void
+    {
+        $id = $this->createUser('panne@x.test', []);
+        $this->db->query("CREATE TRIGGER audit_panne BEFORE INSERT ON audit_logs FOR EACH ROW
+            BEGIN IF NEW.new_values LIKE '%panne@x.test%' THEN SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'audit en panne'; END IF; END");
+        try {
+            try {
+                $this->login('panne@x.test');
+                $this->fail('l\'échec de l\'audit doit remonter');
+            } catch (\PDOException) {
+            }
+        } finally {
+            $this->db->query('DROP TRIGGER audit_panne');
+        }
+        $this->assertNull($this->loggedInId());
+        $this->assertNull($this->db->fetchValue('SELECT last_login_at FROM users WHERE id = ?', [$id]));
+        $this->assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM login_attempts WHERE email = 'panne@x.test'"));
     }
 
     public function test_login_and_failure_are_audited_without_password(): void

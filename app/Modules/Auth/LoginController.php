@@ -44,13 +44,17 @@ final class LoginController
             $log('auth.login_blocked');
             return $this->form($retour, $email, self::BLOCKED);
         }
-        $ok = $this->db->transaction(function () use ($email, $password, $ip, $now, $log): bool {
-            $ok = $this->auth->attempt($email, $password, $ip, $now);
-            $this->throttle->record($email, $ip, $ok, $now);
-            $log($ok ? 'auth.login_succeeded' : 'auth.login_failed');
-            return $ok;
+        $user = $this->db->transaction(function () use ($email, $password, $ip, $now, $log): ?array {
+            $user = $this->auth->attempt($email, $password, $ip, $now);
+            $this->throttle->record($email, $ip, $user !== null, $now);
+            $log($user !== null ? 'auth.login_succeeded' : 'auth.login_failed');
+            return $user;
         });
-        return $ok ? Response::redirect($retour) : $this->form($retour, $email, self::FAILED);
+        if ($user === null) {
+            return $this->form($retour, $email, self::FAILED);
+        }
+        $this->auth->login($user); // après le commit : jamais de session ouverte sans sa ligne d'audit
+        return Response::redirect($retour);
     }
 
     public function logout(Request $r): Response
@@ -61,11 +65,11 @@ final class LoginController
         return Response::redirect('/admin/connexion');
     }
 
-    /** Chemin interne à /admin uniquement : ni hôte externe (//, \), ni caractère de contrôle (en-tête Location). */
+    /** Chemin interne à /admin uniquement : ni hôte externe (//, \), ni segment .. (même encodé), ni caractère de contrôle (en-tête Location). */
     private static function safeReturn(mixed $v): string
     {
         return is_string($v) && str_starts_with($v, '/admin') && !str_contains($v, '//') && !str_contains($v, '\\')
-            && !preg_match('/[\x00-\x1F\x7F]/', $v) ? $v : '/admin';
+            && !preg_match('/[\x00-\x1F\x7F]/', $v) && !preg_match('#(^|/)\.\.(/|$)#', rawurldecode($v)) ? $v : '/admin';
     }
 
     private function form(string $retour, string $email = '', ?string $error = null): Response
