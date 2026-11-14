@@ -28,7 +28,7 @@ final class ErrorHandlerTest extends TestCase
      * jamais storage/logs du dépôt), puis exécute $code.
      *
      * @param list<string> $phpArgs
-     * @return array{out:string, err:string, log:string}
+     * @return array{out:string, err:string, log:string, exit:int}
      */
     private function child(string $code, string $logDir, array $phpArgs = [], bool $debug = false): array
     {
@@ -40,8 +40,8 @@ final class ErrorHandlerTest extends TestCase
         $proc = proc_open([PHP_BINARY, ...$phpArgs, $script], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
         $out = (string) stream_get_contents($pipes[1]);
         $err = (string) stream_get_contents($pipes[2]);
-        proc_close($proc);
-        return ['out' => $out, 'err' => $err, 'log' => (string) @file_get_contents($logDir . '/app-' . date('Y-m-d') . '.log')];
+        $exit = proc_close($proc);
+        return ['out' => $out, 'err' => $err, 'log' => (string) @file_get_contents($logDir . '/app-' . date('Y-m-d') . '.log'), 'exit' => $exit];
     }
 
     private static function base(): string
@@ -59,6 +59,7 @@ final class ErrorHandlerTest extends TestCase
         $r = $this->child('throw new RuntimeException("secret-detail");', self::base());
 
         $this->assertSame('', $r['out']);
+        $this->assertSame(1, $r['exit']); // un script bin/ en échec ne doit pas paraître réussi
         $this->assertStringContainsString('Une erreur est survenue', $r['err']);
         $this->assertSame(1, substr_count(trim($r['err']), "\n") + 1);
         $this->assertStringNotContainsString('secret-detail', $r['err']);

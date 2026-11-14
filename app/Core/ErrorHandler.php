@@ -78,6 +78,9 @@ final class ErrorHandler
             } elseif ($debug) {
                 echo '<pre>' . e(get_class($e) . ': ' . $e->getMessage() . "\n" . $e->getTraceAsString()) . '</pre>';
             }
+            if (PHP_SAPI === 'cli') {
+                exit(1); // sinon le script bin/ (migration, cron) sortirait en 0 et paraîtrait réussi
+            }
         });
     }
 }
