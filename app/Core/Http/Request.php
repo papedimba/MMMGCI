@@ -44,7 +44,11 @@ final class Request
         return ($this->server['HTTPS'] ?? '') !== '' && strtolower((string) $this->server['HTTPS']) !== 'off';
     }
 
-    public function queryString(): string { return http_build_query($this->query); }
+    public function queryString(): string
+    {
+        // Chaîne brute telle que reçue : http_build_query réencoderait (espaces en +).
+        return isset($this->server['QUERY_STRING']) ? (string) $this->server['QUERY_STRING'] : http_build_query($this->query);
+    }
 
     public function ip(): string { return (string) ($this->server['REMOTE_ADDR'] ?? '0.0.0.0'); }
 

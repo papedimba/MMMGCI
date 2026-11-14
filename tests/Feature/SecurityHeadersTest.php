@@ -75,4 +75,26 @@ final class SecurityHeadersTest extends TestCase
         $this->assertSame(400, $evil->status());
         $this->assertArrayNotHasKey('Location', $evil->headers());
     }
+
+    public function test_force_https_rejects_host_with_trailing_newline(): void
+    {
+        $next = static fn (Request $r): Response => new Response('ok');
+        $res = (new ForceHttps('production'))->handle(new Request('GET', '/', [], [], [], ['HTTP_HOST' => "x\n"]), $next);
+
+        $this->assertSame(400, $res->status());
+        $this->assertArrayNotHasKey('Location', $res->headers());
+    }
+
+    public function test_force_https_keeps_port_and_raw_query_string(): void
+    {
+        $next = static fn (Request $r): Response => new Response('ok');
+        $req = new Request('GET', '/membres', ['a' => '1', 'b' => 'x y'], [], [], [
+            'HTTP_HOST' => 'localhost:8080',
+            'QUERY_STRING' => 'a=1&b=x%20y',
+        ]);
+
+        $res = (new ForceHttps('production'))->handle($req, $next);
+        $this->assertSame(301, $res->status());
+        $this->assertSame('https://localhost:8080/membres?a=1&b=x%20y', $res->headers()['Location']);
+    }
 }

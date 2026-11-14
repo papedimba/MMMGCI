@@ -6,7 +6,7 @@ namespace App\Core\Http;
 final class ForceHttps implements Middleware
 {
     // Host plausible uniquement : évite qu'un Host forgé produise une redirection ouverte.
-    private const VALID_HOST = '/^[A-Za-z0-9.\-:\[\]]+$/';
+    private const VALID_HOST = '/^[A-Za-z0-9.\-:\[\]]+$/D';
 
     public function __construct(private readonly string $appEnv)
     {
