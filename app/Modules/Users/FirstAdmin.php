@@ -12,7 +12,7 @@ final class FirstAdmin
 {
     private const ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';
 
-    public function __construct(private UserService $users, private Database $db)
+    public function __construct(private UserService $users, private Database $db, private int $lockWaitSeconds = 10)
     {
     }
 
@@ -22,6 +22,20 @@ final class FirstAdmin
         if (count($args) !== 2 || trim($args[1]) === '') {
             return [1, 'Usage : php bin/create-admin.php <email> "<Nom complet>" — indiquez l\'adresse e-mail puis le nom complet, entre guillemets.'];
         }
+        // Sans administrateur, rien à verrouiller en base : un verrou nommé sérialise les créations simultanées.
+        if ((int) $this->db->fetchValue('SELECT GET_LOCK(?, ?)', ['mmmgci.create-admin', $this->lockWaitSeconds]) !== 1) {
+            return [1, 'Une autre création d\'administrateur est en cours : réessayez dans quelques instants.'];
+        }
+        try {
+            return $this->create($args);
+        } finally {
+            $this->db->fetchValue('SELECT RELEASE_LOCK(?)', ['mmmgci.create-admin']);
+        }
+    }
+
+    /** @param list<string> $args */
+    private function create(array $args): array
+    {
         if ($this->users->hasActiveAdmin()) {
             return [1, 'Un administrateur existe déjà : utilisez l\'écran Utilisateurs pour créer d\'autres comptes.'];
         }

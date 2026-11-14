@@ -22,9 +22,9 @@ final class CreateAdminTest extends DatabaseTestCase
         }
     }
 
-    private function cli(): FirstAdmin
+    private function cli(int $wait = 10): FirstAdmin
     {
-        return new FirstAdmin(new UserService($this->db, new Audit($this->db, 'test-key-test-key-test-key-test-key'), new Gate($this->db)), $this->db);
+        return new FirstAdmin(new UserService($this->db, new Audit($this->db, 'test-key-test-key-test-key-test-key'), new Gate($this->db)), $this->db, $wait);
     }
 
     public function test_create_admin_creates_super_admin_and_prints_password_once(): void
@@ -61,6 +61,53 @@ final class CreateAdminTest extends DatabaseTestCase
         $this->assertSame(1, $this->cli()->run(['a@exemple.ci', '  '])[0]);
         $this->assertSame(1, $this->cli()->run([])[0]);
         $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM users'));
+    }
+
+    public function test_create_admin_refuses_while_another_creation_holds_the_lock(): void
+    {
+        $other = \App\Core\Database::connect(self::config(), test: true);
+        $this->assertSame(1, (int) $other->fetchValue("SELECT GET_LOCK('mmmgci.create-admin', 0)"));
+        [$code, $out] = $this->cli(1)->run(['a@exemple.ci', 'Premier Admin']);
+        $other->fetchValue("SELECT RELEASE_LOCK('mmmgci.create-admin')");
+        $this->assertSame(1, $code);
+        $this->assertStringContainsString("Une autre création d'administrateur est en cours", $out);
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM users'));
+        $this->assertSame(0, $this->cli()->run(['a@exemple.ci', 'Premier Admin'])[0]); // verrou libéré par le fils
+    }
+
+    public function test_concurrent_create_admin_creates_exactly_one_admin(): void
+    {
+        $procs = $pipes = [];
+        for ($w = 1; $w <= 3; $w++) {
+            $procs[$w] = proc_open([PHP_BINARY, __DIR__ . '/../Support/create_admin_worker.php', (string) $w], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes[$w]);
+        }
+        $codes = [];
+        foreach ($procs as $w => $p) {
+            $codes[] = stream_get_contents($pipes[$w][1]);
+            stream_get_contents($pipes[$w][2]);
+            proc_close($p);
+        }
+        sort($codes);
+        $this->assertSame(['0', '1', '1'], $codes);
+        $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM users'));
+    }
+
+    public function test_purges_keep_rows_up_to_24h_and_delete_older(): void
+    {
+        $now = 1_800_000_000;
+        $uid = (new UserService($this->db, new Audit($this->db, 'test-key-test-key-test-key-test-key'), new Gate($this->db)))
+            ->create(['name' => 'U Test', 'email' => 'u@exemple.ci', 'roles' => []], null);
+        $future = gmdate('Y-m-d H:i:s', $now + 3600);
+        foreach ([86399 => 'a', 86400 => 'b', 86401 => 'c'] as $age => $tag) {
+            $at = gmdate('Y-m-d H:i:s', $now - $age);
+            $this->db->insert('login_attempts', ['email' => "$tag@x.test", 'ip' => '1.1.1.1', 'succeeded' => 0, 'created_at' => $at]);
+            $this->db->insert('password_resets', ['user_id' => $uid, 'token_hash' => hash('sha256', "e$tag"), 'expires_at' => $at, 'used_at' => null, 'created_at' => $at]);
+            $this->db->insert('password_resets', ['user_id' => $uid, 'token_hash' => hash('sha256', "u$tag"), 'expires_at' => $future, 'used_at' => $at, 'created_at' => $at]);
+        }
+        AuthMaintenance::purgePasswordResets($this->db, $now);
+        (new \App\Modules\Auth\LoginThrottle($this->db))->purge($now);
+        $this->assertSame(4, (int) $this->db->fetchValue('SELECT COUNT(*) FROM password_resets'));
+        $this->assertSame(['a@x.test', 'b@x.test'], array_column($this->db->fetchAll('SELECT email FROM login_attempts ORDER BY email'), 'email'));
     }
 
     public function test_cron_registers_purge_tasks(): void

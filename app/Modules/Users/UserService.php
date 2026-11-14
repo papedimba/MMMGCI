@@ -124,7 +124,7 @@ final class UserService
         });
     }
 
-    /** Vrai s'il existe au moins un utilisateur actif détenant users.manage (lecture simple, sans verrou). */
+    /** Vrai s'il existe au moins un utilisateur actif détenant users.manage : même jointure que holderGrants(), en lecture non verrouillante. */
     public function hasActiveAdmin(): bool
     {
         return $this->db->fetchValue(
