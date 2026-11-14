@@ -56,7 +56,7 @@ final class Audit
             $this->db->query('UPDATE audit_chain SET last_id = ?, last_hash = ?, row_count = row_count + 1 WHERE id = 1', [$logId, $hash]);
             return $logId;
         };
-        return $this->db->pdo()->inTransaction() ? $write() : $this->db->transaction($write);
+        return $this->db->atomic($write);
     }
 
     /**

@@ -131,4 +131,10 @@ final class SchedulerTest extends DatabaseTestCase
         $this->assertSame('failed', $out);
         $this->assertSame('Undefined array key "missing"', $this->db->fetchValue("SELECT error FROM scheduled_runs WHERE task = 'warn'"));
     }
+
+    public function test_task_name_longer_than_the_column_is_refused(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        $this->s->register(str_repeat('t', 101), 10, function () {});
+    }
 }

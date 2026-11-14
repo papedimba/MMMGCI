@@ -36,7 +36,7 @@ final class SettingsTest extends DatabaseTestCase
             $this->s->require('cotisation', 'montant');
             $this->fail('exception attendue');
         } catch (SettingNotValidated $e) {
-            $this->assertSame("Ce paramètre n'a pas encore été validé par les instances de la Mutuelle : cotisation.montant.", $e->getMessage());
+            $this->assertSame("Le paramètre cotisation.montant n'a pas encore été validé par les instances de la Mutuelle : faites valider ce paramètre par les instances dans l'administration.", $e->getMessage());
         }
         $this->s->validate('cotisation', 'montant', 5, 1, 'CA-12');
         $this->assertSame(5, $this->s->require('cotisation', 'montant'));
@@ -61,5 +61,26 @@ final class SettingsTest extends DatabaseTestCase
         $this->s->define('cotisation', 'regle');
         $this->s->validate('cotisation', 'regle', $v, 1, 'AG-1');
         $this->assertSame($v, $this->s->get('cotisation', 'regle'));
+    }
+
+    public function test_validate_refuses_null_value(): void
+    {
+        $this->s->define('cotisation', 'montant');
+        $this->expectException(InvalidArgumentException::class);
+        $this->s->validate('cotisation', 'montant', null, 1, 'AG-2026-01');
+    }
+
+    public function test_define_refuses_names_longer_than_the_columns(): void
+    {
+        foreach ([[str_repeat('g', 51), 'k'], ['g', str_repeat('k', 101)]] as [$group, $key]) {
+            try {
+                $this->s->define($group, $key);
+                $this->fail('refus attendu');
+            } catch (InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+        $this->s->define(str_repeat('é', 50), str_repeat('k', 100));
+        $this->assertFalse($this->s->isValidated(str_repeat('é', 50), str_repeat('k', 100)));
     }
 }

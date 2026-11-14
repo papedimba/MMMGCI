@@ -55,4 +55,39 @@ final class DatabaseTest extends DatabaseTestCase
             }
         }
     }
+
+    public function test_atomic_opens_a_transaction_or_joins_the_open_one(): void
+    {
+        try {
+            $this->db->atomic(function ($db) {
+                $this->assertTrue($db->pdo()->inTransaction());
+                $db->insert('sequences', ['name' => 'at', 'year' => 2026]);
+                throw new RuntimeException('boom');
+            });
+        } catch (RuntimeException) {
+        }
+        $this->assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM sequences WHERE name = 'at'"));
+
+        $this->db->transaction(function ($db) {
+            $this->assertSame(7, $db->atomic(fn ($inner) => $inner === $db ? 7 : 0));
+        });
+    }
+
+    public function test_transaction_refuses_to_nest_inside_a_raw_pdo_transaction(): void
+    {
+        $this->db->pdo()->beginTransaction();
+        try {
+            $this->expectException(\LogicException::class);
+            $this->db->transaction(fn () => null);
+        } finally {
+            $this->db->pdo()->rollBack();
+        }
+    }
+
+    public function test_update_refuses_null_in_where(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        $this->expectExceptionMessage('IS NULL');
+        $this->db->update('files', ['size' => 1], ['disk' => null]);
+    }
 }

@@ -14,6 +14,9 @@ final class Settings
 
     public function define(string $group, string $key, mixed $default = null): void
     {
+        if (mb_strlen($group) > 50 || mb_strlen($key) > 100) {
+            throw new InvalidArgumentException("Nom de paramètre trop long : $group.$key (groupe 50 caractères, clé 100 au plus) ; raccourcissez-le.");
+        }
         $this->db->query('INSERT IGNORE INTO settings (`group`, `key`, `value`, status) VALUES (?, ?, ?, ?)',
             [$group, $key, $this->encode($default), 'non_configure']);
     }
@@ -27,7 +30,7 @@ final class Settings
     public function require(string $group, string $key): mixed
     {
         if (!$this->isValidated($group, $key)) {
-            throw new SettingNotValidated("Ce paramètre n'a pas encore été validé par les instances de la Mutuelle : $group.$key.");
+            throw new SettingNotValidated("Le paramètre $group.$key n'a pas encore été validé par les instances de la Mutuelle : faites valider ce paramètre par les instances dans l'administration.");
         }
         return $this->get($group, $key);
     }
@@ -35,6 +38,9 @@ final class Settings
     public function validate(string $group, string $key, mixed $value, int $userId, string $decisionRef): void
     {
         $this->row($group, $key);
+        if ($value === null) {
+            throw new InvalidArgumentException("La valeur du paramètre $group.$key est vide : saisissez la valeur décidée par les instances.");
+        }
         if (trim($decisionRef) === '') {
             throw new InvalidArgumentException('La référence de la décision est obligatoire pour valider un paramètre.');
         }

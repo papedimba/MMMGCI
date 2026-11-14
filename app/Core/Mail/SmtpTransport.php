@@ -102,7 +102,7 @@ final class SmtpTransport implements Transport
                 return $reply;
             }
         }
-        throw new RuntimeException('Le serveur SMTP ne répond plus (délai dépassé ou connexion fermée).');
+        throw new RuntimeException('Le serveur SMTP ne répond plus (délai dépassé ou connexion fermée) : vérifiez SMTP_HOST et utilisez SMTP_PORT=587 ; le port 465 (TLS implicite) n\'est pas pris en charge.');
     }
 
     private function expect(int $code, string $reply): string

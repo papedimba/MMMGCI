@@ -17,6 +17,9 @@ final class Scheduler
 
     public function register(string $name, int $everyMinutes, callable $task): void
     {
+        if (mb_strlen($name) > 100) {
+            throw new \InvalidArgumentException("Nom de tâche planifiée trop long (100 caractères au plus) : raccourcissez « $name ».");
+        }
         $this->tasks[$name] = [$everyMinutes, $task];
     }
 

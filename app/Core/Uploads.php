@@ -95,10 +95,7 @@ final class Uploads
                 'sha256' => hash('sha256', $content),
                 'uploaded_by' => $userId,
             ];
-            // Rejoint la transaction de l'appelant si elle est ouverte.
-            return $this->db->pdo()->inTransaction()
-                ? $this->db->insert('files', $row)
-                : (int) $this->db->transaction(fn (Database $db) => $db->insert('files', $row));
+            return $this->db->atomic(fn (Database $db): int => $db->insert('files', $row));
         } catch (Throwable $e) {
             @unlink($target);
             throw $e;

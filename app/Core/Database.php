@@ -76,12 +76,16 @@ final class Database
 
     /**
      * @param array<string,mixed> $row
-     * @param array<string,mixed> $where conditions d'égalité combinées par AND
+     * @param array<string,mixed> $where conditions d'égalité combinées par AND (jamais null : `= NULL` ne vaut jamais vrai)
+     * @return int lignes réellement modifiées (une ligne déjà à la bonne valeur ne compte pas)
      */
     public function update(string $table, array $row, array $where): int
     {
         if ($row === [] || $where === []) {
             throw new InvalidArgumentException('update() exige des valeurs et une condition.');
+        }
+        if (in_array(null, $where, true)) {
+            throw new InvalidArgumentException('update() : une condition à null ne correspond à aucune ligne ; écrivez la requête avec IS NULL via query().');
         }
         $set = implode(', ', array_map(fn (string $c) => '`' . $this->ident($c) . '` = ?', array_keys($row)));
         $cond = implode(' AND ', array_map(fn (string $c) => '`' . $this->ident($c) . '` = ?', array_keys($where)));
@@ -89,9 +93,13 @@ final class Database
         return $this->query($sql, [...array_values($row), ...array_values($where)])->rowCount();
     }
 
+    /**
+     * Ouvre une transaction (refusée si une transaction est déjà ouverte, y compris via pdo()).
+     * Ne jamais avaler une exception dans $fn pour valider quand même : laisser remonter, la transaction est annulée.
+     */
     public function transaction(callable $fn): mixed
     {
-        if ($this->inTransaction) {
+        if ($this->inTransaction || $this->pdo->inTransaction()) {
             throw new LogicException('Les transactions imbriquées sont interdites.');
         }
         $this->pdo->beginTransaction();
@@ -108,6 +116,15 @@ final class Database
         } finally {
             $this->inTransaction = false;
         }
+    }
+
+    /**
+     * Exécute $fn($this) dans la transaction ouverte s'il y en a une (validée ou annulée par l'appelant), sinon dans une nouvelle.
+     * Ne jamais avaler une exception à l'intérieur pour valider quand même : elle doit remonter jusqu'au propriétaire de la transaction.
+     */
+    public function atomic(callable $fn): mixed
+    {
+        return $this->pdo->inTransaction() ? $fn($this) : $this->transaction($fn);
     }
 
     private function ident(string $name): string

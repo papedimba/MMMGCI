@@ -21,8 +21,7 @@ final class Sequence
             // Lecture sous le verrou de ligne pris par l'INSERT (LAST_INSERT_ID() renverrait l'id auto-incrémenté à la création).
             return (int) $db->fetchValue('SELECT last_value FROM sequences WHERE name = ? AND year = ?', [$name, $year]);
         };
-        // Pas de transaction imbriquée : on se joint à celle de l'appelant.
-        $n = $this->db->pdo()->inTransaction() ? $run($this->db) : $this->db->transaction($run);
+        $n = $this->db->atomic($run);
         return sprintf('%s-%d-%s', $prefix, $year, str_pad((string) $n, $pad, '0', STR_PAD_LEFT));
     }
 }

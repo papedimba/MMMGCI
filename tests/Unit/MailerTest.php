@@ -161,4 +161,27 @@ final class MailerTest extends TestCase
         $this->expectExceptionMessage('MAIL_FROM');
         Mailer::fromConfig(new Config(['MAIL_FROM' => '']));
     }
+
+    public function test_invalid_recipient_message_names_the_field_and_the_fix(): void
+    {
+        $this->expectExceptionMessage('destinataire');
+        $this->expectExceptionMessage('ex. nom@exemple.ci');
+        $this->mailer()->send('pas-une-adresse', 'S', 'b');
+    }
+
+    public function test_smtp_server_closing_the_connection_mentions_port_587(): void
+    {
+        $proc = proc_open([PHP_BINARY, '-r', '$s = stream_socket_server("tcp://127.0.0.1:0"); echo substr(strrchr(stream_socket_get_name($s, false), ":"), 1), "\n"; fclose(stream_socket_accept($s, 20));'],
+            [1 => ['pipe', 'w']], $pipes);
+        $port = (int) fgets($pipes[1]);
+        try {
+            (new SmtpTransport('127.0.0.1', $port))->send('d@exemple.ci', 'S', 'b', ['From' => 'a@exemple.ci']);
+            $this->fail('exception attendue');
+        } catch (RuntimeException $e) {
+            $this->assertStringContainsString('SMTP_PORT=587', $e->getMessage());
+            $this->assertStringContainsString('465', $e->getMessage());
+        } finally {
+            proc_close($proc);
+        }
+    }
 }

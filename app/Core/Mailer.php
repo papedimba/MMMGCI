@@ -56,7 +56,7 @@ final class Mailer
     private static function assertAddress(string $a, string $role): void
     {
         if (preg_match('/[\r\n]/', $a) || filter_var($a, FILTER_VALIDATE_EMAIL) === false) {
-            throw new InvalidArgumentException("Adresse e-mail invalide pour le $role.");
+            throw new InvalidArgumentException("Adresse e-mail du $role invalide : saisissez une adresse valide, ex. nom@exemple.ci.");
         }
     }
 }
