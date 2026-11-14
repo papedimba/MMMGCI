@@ -42,10 +42,11 @@ final class LoginController
         $values = filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? ['email' => $email] : ['email' => null, 'email_invalid' => true];
         $log = fn (string $action) => $this->audit->log($userId, $action, 'user', $userId, null, $values, null, $ip, $ua);
 
-        // Seul le premier blocage de (e-mail, ip) par fenêtre est noté et journalisé : l'audit ne se purge pas.
-        if ($this->throttle->tooManyAttempts($email, $ip, $now)) {
-            $this->db->transaction(function () use ($email, $ip, $now, $log): void {
-                if ($this->throttle->markBlocked($email, $ip, $now)) {
+        // Seul le premier blocage par fenêtre est noté et journalisé (par ip si la limite par ip bloque) : l'audit ne se purge pas.
+        $limit = $this->throttle->blockedBy($email, $ip, $now);
+        if ($limit !== null) {
+            $this->db->transaction(function () use ($email, $ip, $now, $log, $limit): void {
+                if ($this->throttle->markBlocked($email, $ip, $now, $limit)) {
                     $log('auth.login_blocked');
                 }
             });

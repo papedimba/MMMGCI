@@ -259,4 +259,29 @@ final class LoginTest extends AdminTestCase
         $this->assertStringNotContainsString('secret 2026', json_encode($this->db->fetchAll('SELECT * FROM audit_logs')));
         $this->assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM login_attempts WHERE email = 'mon secret 2026!' AND succeeded = 2"), 'clé du limiteur inchangée');
     }
+
+    public function test_ip_limit_blocks_are_audited_once_per_ip_per_window(): void
+    {
+        $now = 1_800_000_000;
+        $this->overrides['clock'] = static function () use (&$now): int {
+            return $now;
+        };
+        $blocked = "SELECT COUNT(*) FROM audit_logs WHERE action = 'auth.login_blocked'";
+        $before = (int) $this->db->fetchValue($blocked);
+        for ($i = 0; $i < 40; $i++) {
+            $res = $this->login("tournant$i@x.test", 'mauvais mot de passe long');
+        }
+        $this->assertStringContainsString('Trop de tentatives : réessayez dans 15 minutes.', $res->body());
+        $this->assertSame(20, (int) $this->db->fetchValue('SELECT COUNT(*) FROM login_attempts WHERE succeeded = 0'));
+        $this->assertSame(1, (int) $this->db->fetchValue($blocked) - $before);
+
+        // Fenêtre suivante : l'IP échoue de nouveau 20 fois, le premier blocage par IP est de nouveau journalisé.
+        $now += 901;
+        for ($i = 0; $i < 25; $i++) {
+            $res = $this->login("suivant$i@x.test", 'mauvais mot de passe long');
+        }
+        $this->assertStringContainsString('Trop de tentatives : réessayez dans 15 minutes.', $res->body());
+        $this->assertSame(2, (int) $this->db->fetchValue($blocked) - $before);
+        $this->assertNull($this->services['audit']()->verify());
+    }
 }

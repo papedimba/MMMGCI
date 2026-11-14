@@ -106,4 +106,21 @@ final class LoginThrottleTest extends DatabaseTestCase
         }
         $this->assertFalse($t->tooManyAttempts('a@x.test', '1.1.1.1', self::NOW + 901));
     }
+
+    public function test_blocked_by_reports_which_limit_and_ip_marker_ignores_the_email(): void
+    {
+        $t = new LoginThrottle($this->db);
+        $this->assertNull($t->blockedBy('a@x.test', '1.1.1.1', self::NOW));
+        for ($i = 0; $i < 5; $i++) {
+            $t->record('a@x.test', '1.1.1.1', false, self::NOW);
+        }
+        $this->assertSame('account', $t->blockedBy('a@x.test', '1.1.1.1', self::NOW));
+        for ($i = 0; $i < 15; $i++) {
+            $t->record("u$i@x.test", '1.1.1.1', false, self::NOW);
+        }
+        $this->assertSame('ip', $t->blockedBy('autre@x.test', '1.1.1.1', self::NOW));
+        $this->assertTrue($t->markBlocked('b@x.test', '1.1.1.1', self::NOW, 'ip'));
+        $this->assertFalse($t->markBlocked('c@x.test', '1.1.1.1', self::NOW, 'ip'));
+        $this->assertTrue($t->markBlocked('c@x.test', '1.1.1.1', self::NOW + 901, 'ip'));
+    }
 }

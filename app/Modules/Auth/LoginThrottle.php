@@ -18,18 +18,24 @@ final class LoginThrottle
 
     public function tooManyAttempts(string $email, string $ip, int $now): bool
     {
+        return $this->blockedBy($email, $ip, $now) !== null;
+    }
+
+    /** Limite atteinte : 'account' (e-mail, ip), 'ip' (toutes adresses depuis cette ip), ou null. */
+    public function blockedBy(string $email, string $ip, int $now): ?string
+    {
         $since = gmdate('Y-m-d H:i:s', $now - $this->windowSeconds);
         $account = (int) $this->db->fetchValue(
             'SELECT COUNT(*) FROM login_attempts WHERE email = ? AND ip = ? AND succeeded = 0 AND created_at >= ?',
             [$this->norm($email), $this->ip($ip), $since],
         );
         if ($account >= $this->maxPerAccount) {
-            return true;
+            return 'account';
         }
         return (int) $this->db->fetchValue(
             'SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND succeeded = 0 AND created_at >= ?',
             [$this->ip($ip), $since],
-        ) >= $this->maxPerIp;
+        ) >= $this->maxPerIp ? 'ip' : null;
     }
 
     public function record(string $email, string $ip, bool $success, int $now): void
@@ -43,15 +49,16 @@ final class LoginThrottle
     }
 
     /**
-     * Vrai pour la première tentative bloquée de (e-mail, ip) dans la fenêtre, alors notée succeeded = 2 (jamais comptée
-     * comme un échec) ; faux ensuite : l'appelant ne journalise que la première, sans quoi chaque essai ajouterait une ligne d'audit.
+     * Vrai pour la première tentative bloquée de la clé dans la fenêtre, alors notée succeeded = 2 (jamais comptée comme un
+     * échec) ; faux ensuite : l'appelant ne journalise que la première, sans quoi chaque essai ajouterait une ligne d'audit.
+     * Clé : (e-mail, ip) pour la limite 'account' ; ip seule pour la limite 'ip' (sinon chaque nouvel e-mail serait une nouvelle clé).
      */
-    public function markBlocked(string $email, string $ip, int $now): bool
+    public function markBlocked(string $email, string $ip, int $now, string $scope = 'account'): bool
     {
         // shortcut: deux tentatives bloquées strictement simultanées peuvent toutes deux passer (deux lignes au plus par rafale), sans enjeu.
         $seen = $this->db->fetchValue(
-            'SELECT 1 FROM login_attempts WHERE email = ? AND ip = ? AND succeeded = 2 AND created_at >= ? LIMIT 1',
-            [$this->norm($email), $this->ip($ip), gmdate('Y-m-d H:i:s', $now - $this->windowSeconds)],
+            'SELECT 1 FROM login_attempts WHERE ' . ($scope === 'ip' ? '' : 'email = ? AND ') . 'ip = ? AND succeeded = 2 AND created_at >= ? LIMIT 1',
+            [...($scope === 'ip' ? [] : [$this->norm($email)]), $this->ip($ip), gmdate('Y-m-d H:i:s', $now - $this->windowSeconds)],
         );
         if ($seen !== null) {
             return false;
