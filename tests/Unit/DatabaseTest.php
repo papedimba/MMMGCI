@@ -36,4 +36,23 @@ final class DatabaseTest extends DatabaseTestCase
         $this->expectException(InvalidArgumentException::class);
         $this->db->insert('files; DROP TABLE x', ['a' => 1]);
     }
+
+    public function test_invalid_identifiers_and_empty_where_are_refused(): void
+    {
+        $cases = [
+            fn () => $this->db->insert('files', ['bad col' => 1]),
+            fn () => $this->db->update('files; x', ['size' => 1], ['id' => 1]),
+            fn () => $this->db->update('files', ['size`=1 --' => 1], ['id' => 1]),
+            fn () => $this->db->update('files', ['size' => 1], ['id OR 1=1' => 1]),
+            fn () => $this->db->update('files', ['size' => 1], []),
+        ];
+        foreach ($cases as $i => $case) {
+            try {
+                $case();
+                $this->fail("cas $i non refusé");
+            } catch (InvalidArgumentException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
 }
