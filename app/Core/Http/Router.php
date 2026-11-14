@@ -62,7 +62,11 @@ final class Router
             $core = static fn(Request $req): Response => $call($req);
             $next = array_reduce(
                 array_reverse($middleware),
-                fn(callable $next, $mw) => fn(Request $req): Response => (is_string($mw) ? ($this->factory)($mw) : $mw)->handle($req, $next),
+                fn(callable $next, $mw) => fn(Request $req): Response => (match (true) {
+                    is_string($mw) => ($this->factory)($mw),
+                    $mw instanceof \Closure => $mw(), // construit à la requête : pas de connexion base au démarrage
+                    default => $mw,
+                })->handle($req, $next),
                 $core,
             );
             $res = $next($r);

@@ -44,6 +44,24 @@ final class RouterTest extends TestCase
         $this->assertSame(200, $r->dispatch(new Request('GET', '/contact/'))->status());
     }
 
+    public function test_closure_middleware_is_built_only_when_route_matches(): void
+    {
+        $built = 0;
+        $lazy = function () use (&$built): Middleware {
+            $built++;
+            return new class implements Middleware {
+                public function handle(Request $r, callable $next): Response { return new Response('mw', 403); }
+            };
+        };
+        $router = new Router();
+        $router->get('/protege', $this->ok(), [$lazy]);
+        $router->get('/libre', $this->ok());
+        $this->assertSame(200, $router->dispatch(new Request('GET', '/libre'))->status());
+        $this->assertSame(0, $built);
+        $this->assertSame(403, $router->dispatch(new Request('GET', '/protege'))->status());
+        $this->assertSame(1, $built);
+    }
+
     public function test_group_applies_prefix_and_middleware_in_order(): void
     {
         $log = new \ArrayObject();
