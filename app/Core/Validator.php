@@ -7,7 +7,7 @@ final class Validator
 {
     /** @var array<string, string> */
     private array $errors = [];
-    /** @var array<string, ?string> */
+    /** @var array<string, string|int|null> amount : centimes (int) */
     private array $values = [];
 
     private function __construct(private array $data, private array $rules, private array $labels)
@@ -31,7 +31,7 @@ final class Validator
         return $this->errors;
     }
 
-    /** @return array<string, ?string> */
+    /** @return array<string, string|int|null> */
     public function validated(): array
     {
         return $this->values;
@@ -39,7 +39,7 @@ final class Validator
 
     private function run(): void
     {
-        $known = ['required', 'nullable', 'string', 'max', 'min', 'email', 'phone_ci', 'date', 'before_today', 'in', 'integer', 'same'];
+        $known = ['required', 'nullable', 'string', 'max', 'min', 'email', 'phone_ci', 'date', 'before_today', 'in', 'integer', 'same', 'amount'];
         foreach ($this->rules as $spec) {
             foreach (explode('|', $spec) as $rule) {
                 if (!in_array(explode(':', $rule, 2)[0], $known, true)) {
@@ -116,6 +116,13 @@ final class Validator
                 return in_array($s, explode(',', $arg), true) ? null : "$label : choisissez une valeur dans la liste proposée.";
             case 'integer':
                 return preg_match('/^-?\d+$/', $s) ? null : "$label : saisissez un nombre entier (ex. 12).";
+            case 'amount':
+                try {
+                    $this->values[$field] = Money::parse($s);
+                } catch (\InvalidArgumentException $e) {
+                    return $e->getMessage();
+                }
+                return null;
             case 'same':
                 return $v === self::normalize($this->data[$arg] ?? null) ? null : "$label : la valeur doit être identique à celle du champ de confirmation.";
         }
