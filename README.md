@@ -54,6 +54,13 @@ php -S 127.0.0.1:8080 -t public
 
 `GET /` : page technique. `GET /sante` : `200 ok` si la base répond, `503 indisponible` sinon (sans détail).
 
+### Si l'hébergeur impose la racine du site sur le dossier du projet
+
+La racine web doit pointer sur `public/`. Si l'hébergeur ne le permet pas, le `.htaccess` placé à la racine du projet sert de repli (Apache 2.4) :
+il refuse les fichiers cachés (`.env`, `.git`…) et les dossiers `app/`, `bin/`, `config/`, `database/`, `storage/`, `tests/`, `vendor/`, `docs/`, `routes/`,
+puis réécrit toutes les autres adresses vers `public/` (nécessite `mod_rewrite`). Après déploiement, vérifier que `https://votre-domaine/.env`
+et `https://votre-domaine/storage/` répondent bien `403`.
+
 ## Structure des dossiers
 
 ```
