@@ -14,6 +14,7 @@ use App\Core\Validator;
 use App\Core\View;
 use DateTimeImmutable;
 use DateTimeZone;
+use Throwable;
 
 /** Consultation du journal d'audit et des consultations sensibles (permission audit.view, posée par routes/admin.php). Aucune écriture hormis audit.verified. */
 final class AuditLogController
@@ -41,6 +42,9 @@ final class AuditLogController
         $values = $v->validated();
         if (!isset($errors['action']) && $values['action'] !== null && !preg_match('/^[a-z._]+$/', (string) $values['action'])) {
             $errors['action'] = 'Action : saisissez le début d\'un nom d\'action en lettres minuscules, points ou soulignés (ex. auth.).';
+        }
+        if (!isset($errors['du']) && !isset($errors['au']) && $values['du'] !== null && $values['au'] !== null && $values['du'] > $values['au']) { // ISO : comparables en texte ; la vue préfixe « Au : »
+            $errors['au'] = 'la date doit être postérieure ou égale à la date « Du ».';
         }
         $page = $r->input('page');
         $page = is_string($page) && ctype_digit($page) ? max(1, (int) $page) : 1;
@@ -81,11 +85,16 @@ final class AuditLogController
             set_time_limit(60); // verify() relit tout le journal par lots de 1000 : quelques secondes sur un gros journal
         }
         $bad = $this->audit->verify();
-        // Journalisé après le contrôle pour ne pas l'influencer.
-        $this->audit->log((int) $r->attribute('user')['id'], 'audit.verified', 'audit_logs', null, null,
-            ['result' => $bad === null ? 'intact' : 'anomaly', 'first_bad_id' => $bad], null, $r->ip(), $r->header('User-Agent'));
-        $this->session->flash('status', $bad === null ? 'Journal intact.'
-            : "Anomalie détectée à partir de l'entrée n° $bad : le journal a pu être modifié. Prévenez l'organe de contrôle.");
+        $message = $bad === null ? 'Journal intact.'
+            : "Anomalie détectée à partir de l'entrée n° $bad : le journal a pu être modifié. Prévenez l'organe de contrôle.";
+        $this->session->flash('status', $message);
+        // Journalisé après le contrôle pour ne pas l'influencer ; s'il échoue (ex. ligne audit_chain absente), le résultat reste affiché.
+        try {
+            $this->audit->log((int) $r->attribute('user')['id'], 'audit.verified', 'audit_logs', null, null,
+                ['result' => $bad === null ? 'intact' : 'anomaly', 'first_bad_id' => $bad], null, $r->ip(), $r->header('User-Agent'));
+        } catch (Throwable) {
+            $this->session->flash('status', $message . " (l'enregistrement de cette vérification a échoué : vérifiez la migration 0002)");
+        }
         return Response::redirect('/admin/journal');
     }
 

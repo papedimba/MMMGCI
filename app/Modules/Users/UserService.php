@@ -19,6 +19,7 @@ final class UserService
     public const DUPLICATE = 'Cette adresse e-mail est déjà utilisée par un autre compte.';
     public const PROTECTED = ProtectedRoles::DENIED;
     public const NOT_FOUND = "Cet utilisateur n'existe pas : revenez à la liste des utilisateurs.";
+    public const ROLE_GONE = "Ce rôle n'existe plus : rechargez la page.";
     private const MANAGE = 'users.manage';
     private ProtectedRoles $guard;
 
@@ -35,9 +36,10 @@ final class UserService
     public function create(array $data, ?int $actorId): int
     {
         $fields = $this->validate($data);
-        $roles = $this->roleIds($data['roles'] ?? []);
-        return $this->db->atomic(function () use ($fields, $roles, $actorId): int {
+        $names = $this->roleNameList($data['roles'] ?? []);
+        return $this->db->atomic(function () use ($fields, $names, $actorId): int {
             $this->lockHolders();
+            $roles = $this->roleIds($names);
             $this->guard->assertMayHandle($actorId, array_values($roles));
             $this->assertEmailFree($fields['email'], 0);
             // Haché d'un secret aléatoire jamais conservé : aucune connexion possible avant le choix du mot de passe.
@@ -102,11 +104,12 @@ final class UserService
         if ($id === $actorId) {
             throw new DomainException(self::SELF);
         }
-        $roles = $this->roleIds($roleNames);
-        $this->db->atomic(function () use ($id, $roles, $actorId): void {
-            $after = array_keys($roles);
+        $names = $this->roleNameList($roleNames);
+        $this->db->atomic(function () use ($id, $names, $actorId): void {
             $this->lockHolders();
             $this->db->fetchValue('SELECT id FROM users WHERE id = ? FOR UPDATE', [$id]) ?? throw new DomainException(self::NOT_FOUND);
+            $roles = $this->roleIds($names);
+            $after = array_keys($roles);
             $this->guard->assertMayHandle($actorId, [...$this->roleIdsOf($id), ...array_values($roles)]);
             if ($this->wouldLeaveNoAdmin($id, $after)) {
                 throw new DomainException(self::LAST_ADMIN);
@@ -238,19 +241,26 @@ final class UserService
         return ['name' => (string) $name, 'email' => (string) $email, 'phone' => $phone === null ? null : (string) $phone];
     }
 
-    /** @param mixed $names @return array<string,int> nom => id, trié par nom */
-    private function roleIds(mixed $names): array
+    /** @param mixed $names @return list<string> */
+    private function roleNameList(mixed $names): array
     {
         if (!is_array($names) || array_filter($names, 'is_string') !== $names) {
             throw new DomainException('Rôles invalides : choisissez les rôles dans la liste proposée.');
         }
-        $names = array_values(array_unique($names));
+        return array_values(array_unique($names));
+    }
+
+    /**
+     * Dans la transaction, après les verrous des détenteurs et de la cible (3e rang de l'ordre de lockHolders()) : lecture
+     * partagée verrouillante, une suppression concurrente du rôle attend notre commit ou nous fait voir le rôle disparu.
+     * @param list<string> $names @return array<string,int> nom => id, trié par nom
+     */
+    private function roleIds(array $names): array
+    {
         $known = $names === [] ? [] : array_column($this->db->fetchAll(
-            'SELECT name, id FROM roles WHERE name IN (' . implode(',', array_fill(0, count($names), '?')) . ')', $names), 'id', 'name');
-        foreach ($names as $name) {
-            if (!isset($known[$name])) {
-                throw new DomainException("Rôle inconnu : $name. Choisissez les rôles dans la liste proposée.");
-            }
+            'SELECT name, id FROM roles WHERE name IN (' . implode(',', array_fill(0, count($names), '?')) . ') LOCK IN SHARE MODE', $names), 'id', 'name');
+        if (count($known) !== count($names)) { // nom jamais connu ou rôle supprimé entre l'affichage du formulaire et l'envoi
+            throw new DomainException(self::ROLE_GONE);
         }
         ksort($known);
         return array_map('intval', $known);

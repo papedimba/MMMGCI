@@ -39,7 +39,13 @@ final class PasswordReset
     public function consume(string $token, int $now): ?int
     {
         return $this->db->atomic(function () use ($token, $now): ?int {
-            $userId = $this->find($token, $now, ' FOR UPDATE'); // deux consommations simultanées : la seconde attend puis ne trouve plus rien
+            // Compte verrouillé avant les jetons, comme UserService::setActive (users puis password_resets) : pas d'interblocage.
+            $owner = $this->db->fetchValue('SELECT user_id FROM password_resets WHERE token_hash = ?', [hash('sha256', $token)]);
+            if ($owner === null) {
+                return null;
+            }
+            $this->db->fetchValue('SELECT id FROM users WHERE id = ? FOR UPDATE', [(int) $owner]);
+            $userId = $this->find($token, $now, ' FOR UPDATE'); // deux consommations simultanées : la seconde attend le compte puis ne trouve plus rien
             if ($userId !== null) {
                 $this->db->query('UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL', [gmdate('Y-m-d H:i:s', $now), $userId]);
             }

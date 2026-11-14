@@ -38,7 +38,9 @@ final class LoginController
         [$ip, $ua, $now] = [$r->ip(), $r->header('User-Agent'), ($this->clock)()];
         $userId = $this->db->fetchValue('SELECT id FROM users WHERE email = ?', [$email]);
         $userId = $userId === null ? null : (int) $userId;
-        $log = fn (string $action) => $this->audit->log($userId, $action, 'user', $userId, null, ['email' => $email], null, $ip, $ua);
+        // Saisie invalide non conservée : ce pourrait être un mot de passe tapé dans le mauvais champ, lisible de tout détenteur d'audit.view.
+        $values = filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? ['email' => $email] : ['email' => null, 'email_invalid' => true];
+        $log = fn (string $action) => $this->audit->log($userId, $action, 'user', $userId, null, $values, null, $ip, $ua);
 
         // Seul le premier blocage de (e-mail, ip) par fenêtre est noté et journalisé : l'audit ne se purge pas.
         if ($this->throttle->tooManyAttempts($email, $ip, $now)) {

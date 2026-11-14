@@ -113,6 +113,33 @@ final class AuditLogTest extends AdminTestCase
         }
     }
 
+    public function test_verification_without_chain_row_reports_the_anomaly_instead_of_failing(): void
+    {
+        $this->admin('journal8@example.test');
+        $chain = $this->db->fetch('SELECT * FROM audit_chain WHERE id = 1');
+        $this->db->query('DELETE FROM audit_chain');
+        try {
+            $res = $this->request('POST', '/admin/journal/verification');
+        } finally {
+            $this->db->insert('audit_chain', $chain);
+        }
+        $this->assertSame(302, $res->status());
+        $flash = (string) $this->services['session']->pullFlash('status');
+        $this->assertStringContainsString('Anomalie détectée', $flash);
+        $this->assertStringEndsWith(" (l'enregistrement de cette vérification a échoué : vérifiez la migration 0002)", $flash);
+    }
+
+    public function test_date_from_after_date_to_is_rejected(): void
+    {
+        $this->admin('journal9@example.test');
+        foreach (['/admin/journal?du=2026-03-11&au=2026-03-10', '/admin/journal?onglet=sensibles&du=2026-03-11&au=2026-03-10'] as $url) {
+            $res = $this->request('GET', $url);
+            $this->assertSame(422, $res->status());
+            $this->assertStringContainsString(e('Au : la date doit être postérieure ou égale à la date « Du ».'), $res->body());
+        }
+        $this->assertSame(200, $this->request('GET', '/admin/journal?du=2026-03-10&au=2026-03-10')->status());
+    }
+
     public function test_no_route_modifies_or_deletes_audit_rows(): void
     {
         $this->app();

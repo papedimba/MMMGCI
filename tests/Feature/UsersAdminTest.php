@@ -36,6 +36,8 @@ final class UsersAdminTest extends AdminTestCase
         $this->assertSame(302, $res->status());
         $this->assertSame("/admin/utilisateurs/$id", $res->headers()['Location']);
         $this->assertSame(['gest_cms'], $this->roles($id));
+        $this->assertSame("L'invitation est en cours d'envoi ; si elle n'arrive pas, la personne peut utiliser « Mot de passe oublié ».",
+            $this->services['session']->pullFlash('status'));
 
         $this->assertCount(1, $this->mail->messages);
         $mail = $this->mail->messages[0];
@@ -185,6 +187,29 @@ final class UsersAdminTest extends AdminTestCase
         $this->assertGreaterThan(0, $id);
         $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM password_resets WHERE user_id = ?', [$id]));
         $this->assertCount(0, $this->mail->messages);
+        $this->assertSame("Compte créé, mais l'invitation n'a pas pu être envoyée (adresse du site non configurée) : utilisez « Mot de passe oublié » une fois la configuration corrigée.",
+            $this->services['session']->pullFlash('status'));
+    }
+
+    public function test_user_is_created_without_token_when_mail_is_not_configured(): void
+    {
+        $this->env = ['MAIL_FROM' => ''];
+        $this->overrides['mailer'] = null; // configuration réelle (.env) : Mailer::fromConfig
+        $this->forgetApp();
+        $this->actingAs($this->admin);
+        $log = tempnam(sys_get_temp_dir(), 'errlog');
+        $previous = ini_set('error_log', $log);
+        try {
+            $res = $this->request('POST', '/admin/utilisateurs/nouveau', ['name' => 'Sans courrier', 'email' => 'sanscourrier@x.test', 'roles' => []]);
+            $logged = (string) file_get_contents($log);
+        } finally {
+            ini_set('error_log', (string) $previous);
+            unlink($log);
+        }
+        $id = (int) $this->db->fetchValue("SELECT id FROM users WHERE email = 'sanscourrier@x.test'");
+        $this->assertSame(302, $res->status());
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM password_resets WHERE user_id = ?', [$id]));
+        $this->assertStringContainsString("Configuration e-mail invalide", $logged);
         $this->assertSame("Compte créé, mais l'invitation n'a pas pu être envoyée (adresse du site non configurée) : utilisez « Mot de passe oublié » une fois la configuration corrigée.",
             $this->services['session']->pullFlash('status'));
     }

@@ -80,7 +80,7 @@ final class UserController
                 . "Ce lien est valable 72 heures et ne peut servir qu'une fois. Passé ce délai, utilisez « Mot de passe oublié » sur la page de connexion.\n"));
         }
         $this->session->flash('status', $token !== null
-            ? "Compte créé : une invitation à choisir un mot de passe a été envoyée à {$user['email']}."
+            ? "L'invitation est en cours d'envoi ; si elle n'arrive pas, la personne peut utiliser « Mot de passe oublié »."
             : "Compte créé, mais l'invitation n'a pas pu être envoyée (adresse du site non configurée) : utilisez « Mot de passe oublié » une fois la configuration corrigée.");
         return Response::redirect("/admin/utilisateurs/$id");
     }

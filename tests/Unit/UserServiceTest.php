@@ -100,7 +100,7 @@ final class UserServiceTest extends DatabaseTestCase
     {
         $id = $this->user('r@x.test', ['gest_cms']);
         $actor = $this->user('adm@x.test', ['super_admin']);
-        $msg = 'Rôle inconnu : inexistant. Choisissez les rôles dans la liste proposée.';
+        $msg = "Ce rôle n'existe plus : rechargez la page.";
         $this->assertDomain($msg, fn () => $this->service()->setRoles($id, ['gest_cms', 'inexistant'], $actor));
         $this->assertDomain($msg, fn () => $this->service()->create(['name' => 'N', 'email' => 'n@x.test', 'roles' => ['inexistant']], $actor));
         $this->assertSame(['gest_cms'], $this->roles($id));
@@ -252,5 +252,30 @@ final class UserServiceTest extends DatabaseTestCase
         $this->assertSame(self::PROTECTED, $output);
         $this->assertSame(1, (int) $this->db->fetchValue('SELECT is_active FROM users WHERE id = ?', [$target]));
         $this->assertSame(['super_admin'], $this->roles($target));
+    }
+
+    public function test_role_deleted_concurrently_gives_a_clear_message(): void
+    {
+        $target = $this->user('cible6@x.test', []);
+        foreach ([['setRoles', (string) $target], ['create', 'nouveau6@x.test']] as [$op, $arg]) {
+            $roleId = $this->db->insert('roles', ['name' => 'ephemere', 'label' => 'Éphémère']);
+            // Le rôle est supprimé sans validation ; le fils tente de l'attribuer pendant ce temps.
+            [$proc, $pipes] = $this->db->transaction(function () use ($roleId, $op, $arg): array {
+                $this->db->query('DELETE FROM roles WHERE id = ?', [$roleId]);
+                $proc = proc_open([PHP_BINARY, dirname(__DIR__) . '/Support/user_worker.php', $op, $arg, 'ephemere'],
+                    [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+                $observer = Database::connect(self::config(), test: true);
+                for ($i = 0; $i < 200 && (int) $observer->fetchValue("SELECT COUNT(*) FROM information_schema.PROCESSLIST WHERE ID <> CONNECTION_ID() AND (INFO LIKE '%SHARE MODE%' OR INFO LIKE 'INSERT INTO `user_roles`%')") === 0; $i++) {
+                    usleep(25_000); // attend que le fils soit bloqué par la suppression non validée
+                }
+                $this->assertLessThan(200, $i, "Le processus fils ($op) aurait dû attendre le verrou du rôle.");
+                return [$proc, $pipes];
+            });
+            $output = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
+            proc_close($proc);
+            $this->assertSame("Ce rôle n'existe plus : rechargez la page.", $output, $op);
+        }
+        $this->assertSame([], $this->roles($target));
+        $this->assertNull($this->db->fetchValue("SELECT id FROM users WHERE email = 'nouveau6@x.test'"));
     }
 }

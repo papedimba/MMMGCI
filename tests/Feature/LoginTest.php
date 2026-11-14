@@ -245,4 +245,18 @@ final class LoginTest extends AdminTestCase
         $this->assertNull($this->loggedInId());
         $this->assertNull($this->services['audit']()->verify());
     }
+
+    public function test_failed_and_blocked_logins_store_the_email_only_if_it_is_valid(): void
+    {
+        for ($i = 0; $i < 6; $i++) {
+            $this->login('Mon Secret 2026!', 'mauvais mot de passe long');
+        }
+        $rows = $this->db->fetchAll("SELECT action, new_values FROM audit_logs WHERE action IN ('auth.login_failed', 'auth.login_blocked') ORDER BY id DESC LIMIT 6");
+        $this->assertSame(['auth.login_blocked', 'auth.login_failed'], array_values(array_unique(array_column($rows, 'action'))));
+        foreach ($rows as $row) {
+            $this->assertSame(['email' => null, 'email_invalid' => true], json_decode($row['new_values'], true));
+        }
+        $this->assertStringNotContainsString('secret 2026', json_encode($this->db->fetchAll('SELECT * FROM audit_logs')));
+        $this->assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM login_attempts WHERE email = 'mon secret 2026!' AND succeeded = 2"), 'clé du limiteur inchangée');
+    }
 }

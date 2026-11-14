@@ -3,7 +3,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Core\Database;
 use App\Core\Http\Response;
+use PDOException;
 use App\Modules\Auth\PasswordReset;
 use Tests\Support\AdminTestCase;
 
@@ -296,6 +298,51 @@ final class PasswordResetTest extends AdminTestCase
         $this->assertSame($id, $resets->consume($first, time()));
         $this->assertNull($resets->check($second, time()));
         $this->assertNull($resets->consume($second, time()));
+    }
+
+    public function test_consume_locks_the_account_before_the_tokens_and_has_a_single_winner(): void
+    {
+        $id = $this->createUser('ordre@x.test', []);
+        $token = (new PasswordReset($this->db))->issue($id, time());
+        $other = Database::connect(self::config(), test: true);
+        $other->query('SET SESSION innodb_lock_wait_timeout = 1');
+        $this->db->query('SET SESSION innodb_lock_wait_timeout = 1');
+        try {
+            // Comme UserService::setActive : compte verrouillé d'abord, puis jetons.
+            $probe = $this->db->transaction(function () use ($id, $token, $other): ?string {
+                $this->db->fetchValue('SELECT id FROM users WHERE id = ? FOR UPDATE', [$id]);
+                return $other->transaction(function () use ($id, $token, $other): ?string {
+                    try {
+                        (new PasswordReset($other))->consume($token, time());
+                        $this->fail('consume() aurait dû attendre le verrou du compte.');
+                    } catch (PDOException $e) {
+                        $this->assertStringContainsString('Lock wait timeout', $e->getMessage());
+                    }
+                    // consume() en attente ne doit tenir aucun verrou sur les jetons : sinon interblocage avec setActive.
+                    try {
+                        $this->db->query('UPDATE password_resets SET used_at = used_at WHERE user_id = ?', [$id]);
+                        return null;
+                    } catch (PDOException $e) {
+                        return $e->getMessage();
+                    }
+                });
+            });
+        } finally {
+            $this->db->query('SET SESSION innodb_lock_wait_timeout = DEFAULT');
+        }
+        $this->assertNull($probe);
+
+        // Un seul gagnant : la consommation tenue par une transaction fait attendre l'autre, qui ne trouve ensuite plus rien.
+        $this->db->transaction(function () use ($id, $token, $other): void {
+            $this->assertSame($id, (new PasswordReset($this->db))->consume($token, time()));
+            try {
+                (new PasswordReset($other))->consume($token, time());
+                $this->fail('La seconde consommation aurait dû attendre.');
+            } catch (PDOException $e) {
+                $this->assertStringContainsString('Lock wait timeout', $e->getMessage());
+            }
+        });
+        $this->assertNull((new PasswordReset($other))->consume($token, time()));
     }
 
     public function test_token_expires_exactly_after_one_hour(): void

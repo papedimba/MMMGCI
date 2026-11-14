@@ -15,7 +15,7 @@ final class LinkMailer
     {
     }
 
-    /** false (et erreur journalisée) si APP_URL ne permet pas d'envoyer un lien sûr. */
+    /** false (et erreur journalisée) si APP_URL ne permet pas d'envoyer un lien sûr ou si la configuration e-mail est invalide. */
     public function ready(): bool
     {
         if (!preg_match('#^https?://[^/\s]+#i', $this->appUrl)) {
@@ -24,6 +24,12 @@ final class LinkMailer
         }
         if ($this->requireHttps && !preg_match('#^https://#i', $this->appUrl)) { // un jeton envoyé en clair sur HTTP serait interceptable
             error_log("APP_URL doit commencer par https:// hors environnement local : corrigez-la dans .env ; aucun lien de réinitialisation envoyé.");
+            return false;
+        }
+        try {
+            ($this->mailer)();
+        } catch (Throwable $e) { // ex. MAIL_FROM vide : l'envoi différé échouerait sans que personne le voie
+            error_log('Configuration e-mail invalide (' . $e->getMessage() . ') : corrigez MAIL_FROM / MAIL_DRIVER dans .env ; aucun lien de réinitialisation envoyé.');
             return false;
         }
         return true;
