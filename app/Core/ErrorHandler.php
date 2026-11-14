@@ -7,17 +7,23 @@ use Throwable;
 
 final class ErrorHandler
 {
+    /** Insère la date avant l'extension : app.log -> app-AAAA-MM-JJ.log */
+    public static function datedPath(string $logFile): string
+    {
+        return preg_replace('/(\.[^.\/]+)?$/', '-' . date('Y-m-d') . '$1', $logFile, 1);
+    }
+
     public static function register(bool $debug, string $logFile): void
     {
-        // $logFile est un chemin de base : la date est insérée avant l'extension (app.log -> app-AAAA-MM-JJ.log).
-        $dated = static fn (): string => preg_replace('/(\.[^.\/]+)?$/', '-' . date('Y-m-d') . '$1', $logFile, 1);
-
-        $log = static function (string $message) use ($dated): void {
-            $file = $dated();
+        $log = static function (string $message) use ($logFile): void {
+            $file = self::datedPath($logFile);
+            $line = '[' . date('c') . '] ' . $message . PHP_EOL;
             if (!is_dir(dirname($file))) {
                 @mkdir(dirname($file), 0775, true);
             }
-            @file_put_contents($file, '[' . date('c') . '] ' . $message . PHP_EOL, FILE_APPEND | LOCK_EX);
+            if (@file_put_contents($file, $line, FILE_APPEND | LOCK_EX) === false) {
+                error_log($message);
+            }
         };
 
         set_error_handler(static function (int $no, string $str, string $file, int $line): bool {
@@ -36,7 +42,7 @@ final class ErrorHandler
                 echo '<pre>' . e(get_class($e) . ': ' . $e->getMessage() . "\n" . $e->getTraceAsString()) . '</pre>';
                 return;
             }
-            require dirname(__DIR__) . '/Views/errors/500.php';
+            require dirname(__DIR__) . '/views/errors/500.php';
         });
     }
 }
