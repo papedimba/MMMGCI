@@ -12,6 +12,7 @@ $initials = mb_strtoupper(implode('', array_map(static fn (string $w): string =>
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/components.css">
 <link rel="stylesheet" href="/assets/css/admin.css">
+<script src="/assets/js/js-flag.js"></script>
 <script src="/assets/js/app.js" defer></script>
 </head>
 <body class="admin">
@@ -24,7 +25,7 @@ $initials = mb_strtoupper(implode('', array_map(static fn (string $w): string =>
 </nav>
 </aside>
 <div class="main">
-<div class="topbar">
+<header class="topbar">
 <button type="button" class="menu-btn" data-menu-toggle aria-controls="menu-admin" aria-expanded="false" aria-label="Ouvrir le menu"><?= ui_icon('menu') ?></button>
 <img class="top-emblem" src="/assets/img/emblem-40.png" alt="" width="32" height="32">
 <p class="page-name"><?= e($title ?? 'Administration') ?></p>
@@ -38,7 +39,7 @@ $initials = mb_strtoupper(implode('', array_map(static fn (string $w): string =>
 </form>
 </div>
 </details>
-</div>
+</header>
 <main class="sheet" id="contenu" tabindex="-1">
 <?php if (($flash ?? null) !== null): ?>
 <?= ui('alert', ['kind' => 'ok', 'message' => $flash]) ?>

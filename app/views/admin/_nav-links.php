@@ -14,6 +14,6 @@ foreach ($items as [$grp, $label, $href, $perm, $icon]) {
         $group = $grp;
         $open = true;
     }
-    echo '<li><a class="nav-link" href="' . e($href) . '"' . ($href === $current ? ' aria-current="page"' : '') . '>' . ui_icon($icon) . e($label) . "</a></li>\n";
+    echo '<li><a class="nav-link" href="' . e($href) . '"' . ($href === $current || ($href !== '/admin' && str_starts_with($current, $href . '/')) ? ' aria-current="page"' : '') . '>' . ui_icon($icon) . e($label) . "</a></li>\n";
 }
 echo $open ? "</ul>\n" : '';

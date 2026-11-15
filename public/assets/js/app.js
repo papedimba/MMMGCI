@@ -3,17 +3,24 @@
   'use strict';
   var menuToggle = null;
 
+  function closeAccount(except) {
+    var all = document.querySelectorAll('details.account[open]');
+    for (var i = 0; i < all.length; i++) { if (all[i] !== except) { all[i].removeAttribute('open'); } }
+  }
+
   function closeMenu() {
     if (!menuToggle) { return; }
     var menu = document.getElementById(menuToggle.getAttribute('aria-controls'));
     if (menu && menu.hasAttribute('data-open')) {
       menu.removeAttribute('data-open');
       menuToggle.setAttribute('aria-expanded', 'false');
+      menuToggle.setAttribute('aria-label', 'Ouvrir le menu');
       menuToggle.focus();
     }
   }
 
   document.addEventListener('click', function (ev) {
+    closeAccount(ev.target.closest ? ev.target.closest('details.account') : null);
     var t = ev.target.closest ? ev.target.closest('[data-menu-toggle],[data-confirm-open],[data-confirm-close]') : null;
     if (!t) { return; }
     if (t.hasAttribute('data-menu-toggle')) {
@@ -24,6 +31,7 @@
       var open = !menu.hasAttribute('data-open');
       if (open) { menu.setAttribute('data-open', ''); } else { menu.removeAttribute('data-open'); }
       t.setAttribute('aria-expanded', open ? 'true' : 'false');
+      t.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
     } else if (t.hasAttribute('data-confirm-open')) {
       var dlg = document.getElementById(t.getAttribute('data-confirm-open'));
       if (dlg && typeof dlg.showModal === 'function') { ev.preventDefault(); dlg.showModal(); } // sinon : le formulaire part directement
@@ -34,7 +42,11 @@
   });
 
   document.addEventListener('keydown', function (ev) {
-    if (ev.key === 'Escape') { closeMenu(); } // Échap ferme déjà les <dialog> nativement
+    if (ev.key === 'Escape') {
+      var acc = document.querySelector('details.account[open]');
+      if (acc) { acc.removeAttribute('open'); acc.querySelector('summary').focus(); return; }
+      closeMenu();
+    } // Échap ferme déjà les <dialog> nativement
   });
 
   document.addEventListener('submit', function (ev) {

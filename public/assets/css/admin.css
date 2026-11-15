@@ -13,6 +13,7 @@
   display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px; border-radius: var(--r-sm);
   color: var(--ink-2); text-decoration: none; font-size: var(--text-sm);
 }
+.nav-link { min-height: var(--control-h); }
 .nav-link:hover { background: rgba(18, 48, 107, .06); text-decoration: none; }
 .nav-link[aria-current="page"] { background: var(--sheet); color: var(--navy-900); font-weight: 600; }
 
@@ -48,18 +49,19 @@
 @media (max-width: 899.98px) {
   .shell { display: block; }
   body.admin { background: var(--sheet); }
-  .menu-btn { display: inline-flex; }
+  html.js .menu-btn { display: inline-flex; }
   .top-emblem { display: block; }
   .page-name { padding-left: 0; }
   .account-name { display: none; }
   .sheet { border: 0; border-radius: 0; margin: 0; padding: var(--s4); min-height: calc(100vh - 48px); }
-  /* Panneau sous la barre du haut : le bouton de menu reste visible et cliquable. Fermé, il sort du flux de tabulation (visibility). */
-  .side {
+  .side { padding-bottom: var(--s2); }
+  /* Sans JS : le menu reste empilé au-dessus du contenu. Avec JS : panneau sous la barre du haut : le bouton de menu reste visible et cliquable. Fermé, il sort du flux de tabulation (visibility). */
+  html.js .side {
     position: fixed; top: 48px; bottom: 0; left: 0; z-index: 10; width: min(280px, 85vw); overflow-y: auto;
     background: var(--frame); border-right: 1px solid var(--line);
     transform: translateX(-100%); visibility: hidden;
     transition: transform var(--dur-base) var(--ease), visibility 0s linear var(--dur-base);
   }
-  .side[data-open] { transform: none; visibility: visible; transition-delay: 0s; }
-  .brand { display: none; }
+  html.js .side[data-open] { transform: none; visibility: visible; transition-delay: 0s; }
+  html.js .brand { display: none; }
 }

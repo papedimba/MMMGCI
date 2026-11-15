@@ -82,4 +82,49 @@ final class AdminShellTest extends AdminTestCase
         $this->assertStringContainsString('aria-label="Ouvrir le menu"', $m[0]);
         $this->assertStringContainsString('id="menu-admin"', $html);
     }
+
+    public function test_section_link_is_current_on_sub_pages_and_topbar_is_a_banner(): void
+    {
+        $this->actingAs($this->createUser(uniqid('sub') . '@example.test', ['super_admin']));
+        $html = $this->request('GET', '/admin/utilisateurs/nouveau')->body();
+        $this->assertSame(1, substr_count($html, 'aria-current="page"'));
+        $this->assertMatchesRegularExpression('#href="/admin/utilisateurs" aria-current="page"#', $html);
+        $this->assertStringContainsString('<header class="topbar">', $html);
+        $this->assertStringContainsString('/assets/js/js-flag.js', $html);
+    }
+
+    public function test_view_share_is_overridden_by_controller_data_and_replaced_per_call(): void
+    {
+        $dir = sys_get_temp_dir() . '/views' . uniqid();
+        mkdir($dir);
+        file_put_contents($dir . '/v.php', '<?= $a ?>-<?= $b ?? "none" ?>');
+        $v = new \App\Core\View($dir);
+        $v->share(['a' => 'shared', 'b' => 'B']);
+        $this->assertSame('ctrl-B', $v->partial('v', ['a' => 'ctrl']));
+        $v->share(['a' => 'new']);
+        $this->assertSame('new-B', $v->partial('v'));
+        unlink($dir . '/v.php');
+        rmdir($dir);
+    }
+
+    public function test_share_layout_data_middleware_exposes_path_and_get_route_check(): void
+    {
+        $dir = sys_get_temp_dir() . '/views' . uniqid();
+        mkdir($dir);
+        $view = new \App\Core\View($dir);
+        $router = new \App\Core\Http\Router();
+        $router->get('/x', static fn () => new \App\Core\Http\Response('ok'));
+        $router->post('/y', static fn () => new \App\Core\Http\Response('ok'));
+        (new \App\Core\Http\ShareLayoutData($view, $router))->handle(
+            new \App\Core\Http\Request('GET', '/x'),
+            function () use ($view): \App\Core\Http\Response {
+                file_put_contents(sys_get_temp_dir() . '/shared.php', '');
+                return new \App\Core\Http\Response('');
+            },
+        );
+        file_put_contents($dir . '/v.php', '<?= $currentPath ?>|<?= var_export($routeExists("/x"), true) ?>|<?= var_export($routeExists("/y"), true) ?>');
+        $this->assertSame('/x|true|false', $view->partial('v'));
+        unlink($dir . '/v.php');
+        rmdir($dir);
+    }
 }
