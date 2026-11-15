@@ -1,0 +1,28 @@
+/* Jetons de conception MMMGCI (lot L2). Valeurs de la maquette approuvée. */
+:root {
+  --navy-950: #071631; --navy-900: #0B2350; --navy-800: #12306B; --navy-700: #1A3F86;
+  --ocean-600: #1F5AA6; --ocean-100: #E3ECF8; --ocean-50: #F1F5FB;
+  --gold-700: #7E5F17; --gold-400: #D2AE55; --gold-100: #F6EDD6;
+  --ink: #122038; --ink-2: #3E4C66; --ink-3: #5C6A82;
+  --line: #E4E8EF; --line-strong: #B9C3D3;
+  /* Écart : --line-strong ne fait que 1,78:1 sur blanc ; les champs de saisie exigent 3:1 (WCAG 1.4.11). */
+  --control-border: #7D8AA0;
+  --frame: #F1F4F9; --sheet: #fff;
+  --ok: #1C7A4A; --ok-bg: #E5F3EB;
+  --warn: #8F5600; --warn-bg: #FBF0DD;
+  --danger: #B42318; --danger-bg: #FCE9E7;
+  --info: var(--ocean-600); --info-bg: var(--ocean-100);
+  --ci-orange: #F77F00; --ci-green: #009E60;
+
+  --font-display: "Marcellus", "Marcellus Fallback", "Times New Roman", serif;
+  --font-body: "Source Sans 3", "Source Sans 3 Fallback", "Segoe UI", system-ui, sans-serif;
+  --text-xs: .8125rem; --text-sm: .9375rem; --text-md: 1rem; --text-lg: 1.25rem;
+  --text-xl: 1.5rem; --text-2xl: 2rem; --text-3xl: clamp(2.25rem, 1.4rem + 3.4vw, 3.75rem);
+  --leading-tight: 1.1; --leading-snug: 1.3; --leading-body: 1.5;
+
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 24px; --s6: 32px; --s7: 48px; --s8: 64px; --s9: 96px;
+  --r-sm: 6px; --r-md: 10px; --r-lg: 16px;
+  --control-h: 44px;
+  --focus-ring: 2px solid var(--ocean-600);
+  --dur-fast: 120ms; --dur-base: 200ms; --ease: cubic-bezier(.2, .7, .2, 1);
+}
