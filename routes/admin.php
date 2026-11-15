@@ -14,6 +14,8 @@ use App\Modules\Auth\LoginController;
 use App\Modules\Auth\LoginThrottle;
 use App\Modules\Auth\PasswordController;
 use App\Modules\Auth\PasswordReset;
+use App\Modules\Members\ReferentialController;
+use App\Modules\Members\Referentials;
 use App\Modules\Roles\RoleController;
 use App\Modules\Roles\RoleService;
 use App\Modules\Users\UserController;
@@ -32,6 +34,7 @@ return static function (Router $r, array $deps): void {
     $roles = static fn (): RoleController => new RoleController($view, $csrf, $session, $db(), $gate(), new RoleService($db(), $audit(), $gate()));
     $journal = static fn (): AuditLogController => new AuditLogController($view, $csrf, $session, $db(), $gate(), $audit(),
         new AuditQuery($db()), new SensitiveAccess($db()));
+    $referentials = static fn (): ReferentialController => new ReferentialController($view, $csrf, $session, $db(), $gate(), new Referentials($db(), $audit()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -63,6 +66,11 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/roles/{id:\d+}', static fn (Request $q): Response => $roles()->editForm($q), $manageRoles);
     $r->post('/admin/roles/{id:\d+}', static fn (Request $q): Response => $roles()->edit($q), $manageRoles);
     $r->post('/admin/roles/{id:\d+}/suppression', static fn (Request $q): Response => $roles()->delete($q), $manageRoles);
+
+    $manageSettings = [$requireAuth, $permission('settings.manage')];
+    $r->get('/admin/adherents/referentiels', static fn (Request $q): Response => $referentials()->index($q), $manageSettings);
+    $r->post('/admin/adherents/referentiels', static fn (Request $q): Response => $referentials()->save($q), $manageSettings);
+    $r->post('/admin/adherents/referentiels/activation', static fn (Request $q): Response => $referentials()->activation($q), $manageSettings);
 
     // Lecture seule : aucune route ne modifie ni ne supprime une ligne du journal.
     $viewAudit = [$requireAuth, $permission('audit.view')];

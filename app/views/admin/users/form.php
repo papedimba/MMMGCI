@@ -13,6 +13,9 @@ $active = $target !== null && (int) $target['is_active'] === 1;
     . ui('field', ['name' => 'name', 'label' => 'Nom', 'value' => $values['name'], 'required' => true, 'autocomplete' => 'name', 'attrs' => ['maxlength' => 120]])
     . ui('field', ['name' => 'email', 'label' => 'Adresse e-mail', 'type' => 'email', 'value' => $values['email'], 'required' => true, 'autocomplete' => 'email', 'attrs' => ['maxlength' => 190]])
     . ui('field', ['name' => 'phone', 'label' => 'Téléphone (facultatif)', 'type' => 'tel', 'value' => $values['phone'], 'hint' => '10 chiffres.', 'autocomplete' => 'tel', 'inputmode' => 'tel'])
+    . ui('field', ['name' => 'zone_id', 'label' => 'Zone de rattachement (facultatif)', 'type' => 'select', 'value' => (string) $values['zone_id'],
+        'hint' => 'Sans accès national aux adhérents, le compte ne voit que les adhérents de cette zone (sous-zones non incluses).',
+        'options' => ['' => 'Aucune'] + array_column($zones, 'name', 'id')])
     . '</div>') ?>
 <section class="panel">
 <fieldset class="panel-fieldset">

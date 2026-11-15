@@ -58,7 +58,7 @@ final class UserService
         $fields = $this->validate($data);
         $this->db->atomic(function () use ($id, $fields, $actorId): void {
             $this->lockHolders();
-            $before = $this->db->fetch('SELECT name, email, phone FROM users WHERE id = ? FOR UPDATE', [$id]) ?? throw new DomainException(self::NOT_FOUND);
+            $before = $this->db->fetch('SELECT name, email, phone, zone_id FROM users WHERE id = ? FOR UPDATE', [$id]) ?? throw new DomainException(self::NOT_FOUND);
             $this->guard->assertMayHandle($actorId, $this->roleIdsOf($id));
             $this->assertEmailFree($fields['email'], $id);
             $changed = array_diff_assoc($fields, $before);
@@ -232,13 +232,16 @@ final class UserService
     {
         $email = $data['email'] ?? null;
         $data['email'] = is_string($email) ? mb_strtolower(trim($email)) : $email;
-        $v = Validator::make($data, ['name' => 'required|string|max:120', 'email' => 'required|email|max:190', 'phone' => 'nullable|phone_ci'],
-            ['name' => 'nom', 'email' => 'adresse e-mail', 'phone' => 'téléphone']);
+        $v = Validator::make($data, ['name' => 'required|string|max:120', 'email' => 'required|email|max:190', 'phone' => 'nullable|phone_ci', 'zone_id' => 'nullable|integer'],
+            ['name' => 'nom', 'email' => 'adresse e-mail', 'phone' => 'téléphone', 'zone_id' => 'zone de rattachement']);
         if ($v->fails()) {
             throw new DomainException(implode(' ', $v->errors()));
         }
-        ['name' => $name, 'email' => $email, 'phone' => $phone] = $v->validated();
-        return ['name' => (string) $name, 'email' => (string) $email, 'phone' => $phone === null ? null : (string) $phone];
+        ['name' => $name, 'email' => $email, 'phone' => $phone, 'zone_id' => $zone] = $v->validated();
+        if ($zone !== null && $this->db->fetchValue('SELECT 1 FROM zones WHERE id = ?', [(int) $zone]) === null) {
+            throw new DomainException('Zone de rattachement invalide : choisissez-la dans la liste proposée.');
+        }
+        return ['name' => (string) $name, 'email' => (string) $email, 'phone' => $phone === null ? null : (string) $phone, 'zone_id' => $zone === null ? null : (int) $zone];
     }
 
     /** @param mixed $names @return list<string> */

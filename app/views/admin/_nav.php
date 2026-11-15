@@ -5,6 +5,7 @@
  */
 return [
     ['', 'Tableau de bord', '/admin', null, 'home'],
+    ['Adhérents', 'Référentiels', '/admin/adherents/referentiels', 'settings.manage', 'anchor'],
     ['Administration', 'Utilisateurs', '/admin/utilisateurs', 'users.manage', 'users'],
     ['Administration', 'Rôles', '/admin/roles', 'roles.manage', 'shield'],
     ['Administration', "Journal d'audit", '/admin/journal', 'audit.view', 'file'],

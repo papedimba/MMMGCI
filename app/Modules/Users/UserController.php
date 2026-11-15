@@ -55,7 +55,7 @@ final class UserController
 
     public function createForm(Request $r): Response
     {
-        return $this->form($r, null, ['name' => '', 'email' => '', 'phone' => '', 'roles' => []]);
+        return $this->form($r, null, ['name' => '', 'email' => '', 'phone' => '', 'zone_id' => '', 'roles' => []]);
     }
 
     public function create(Request $r): Response
@@ -145,15 +145,15 @@ final class UserController
     /** @return array<string,mixed>|null */
     private function target(Request $r): ?array
     {
-        return $this->db->fetch('SELECT id, name, email, phone, is_active, last_login_at FROM users WHERE id = ?', [(int) $r->attribute('id')]);
+        return $this->db->fetch('SELECT id, name, email, phone, zone_id, is_active, last_login_at FROM users WHERE id = ?', [(int) $r->attribute('id')]);
     }
 
-    /** @return array{name: mixed, email: mixed, phone: mixed, roles: list<string>} */
+    /** @return array{name: mixed, email: mixed, phone: mixed, zone_id: mixed, roles: list<string>} */
     private function posted(Request $r): array
     {
         $roles = array_values(array_unique(array_filter((array) $r->post('roles', []), 'is_string')));
         sort($roles);
-        return ['name' => $r->post('name'), 'email' => $r->post('email'), 'phone' => $r->post('phone'), 'roles' => $roles];
+        return ['name' => $r->post('name'), 'email' => $r->post('email'), 'phone' => $r->post('phone'), 'zone_id' => $r->post('zone_id'), 'roles' => $roles];
     }
 
     /** @param array<string,mixed>|null $target null : création @param array<string,mixed> $values */
@@ -163,6 +163,7 @@ final class UserController
             'target' => $target,
             'values' => array_map(static fn ($v) => is_string($v) || is_array($v) ? $v : '', $values),
             'roles' => $this->db->fetchAll('SELECT name, label FROM roles ORDER BY label'),
+            'zones' => $this->db->fetchAll('SELECT id, name FROM zones WHERE is_active = 1 OR id = ? ORDER BY name', [(int) ($values['zone_id'] ?? 0)]),
             'self' => $target !== null && (int) $target['id'] === (int) $r->attribute('user')['id'],
             'error' => $error,
         ], $error === null ? 200 : $status);
