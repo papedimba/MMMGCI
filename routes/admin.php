@@ -14,6 +14,11 @@ use App\Modules\Auth\LoginController;
 use App\Modules\Auth\LoginThrottle;
 use App\Modules\Auth\PasswordController;
 use App\Modules\Auth\PasswordReset;
+use App\Modules\Finance\AccountService;
+use App\Modules\Finance\AttachmentService;
+use App\Modules\Finance\CategoryService;
+use App\Modules\Finance\FinanceController;
+use App\Modules\Finance\Ledger;
 use App\Modules\Members\ApplicationController;
 use App\Modules\Members\ApplicationService;
 use App\Modules\Members\CardController;
@@ -56,6 +61,8 @@ return static function (Router $r, array $deps): void {
         new CardService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), (string) $config->get('APP_URL', ''), $config->get('APP_ENV', 'production') === 'production');
     $applications = static fn (): ApplicationController => new ApplicationController($view, $csrf, $session, $db(), $gate(), new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit(),
         new ApplicationService($db(), $audit(), new Sequence($db()), new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate()))));
+    $finance = static fn (): FinanceController => new FinanceController($view, $csrf, $session, $db(), $gate(),
+        new Ledger($db(), $audit(), new Sequence($db())), new AccountService($db(), $audit()), new CategoryService($db(), $audit()), new AttachmentService($db(), $audit()), $uploads());
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -136,6 +143,23 @@ return static function (Router $r, array $deps): void {
     $viewAudit = [$requireAuth, $permission('audit.view')];
     $r->get('/admin/journal', static fn (Request $q): Response => $journal()->index($q), $viewAudit);
     $r->post('/admin/journal/verification', static fn (Request $q): Response => $journal()->verify($q), $viewAudit);
+
+    // Finances (L6) : aucune route n'enregistre de dépense ; seule DisbursementService (Task 6) peut en écrire.
+    $viewFinance = [$requireAuth, $permission('finance.view')];
+    $manageFinance = [$requireAuth, $permission('finance.manage')];
+    $r->get('/admin/finances', static fn (Request $q): Response => $finance()->index($q), $viewFinance);
+    $r->get('/admin/finances/categories', static fn (Request $q): Response => $finance()->categoriesPage($q), $viewFinance);
+    $r->get('/admin/finances/comptes/{id:\d+}', static fn (Request $q): Response => $finance()->account($q), $viewFinance);
+    $r->get('/admin/finances/ecritures/{id:\d+}/justificatif/{fid:\d+}', static fn (Request $q): Response => $finance()->attachment($q), $viewFinance);
+    $r->get('/admin/finances/comptes/nouveau', static fn (Request $q): Response => $finance()->accountForm($q), $manageFinance);
+    $r->post('/admin/finances/comptes/nouveau', static fn (Request $q): Response => $finance()->createAccount($q), $manageFinance);
+    $r->post('/admin/finances/comptes/{id:\d+}/activation', static fn (Request $q): Response => $finance()->accountActivation($q), $manageFinance);
+    $r->post('/admin/finances/categories', static fn (Request $q): Response => $finance()->createCategory($q), $manageFinance);
+    $r->post('/admin/finances/categories/{id:\d+}/activation', static fn (Request $q): Response => $finance()->categoryActivation($q), $manageFinance);
+    $r->get('/admin/finances/ressources', static fn (Request $q): Response => $finance()->resourceForm($q), $manageFinance);
+    $r->post('/admin/finances/ressources', static fn (Request $q): Response => $finance()->recordResource($q), $manageFinance);
+    $r->get('/admin/finances/ecritures/{id:\d+}/contre-passation', static fn (Request $q): Response => $finance()->reverseForm($q), $manageFinance);
+    $r->post('/admin/finances/ecritures/{id:\d+}/contre-passation', static fn (Request $q): Response => $finance()->reverse($q), $manageFinance);
 
     // Galerie du kit et page d'exemple d'impression : outils de développement, routes non enregistrées en production (404).
     if ($config->get('APP_ENV', 'production') !== 'production') {
