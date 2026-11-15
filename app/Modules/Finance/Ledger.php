@@ -29,13 +29,16 @@ final class Ledger
     }
 
     /**
-     * Enregistre une écriture. Aucune route ne peut appeler ceci avec 'depense' : le seul appelant légitime d'une dépense
-     * sera DisbursementService (Task 6), qui l'appelle dans sa propre transaction (verrous : demande, compte, séquences).
+     * Enregistre une écriture. Une dépense n'est acceptée qu'avec la source 'disbursement' : le seul appelant légitime est
+     * DisbursementService::pay, dans sa propre transaction (verrous : demande, compte, séquences).
      *
      * @param array{source_type?: ?string, source_id?: ?int, description?: ?string, authorization_ref?: ?string, donor_partner_id?: ?int} $meta
      */
     public function record(int $accountId, int $categoryId, string $direction, int $amountCents, DateTimeImmutable $occurredAt, array $meta, int $actor): int
     {
+        if ($direction === 'depense' && ($meta['source_type'] ?? null) !== 'disbursement') {
+            throw new DomainException('Une dépense ne s\'enregistre que par le circuit de décaissement.');
+        }
         return $this->db->atomic(function () use ($accountId, $categoryId, $direction, $amountCents, $occurredAt, $meta, $actor): int {
             $account = $this->lockAccount($accountId);
             if ((int) $account['is_active'] !== 1) {
@@ -95,10 +98,10 @@ final class Ledger
 
     public const WORKFLOW_REVERSAL_MESSAGE = 'Cette écriture provient d\'un processus métier (cotisation, décaissement…) : annulez le paiement ou l\'opération d\'origine, qui contre-passe l\'écriture.';
 
-    /** Une écriture saisie à la main (sans source, ou « ressource ») peut être contre-passée depuis l'écran des finances ; toute autre source passe par son service. */
+    /** Seule une écriture saisie à la main (source « ressource ») se contre-passe depuis l'écran ; toute autre source, NULL comprise, passe par son service (fermé par défaut). */
     public static function isManual(?string $sourceType): bool
     {
-        return $sourceType === null || $sourceType === 'ressource';
+        return $sourceType === 'ressource';
     }
 
     /** Contre-passation depuis l'écran : refuse les écritures d'un processus métier, puis délègue à reverse() (que les services appellent directement). */
@@ -114,14 +117,15 @@ final class Ledger
     /**
      * Solde = ouverture + Σ recettes − Σ dépenses, calculé en SQL (DECIMAL). $at est un jour : inclus jusqu'à 23:59:59 ;
      * Africa/Abidjan est à UTC+0 sans changement d'heure, donc les dates stockées (UTC) sont déjà celles d'Abidjan.
+     * $locking : lecture verrouillante (dernier état validé, même si la transaction a déjà une vue cohérente plus ancienne) ; à utiliser sous le verrou du compte.
      */
-    public function balance(int $accountId, ?DateTimeImmutable $at = null): int
+    public function balance(int $accountId, ?DateTimeImmutable $at = null, bool $locking = false): int
     {
         $row = $this->db->fetch(
             "SELECT a.opening_balance + COALESCE(SUM(CASE t.direction WHEN 'recette' THEN t.amount ELSE -t.amount END), 0) AS balance
              FROM financial_accounts a
              LEFT JOIN financial_transactions t ON t.account_id = a.id" . ($at === null ? '' : ' AND t.occurred_at <= ?') . '
-             WHERE a.id = ? GROUP BY a.id', $at === null ? [$accountId] : [$at->format('Y-m-d') . ' 23:59:59', $accountId]);
+             WHERE a.id = ? GROUP BY a.id' . ($locking ? ' LOCK IN SHARE MODE' : ''), $at === null ? [$accountId] : [$at->format('Y-m-d') . ' 23:59:59', $accountId]);
         if ($row === null) {
             throw new DomainException('Compte inconnu.');
         }

@@ -47,6 +47,39 @@ final class LedgerTest extends DatabaseTestCase
         $this->db->insert('financial_transactions', ['reference' => 'TX-Z-' . bin2hex(random_bytes(3)), 'account_id' => $acc, 'category_id' => $cat, 'direction' => 'recette', 'amount' => '0.00', 'occurred_at' => '2026-01-01 00:00:00']);
     }
 
+    /** Balayage des sources : tout appel applicatif à Ledger::record passe une source non vide (une écriture sans source n'est contre-passable par aucun écran). */
+    public function test_every_ledger_record_caller_sets_a_source_type(): void
+    {
+        $calls = [];
+        foreach ($this->phpFiles($this->root() . '/app') as $file) {
+            $src = (string) file_get_contents($file);
+            if (!preg_match_all('/->ledger->record\(/', $src, $m, PREG_OFFSET_CAPTURE)) {
+                continue;
+            }
+            foreach ($m[0] as [$match, $offset]) {
+                $depth = 0;
+                for ($i = $offset + strlen($match) - 1; $i < strlen($src); $i++) {
+                    $depth += $src[$i] === '(' ? 1 : ($src[$i] === ')' ? -1 : 0);
+                    if ($depth === 0) {
+                        break;
+                    }
+                }
+                $args = substr($src, $offset, $i - $offset + 1);
+                $this->assertMatchesRegularExpression("/'source_type'\\s*=>\\s*'[a-z_]+'/", $args, basename($file) . ' : source_type littéral non vide attendu');
+                $calls[] = basename($file);
+            }
+        }
+        sort($calls);
+        $this->assertSame(['DisbursementService.php', 'FinanceController.php', 'PaymentService.php'], $calls);
+        // Aucun autre chemin vers Ledger::record (variable autre que $this->ledger).
+        foreach ($this->phpFiles($this->root() . '/app') as $file) {
+            $src = (string) file_get_contents($file);
+            if (str_contains($src, 'Ledger') && basename($file) !== 'Ledger.php') {
+                $this->assertDoesNotMatchRegularExpression('/\$(?!this->ledger)\w+(->\w+)*->record\([^)]*\b(recette|depense)\b/', $src, $file);
+            }
+        }
+    }
+
     public function test_attachment_service_whitelists_targets(): void
     {
         $audit = new Audit($this->db, 'base64:' . base64_encode(str_repeat('k', 32)));
