@@ -11,6 +11,15 @@ final class View
     {
     }
 
+    /** @var array<string,mixed> */
+    private array $shared = [];
+
+    /** Données communes à toutes les vues (posées par middleware) ; celles du contrôleur priment. */
+    public function share(array $data): void
+    {
+        $this->shared = $data + $this->shared;
+    }
+
     public function render(string $name, array $data = [], ?string $layout = 'layouts/base'): string
     {
         $content = $this->partial($name, $data);
@@ -20,6 +29,7 @@ final class View
     public function partial(string $name, array $data = []): string
     {
         $file = $this->resolve($name);
+        $data += $this->shared;
         $run = static function (string $__file, array $__data): string {
             extract($__data, EXTR_SKIP);
             ob_start();

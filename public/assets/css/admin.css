@@ -1,0 +1,65 @@
+/* Gabarit d'administration : cadre teinté, feuille blanche, barre latérale 240 px, barre du haut 48 px. */
+.skip-link { position: absolute; left: var(--s2); top: -100px; z-index: 30; padding: var(--s3) var(--s4); background: var(--navy-900); color: #fff; border-radius: var(--r-sm); }
+.skip-link:focus { top: var(--s2); outline: var(--focus-ring-on-dark); }
+
+.shell { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; }
+.side { padding: var(--s3) var(--s3) var(--s3) var(--s4); display: flex; flex-direction: column; gap: 2px; }
+.brand { display: flex; align-items: center; gap: 10px; padding: 6px var(--s2) var(--s4); text-decoration: none; }
+.brand img { width: 40px; height: 40px; border-radius: 50%; }
+.brand span { font-family: var(--font-display); font-size: var(--text-lg); color: var(--navy-900); letter-spacing: .04em; }
+.nav-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.nav-group { margin: var(--s4) var(--s2) var(--s1); font-size: var(--text-xs); font-weight: 600; color: var(--ink-3); }
+.nav-link {
+  display: flex; align-items: center; gap: 10px; min-height: 40px; padding: 0 10px; border-radius: var(--r-sm);
+  color: var(--ink-2); text-decoration: none; font-size: var(--text-sm);
+}
+.nav-link:hover { background: rgba(18, 48, 107, .06); text-decoration: none; }
+.nav-link[aria-current="page"] { background: var(--sheet); color: var(--navy-900); font-weight: 600; }
+
+.main { display: flex; flex-direction: column; min-width: 0; }
+.topbar { height: 48px; display: flex; align-items: center; gap: var(--s2); padding: 0 var(--s4) 0 var(--s2); position: relative; z-index: 20; }
+.menu-btn { display: none; width: var(--control-h); height: var(--control-h); border: 0; background: transparent; color: var(--navy-900); align-items: center; justify-content: center; cursor: pointer; }
+.menu-btn .icon { width: 24px; height: 24px; }
+.top-emblem { display: none; border-radius: 50%; }
+.page-name { flex: 1; min-width: 0; padding-left: var(--s2); font-weight: 600; color: var(--ink-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.account { position: relative; }
+.account summary { display: flex; align-items: center; gap: var(--s2); min-height: var(--control-h); padding: 0 var(--s2); border-radius: var(--r-sm); cursor: pointer; list-style: none; color: var(--ink-2); font-size: var(--text-sm); }
+.account summary::-webkit-details-marker { display: none; }
+.account summary:hover { background: rgba(18, 48, 107, .06); }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--ocean-100); color: var(--navy-800); display: grid; place-items: center; font-weight: 700; font-size: var(--text-xs); }
+.account-menu {
+  position: absolute; right: 0; top: 100%; min-width: 220px; padding: var(--s1); background: var(--sheet);
+  border: 1px solid var(--line); border-radius: var(--r-md); display: grid;
+}
+.account-menu a, .account-menu button {
+  display: flex; align-items: center; gap: 10px; width: 100%; min-height: var(--control-h); padding: 0 var(--s3); border: 0; border-radius: var(--r-sm);
+  background: transparent; color: var(--ink); font: inherit; font-size: var(--text-sm); text-decoration: none; text-align: left; cursor: pointer;
+}
+.account-menu a:hover, .account-menu button:hover { background: var(--ocean-50); }
+
+.sheet {
+  flex: 1; min-width: 0; background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-lg);
+  margin: 0 var(--s2) var(--s2) 0; padding: var(--s5) var(--s5) var(--s6);
+}
+.sheet:focus { outline: none; }
+.sheet > .alert { margin-bottom: var(--s4); }
+
+@media (max-width: 899.98px) {
+  .shell { display: block; }
+  body.admin { background: var(--sheet); }
+  .menu-btn { display: inline-flex; }
+  .top-emblem { display: block; }
+  .page-name { padding-left: 0; }
+  .account-name { display: none; }
+  .sheet { border: 0; border-radius: 0; margin: 0; padding: var(--s4); min-height: calc(100vh - 48px); }
+  /* Panneau sous la barre du haut : le bouton de menu reste visible et cliquable. Fermé, il sort du flux de tabulation (visibility). */
+  .side {
+    position: fixed; top: 48px; bottom: 0; left: 0; z-index: 10; width: min(280px, 85vw); overflow-y: auto;
+    background: var(--frame); border-right: 1px solid var(--line);
+    transform: translateX(-100%); visibility: hidden;
+    transition: transform var(--dur-base) var(--ease), visibility 0s linear var(--dur-base);
+  }
+  .side[data-open] { transform: none; visibility: visible; transition-delay: 0s; }
+  .brand { display: none; }
+}

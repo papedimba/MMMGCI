@@ -11,6 +11,7 @@ use App\Core\Http\ForceHttps;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Core\Http\Router;
+use App\Core\Http\ShareLayoutData;
 use App\Core\Http\SecurityHeaders;
 use App\Core\Http\StartSession;
 use App\Core\Http\VerifyCsrf;
@@ -88,5 +89,6 @@ return static function (Config $config, bool $httpSession, array $overrides = []
         new SecurityHeaders(),
         new StartSession($session, $httpSession, ['/sante']),
         new VerifyCsrf($csrf, $view),
+        new ShareLayoutData($view, $router),
     ]);
 };
