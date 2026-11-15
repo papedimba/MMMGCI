@@ -1,5 +1,5 @@
 <?php declare(strict_types=1); ?>
-<section class="pub-hero on-dark">
+<section class="pub-hero">
 <div class="card-paper">
 <div class="cordage" aria-hidden="true"></div>
 <div class="in">

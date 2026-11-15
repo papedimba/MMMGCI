@@ -50,4 +50,10 @@ final class PublicShellTest extends TestCase
         $this->assertDoesNotMatchRegularExpression('~@|\+\d|tél~i', $text);
         $this->assertStringNotContainsString('<img class="photo', $this->home());
     }
+
+    public function test_gold_focus_ring_is_not_applied_over_the_light_paper_card(): void
+    {
+        // Le bouton doré est sur le papier clair : l'anneau doré (1,99:1) y est interdit ; seul un fond marine peut porter .on-dark.
+        $this->assertStringNotContainsString('on-dark', $this->home());
+    }
 }
