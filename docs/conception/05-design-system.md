@@ -84,3 +84,45 @@ Le commanditaire a demandé le **skill Taste** (`design-taste-frontend`) à la p
 **Conséquence sur la maquette actuelle.** La section « Accueil public » de `maquettes/design-system.html` est **remplacée** par cette direction. Elle enfreint plusieurs règles Taste : héro en dégradé, « se lève » en or, ombres, filets entre les missions. Elle sera reconstruite selon la direction ci-dessus à la tâche T4.0. Les écrans de gestion suivront le chapitre « écrans d'application » du skill : couleur réservée aux données, indicateurs en texte et non en tuiles, surfaces plates. Ce style sera tiré à la tâche T2.1.
 
 **Arbitrage entre les deux skills de conception.** Impeccable reste le garant de la qualité d'ensemble : accessibilité, états, audit final. Taste fixe la direction artistique et les règles maison du site public. En cas de conflit sur une page publique, ce sont les règles Taste qui s'appliquent.
+
+## 8. Implémenté en L2
+
+Le lot L2 a livré les jetons, le kit de composants et les trois gabarits (administration, public, impression) de la maquette approuvée (`docs/conception/maquettes/l2/`).
+
+### Fichiers
+
+| Rôle | Fichiers |
+|---|---|
+| Jetons (couleurs, typographie, espacements, rayons, focus) | `public/assets/css/tokens.css` — source unique, lue aussi par `bin/check-contrast.php` |
+| Base et polices | `public/assets/css/base.css`, `public/assets/fonts/` (Marcellus, Source Sans 3, auto-hébergées, licence OFL) |
+| Composants | `public/assets/css/components.css`, `app/views/components/*.php`, `app/Core/Ui.php` (fonction `ui()`), `public/assets/img/icons.svg` (`ui_icon()`) |
+| Gabarit d'administration | `app/views/layouts/admin.php`, `app/views/admin/_nav.php` (menu), `public/assets/css/admin.css`, `auth.css` (écrans de connexion) |
+| Gabarit public | `app/views/layouts/public.php`, `public/assets/css/public.css` |
+| Gabarit imprimable (A4, CR80) | `app/views/layouts/print.php`, `app/views/components/document-header.php`, `public/assets/css/print.css` |
+| Comportements | `public/assets/js/app.js` (menu mobile, confirmations, double soumission), `js-flag.js` |
+| Galerie de référence | `/admin/composants` et `/admin/composants/document` (introuvables en production) |
+| Contrôle des contrastes | `bin/check-contrast.php`, `app/Core/ContrastChecker.php`, `tests/Unit/ContrastCheckerTest.php` |
+
+Composants disponibles (`ui('nom', [...])`) : `button`, `field` (saisie, liste, zone de texte), `file-input`, `alert`, `badge`, `panel`, `page-header`, `breadcrumbs`, `tabs`, `table` (liste de cartes sur téléphone), `pagination`, `empty-state`, `confirm-dialog`, `validation-steps`, `document-header`. La galerie les montre dans tous leurs états.
+
+### Règles de contribution
+
+**Ne jamais utiliser de style en ligne.** La politique CSP (`style-src 'self'`, `script-src 'self'`) interdit `style="…"`, `<style>`, `<script>` en ligne et les gestionnaires `onclick=` ; le kit refuse d'ailleurs `on*`, `style` et `formaction` dans `attrs`. Toute règle va dans un fichier CSS de `public/assets/css/`, toute couleur ou mesure passe par un jeton (`var(--…)`), jamais par une valeur recopiée. Le test `ViewsPolicyTest` garde ce point.
+
+**Comment ajouter un écran d'administration.**
+1. Écrire la vue dans `app/views/admin/<module>/…php` en n'utilisant que `ui()` : `page-header` en tête, puis `panel`, `table`, `field`, `button`…
+2. Dans le contrôleur, rendre avec `layouts/admin` en fournissant `title`, `user`, `can`, `csrfToken` et `flash` (voir la méthode `page()` de `UserController`).
+3. Déclarer la route dans `routes/admin.php` avec `[$requireAuth, $permission('x')]` ; le test de balayage des routes la contrôle automatiquement.
+4. Écrire les textes en français, vérifier l'écran à 1440, 768 et 360 px, puis ajouter un état de la galerie si un nouveau composant est créé.
+
+**Comment ajouter un lien au menu.** Ajouter une ligne `[groupe, libellé, href, permission, icône]` dans `app/views/admin/_nav.php`. Le lien n'apparaît que si l'utilisateur détient la permission et que la route GET existe ; l'icône doit exister dans `icons.svg`.
+
+**Comment ajouter un composant.** Créer `app/views/components/<nom>.php` (échapper toute valeur avec `$e()`), l'ajouter aux jeux hostiles de `tests/Unit/UiTest.php`, puis à la galerie.
+
+**Couleurs.** Toute nouvelle paire texte/fond se déclare dans `ContrastChecker::PAIRS` ; `php bin/check-contrast.php` (ou `composer test`) échoue sous 4,5:1 (texte) ou 3:1 (grands textes, bordures de champs, anneaux de focus).
+
+### Contrôle de qualité (fin de L2)
+
+- Skill Taste : `lint.mjs --app` sur vues, CSS et JS, puis `inspect.mjs --app` sur la galerie, la connexion, le tableau de bord, utilisateurs (liste, création), rôles (liste, fiche), journal, changement de mot de passe, page d'erreur, et `inspect.mjs` (page) sur `/` — 1440, 768 et 390 px. 0 échec. Le détail des avertissements justifiés figure dans le rapport de la tâche 7.
+- Détecteur Impeccable, contrôle à 360 px (aucun défilement horizontal, cibles tactiles de 44 px, menu au clavier avec retour du focus), contrastes (toutes les paires déclarées conformes).
+- Écarts assumés : `--control-border` (#7D8AA0) remplace `--line-strong` pour les bordures de champs (3:1 exigé) ; la page publique `/` est une page d'attente et ne porte pas encore les photos ni les animations exigées d'une vraie page (lot L4).

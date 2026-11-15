@@ -70,16 +70,25 @@ et `https://votre-domaine/storage/` répondent bien `403`.
 app/            code applicatif (jamais exposé)
   Core/         socle : Config, Database, Migrator, View, Session, Csrf, Validator, Money, Audit, Mailer…
   Core/Http/    Request, Response, Router, middleware (ForceHttps, SecurityHeaders, StartSession, VerifyCsrf)
-  views/        gabarits PHP (layouts/, errors/)
+  views/        gabarits PHP (layouts/, components/, admin/, auth/, errors/)
   init.php      amorçage commun (fuseau, configuration, gestionnaire d'erreurs) des pages web et des scripts bin/
   bootstrap.php retourne l'App (init.php puis kernel.php qui l'assemble)
-bin/            scripts CLI : dev-db, migrate.php, cron.php
+bin/            scripts CLI : dev-db, migrate.php, cron.php, create-admin.php, check-contrast.php
 database/migrations/  fichiers NNNN_*.sql (ne jamais modifier une migration appliquée : en ajouter une nouvelle)
 public/         racine web : index.php, .htaccess, media/
 routes/web.php  déclaration des routes
 storage/        logs/ (app-AAAA-MM-JJ.log), uploads/, cache/ — interdit au web
 tests/          Unit/, Feature/, Support/
 ```
+
+## Interface
+
+Le design system (jetons, kit `ui()`, gabarits d'administration, public et impression) est décrit dans `docs/conception/05-design-system.md` §8.
+
+- Galerie des composants (environnement non productif, connecté avec `users.manage`) : `/admin/composants` ; page d'exemple d'impression : `/admin/composants/document`.
+- Aucun style ni script en ligne (CSP) : les règles vont dans `public/assets/css/`, les couleurs passent par `tokens.css`.
+- Ajouter un lien au menu : une ligne dans `app/views/admin/_nav.php`.
+- Contrôle des contrastes WCAG des jetons : `php bin/check-contrast.php` (code de sortie 1 sous le seuil ; également exécuté par la suite de tests).
 
 ## Cron
 
