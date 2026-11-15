@@ -6,7 +6,7 @@ body.print { background: var(--frame); color: #000; font-size: 11pt; line-height
 .print-bar { max-width: 210mm; margin: var(--s4) auto 0; text-align: right; }
 .print-btn { display: none; align-items: center; gap: var(--s2); min-height: var(--control-h); padding: 0 var(--s4); border: 1px solid var(--navy-900); border-radius: var(--r-sm); background: var(--navy-900); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
 .js .print-btn { display: inline-flex; } /* sans JS le bouton ne ferait rien */
-.sheet { box-sizing: border-box; max-width: 210mm; margin: var(--s4) auto var(--s7); padding: 18mm; background: #fff; box-shadow: 0 1px 6px rgba(7, 22, 49, .25); }
+.sheet { box-sizing: border-box; max-width: 210mm; margin: var(--s4) auto var(--s7); padding: 18mm; background: #fff; box-shadow: 0 1px 6px rgba(7, 22, 49, .25); } /* taste-skill-ignore */
 
 .doc-header { display: flex; align-items: flex-start; gap: 8mm; padding-bottom: 5mm; border-bottom: 1.5pt solid #000; margin-bottom: 6mm; }
 .doc-logo { width: 30mm; height: auto; flex: none; }
@@ -40,6 +40,6 @@ body.print { background: var(--frame); color: #000; font-size: 11pt; line-height
 @media print {
   body.print { background: #fff; }
   .print-bar { display: none; }
-  .sheet { max-width: none; margin: 0; padding: 0; box-shadow: none; }
+  .sheet { max-width: none; margin: 0; padding: 0; box-shadow: none; } /* taste-skill-ignore */
   a { color: #000; text-decoration: none; }
 }

@@ -33,6 +33,7 @@
       if (open) { menu.setAttribute('data-open', ''); } else { menu.removeAttribute('data-open'); }
       t.setAttribute('aria-expanded', open ? 'true' : 'false');
       t.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
+      if (open) { var first = menu.querySelector('nav a[href]'); if (first) { first.focus(); } } // le menu précède le bouton dans le DOM : sans cela, Tab part vers la page
     } else if (t.hasAttribute('data-confirm-open')) {
       var dlg = document.getElementById(t.getAttribute('data-confirm-open'));
       if (dlg && typeof dlg.showModal === 'function') { ev.preventDefault(); dlg.showModal(); } // sinon : le formulaire part directement

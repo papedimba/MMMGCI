@@ -214,4 +214,27 @@ final class UiTest extends TestCase
         $this->assertStringContainsString('Taille maximale : 5 Mo.', $file);
         $this->assertStringContainsString('data-file-input', $file);
     }
+
+    public function test_field_attrs_are_escaped_and_dangerous_keys_rejected(): void
+    {
+        $html = ui('field', ['name' => 'a', 'label' => 'A', 'attrs' => [
+            'maxlength' => 12, 'pattern' => '[a-z]"x', 'autofocus' => true, 'disabled' => false,
+            'onfocus' => 'alert(1)', 'onclick' => 'x', 'style' => 'color:red', 'formaction' => '/evil', 'Bad Key' => 'x',
+        ]]);
+        $this->assertStringContainsString(' maxlength="12"', $html);
+        $this->assertStringContainsString(' pattern="[a-z]&quot;x"', $html);
+        $this->assertStringContainsString(' autofocus', $html);
+        $this->assertStringNotContainsString('disabled', $html);
+        foreach (['onfocus', 'onclick', 'style=', 'formaction', 'Bad'] as $bad) {
+            $this->assertStringNotContainsString($bad, $html);
+        }
+    }
+
+    public function test_confirm_dialog_fields_are_hidden_inputs_and_escaped(): void
+    {
+        $html = ui('confirm-dialog', ['id' => 'd', 'title' => 'T', 'message' => 'M', 'form_action' => '/z', 'csrf' => 'tok', 'fields' => ['id' => 7, self::XSS => self::XSS2]]);
+        $this->assertStringContainsString('<input type="hidden" name="id" value="7">', $html);
+        $this->assertStringNotContainsString('<script>', $html);
+        $this->assertStringNotContainsString('"><img', $html);
+    }
 }

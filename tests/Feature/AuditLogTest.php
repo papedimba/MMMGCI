@@ -104,6 +104,8 @@ final class AuditLogTest extends AdminTestCase
         $this->db->update('audit_logs', ['new_values' => '{"v":2}'], ['id' => $target]);
         try {
             $this->request('POST', '/admin/journal/verification');
+            $this->assertStringContainsString('alert alert-danger', $this->request('GET', '/admin/journal')->body());
+            $this->request('POST', '/admin/journal/verification');
             $this->assertStringContainsString("Anomalie détectée à partir de l'entrée n° $target : le journal a pu être modifié. Prévenez l'organe de contrôle.",
                 html_entity_decode($this->request('GET', '/admin/journal')->body(), ENT_QUOTES));
             $row = $this->db->fetch("SELECT new_values FROM audit_logs WHERE action = 'audit.verified' ORDER BY id DESC LIMIT 1");
@@ -124,7 +126,7 @@ final class AuditLogTest extends AdminTestCase
             $this->db->insert('audit_chain', $chain);
         }
         $this->assertSame(302, $res->status());
-        $flash = (string) $this->services['session']->pullFlash('status');
+        $flash = (string) $this->services['session']->pullFlash('status_danger');
         $this->assertStringContainsString('Anomalie détectée', $flash);
         $this->assertStringEndsWith(" (l'enregistrement de cette vérification a échoué : vérifiez la migration 0002)", $flash);
     }

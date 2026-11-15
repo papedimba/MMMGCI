@@ -1,6 +1,6 @@
 /* Gabarit d'administration : cadre teinté, feuille blanche, barre latérale 240 px, barre du haut 48 px. */
 
-.shell { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100vh; }
+.shell { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 100svh; }
 .side { padding: var(--s3) var(--s3) var(--s3) var(--s4); display: flex; flex-direction: column; gap: 2px; }
 .brand { display: flex; align-items: center; gap: 10px; padding: 6px var(--s2) var(--s4); text-decoration: none; }
 .brand img { width: 40px; height: 40px; border-radius: 50%; }
@@ -51,7 +51,7 @@
   .top-emblem { display: block; }
   .page-name { padding-left: 0; }
   .account-name { display: none; }
-  .sheet { border: 0; border-radius: 0; margin: 0; padding: var(--s4); min-height: calc(100vh - 48px); }
+  .sheet { border: 0; border-radius: 0; margin: 0; padding: var(--s4); min-height: calc(100svh - 48px); }
   .side { padding-bottom: var(--s2); }
   /* Sans JS : le menu reste empilé au-dessus du contenu. Avec JS : panneau sous la barre du haut : le bouton de menu reste visible et cliquable. Fermé, il sort du flux de tabulation (visibility). */
   html.js .side {
@@ -124,4 +124,10 @@
 }
 @media (min-width: 640px) {
   .filters > summary { display: none; }
+}
+
+/* Téléphone : cibles tactiles de 44 px pour le lien du titre de ligne et le bouton « Détails ». */
+@media (max-width: 640px) {
+  .table .who { min-height: var(--control-h); align-content: center; }
+  .table details summary { min-height: var(--control-h); min-width: var(--control-h); }
 }

@@ -61,13 +61,14 @@ final class AuditLogController
         }
 
         $user = $r->attribute('user');
+        $danger = $this->session->pullFlash('status_danger'); // clé distincte : l'anomalie d'intégrité ne s'affiche jamais comme un succès
         $html = $this->view->render('admin/audit/index', [
             'title' => $tab === 'sensibles' ? 'Consultations sensibles' : "Journal d'audit",
             'user' => $user,
             'can' => fn (string $p): bool => $this->gate->allows((int) $user['id'], $p),
             'csrfToken' => $this->csrf->token(),
-            'flash' => $flash = $this->session->pullFlash('status'),
-            'flashKind' => str_starts_with((string) $flash, 'Anomalie') ? 'danger' : 'ok', // l'anomalie d'intégrité ne doit pas s'afficher comme un succès
+            'flash' => $danger ?? $this->session->pullFlash('status'),
+            'flashKind' => $danger !== null ? 'danger' : 'ok',
             'tab' => $tab,
             'filters' => array_filter($raw, static fn ($x) => $x !== null && $x !== ''),
             'errors' => $errors,
@@ -88,13 +89,14 @@ final class AuditLogController
         $bad = $this->audit->verify();
         $message = $bad === null ? 'Journal intact.'
             : "Anomalie détectée à partir de l'entrée n° $bad : le journal a pu être modifié. Prévenez l'organe de contrôle.";
-        $this->session->flash('status', $message);
+        $key = $bad === null ? 'status' : 'status_danger';
+        $this->session->flash($key, $message);
         // Journalisé après le contrôle pour ne pas l'influencer ; s'il échoue (ex. ligne audit_chain absente), le résultat reste affiché.
         try {
             $this->audit->log((int) $r->attribute('user')['id'], 'audit.verified', 'audit_logs', null, null,
                 ['result' => $bad === null ? 'intact' : 'anomaly', 'first_bad_id' => $bad], null, $r->ip(), $r->header('User-Agent'));
         } catch (Throwable) {
-            $this->session->flash('status', $message . " (l'enregistrement de cette vérification a échoué : vérifiez la migration 0002)");
+            $this->session->flash($key, $message . " (l'enregistrement de cette vérification a échoué : vérifiez la migration 0002)");
         }
         return Response::redirect('/admin/journal');
     }

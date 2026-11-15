@@ -1,5 +1,5 @@
 /* Pages hors administration : connexion, mot de passe, erreurs. Carte blanche de 400 px centrée sur le cadre teinté. */
-.auth { min-height: 100vh; display: grid; place-items: center; padding: var(--s5) var(--s4); }
+.auth { min-height: 100svh; display: grid; place-items: center; padding: var(--s5) var(--s4); }
 .auth-card { width: 100%; max-width: 400px; background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s6) var(--s5); }
 .auth-emblem { display: block; width: 80px; height: 80px; margin: 0 auto var(--s3); border-radius: 50%; }
 .auth-card h1 { text-align: center; font-size: var(--text-xl); overflow-wrap: anywhere; }

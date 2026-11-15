@@ -14,7 +14,8 @@ $attrs = ' id="' . $e($id) . '" name="' . $e($props['name'] ?? '') . '" class="c
     . (isset($props['inputmode']) ? ' inputmode="' . $e($props['inputmode']) . '"' : '');
 // Attributs HTML supplémentaires (minlength, maxlength, pattern, disabled, autofocus…) : nom en minuscules, valeur échappée ; true = attribut booléen.
 foreach ((array) ($props['attrs'] ?? []) as $k => $v) {
-    if (is_string($k) && preg_match('/^[a-z][a-z-]*$/', $k) === 1 && $v !== false) {
+    // Jamais de gestionnaire d'événement, de style en ligne ni de formaction (CSP, et pas de détournement du formulaire).
+    if (is_string($k) && preg_match('/^[a-z][a-z-]*$/', $k) === 1 && preg_match('/^(on|style$|formaction$)/', $k) !== 1 && $v !== false) {
         $attrs .= ' ' . $k . ($v === true ? '' : '="' . $e((string) $v) . '"');
     }
 }

@@ -89,6 +89,7 @@ textarea.control { padding: 10px 12px; resize: vertical; }
 .table .num { text-align: right; }
 .table .center { text-align: center; }
 .row-actions { text-align: right; white-space: nowrap; }
+.num-unit { display: none; }
 @media (max-width: 640px) {
   .table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .table, .table tbody, .table tr, .table td { display: block; }
@@ -99,8 +100,10 @@ textarea.control { padding: 10px 12px; resize: vertical; }
   .table .cell-primary { order: 1; flex: 1 1 0; min-width: 0; font-weight: 600; font-size: var(--text-md); }
   .table .cell-status { order: 2; flex: none; }
   .table .cell-meta { order: 4; color: var(--ink-3); font-size: var(--text-xs); }
-  .table .cell-meta ~ .cell-meta::before { content: "\00B7"; margin-right: var(--s3); }
+  .table .cell-meta:empty { display: none; } /* cellule vide : ni point médian ni ligne perdue */
+  .table .cell-meta:not(:empty) ~ .cell-meta:not(:empty)::before { content: "\00B7"; margin-right: var(--s3); }
   .table td.row-actions { order: 5; margin-left: auto; }
+  .num-unit { display: inline; }
 }
 
 /* Pagination */
@@ -140,3 +143,6 @@ textarea.control { padding: 10px 12px; resize: vertical; }
 .gallery-grid { align-items: start; display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--s5); }
 .gallery-dark { background: var(--navy-950); padding: var(--s4); border-radius: var(--r-md); }
 .gallery-dark a { color: #fff; }
+
+/* Téléphone : titre d'écran d'application de 18 à 24 px (règle Taste) ; le téléphone de 360 px garde de la place pour les actions. */
+@media (max-width: 640px) { .page-header h1 { font-size: var(--text-xl); } }
