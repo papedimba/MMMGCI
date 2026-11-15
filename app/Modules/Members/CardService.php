@@ -31,7 +31,8 @@ final class CardService
             return null;
         }
         $v = $this->settings->get('members', 'card_conditions');
-        return is_string($v) ? trim($v) : json_encode($v, JSON_UNESCAPED_UNICODE);
+        $text = is_string($v) ? trim($v) : ($v === null ? '' : json_encode($v, JSON_UNESCAPED_UNICODE));
+        return $text === '' || $text === 'null' ? null : $text; // validé mais vide : traité comme non configuré
     }
 
     /**

@@ -110,10 +110,32 @@ final class ApplicationWorkflowTest extends AdminTestCase
         }
         $this->assertSame('recue', $this->db->fetchValue('SELECT status FROM membership_applications WHERE id = ?', [$id]));
         $this->actingAs($u);
-        $this->request('POST', "/admin/adherents/demandes/$id/rejeter", ['reason' => ' ']);
+        $this->request('POST', "/admin/adherents/demandes/$id/rejeter", ['reason' => ' ', 'confirm' => '1']);
         $this->assertSame('recue', $this->db->fetchValue('SELECT status FROM membership_applications WHERE id = ?', [$id]));
         $this->service()->reject($id, 'Dossier hors statuts', $u);
         $this->assertSame('rejetee', $this->db->fetchValue('SELECT status FROM membership_applications WHERE id = ?', [$id]));
+    }
+
+    public function test_reject_requires_explicit_confirmation(): void
+    {
+        $u = $this->createUser('g@x.test', ['gest_adherents']);
+        $id = $this->service()->submit($this->payload(), 'saisie', $u, null);
+        $this->actingAs($u);
+        $this->assertStringContainsString('Je confirme le rejet', $this->request('GET', "/admin/adherents/demandes/$id")->body());
+        $this->assertSame(302, $this->request('POST', "/admin/adherents/demandes/$id/rejeter", ['reason' => 'Hors statuts'])->status());
+        $this->assertSame('recue', $this->db->fetchValue('SELECT status FROM membership_applications WHERE id = ?', [$id]));
+        $this->request('POST', "/admin/adherents/demandes/$id/rejeter", ['reason' => 'Hors statuts', 'confirm' => '1']);
+        $this->assertSame('rejetee', $this->db->fetchValue('SELECT status FROM membership_applications WHERE id = ?', [$id]));
+    }
+
+    public function test_received_application_is_not_shown_as_being_verified(): void
+    {
+        $u = $this->createUser('g@x.test', ['gest_adherents']);
+        $id = $this->service()->submit($this->payload(), 'saisie', $u, null);
+        $this->actingAs($u);
+        $this->assertStringNotContainsString('aria-current="step"', $this->request('GET', "/admin/adherents/demandes/$id")->body());
+        $this->service()->markVerifying($id, $u);
+        $this->assertStringContainsString('aria-current="step"', $this->request('GET', "/admin/adherents/demandes/$id")->body());
     }
 
     public function test_validated_application_cannot_be_rejected(): void
@@ -223,7 +245,7 @@ final class ApplicationWorkflowTest extends AdminTestCase
         $this->assertStringNotContainsString($evil, $show);
         $this->assertStringNotContainsString('<img src=x', $show);
         $this->assertStringNotContainsString($evil, $this->request('GET', '/admin/adherents/demandes')->body());
-        $this->request('POST', "/admin/adherents/demandes/$id/rejeter", ['reason' => $evil]);
+        $this->request('POST', "/admin/adherents/demandes/$id/rejeter", ['reason' => $evil, 'confirm' => '1']);
         $this->assertStringNotContainsString($evil, $this->request('GET', "/admin/adherents/demandes/$id")->body());
         $this->assertStringContainsString('Demandes d&#039;adhésion', $this->request('GET', '/admin/adherents')->body() . "Demandes d&#039;adhésion");
         $this->assertSame(200, $this->request('GET', '/admin/adherents/demandes?etat=rejetee')->status());

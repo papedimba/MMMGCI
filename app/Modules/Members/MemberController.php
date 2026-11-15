@@ -70,7 +70,27 @@ final class MemberController
         $export = new MemberExport($this->search, $this->audit);
         $rows = iterator_to_array($export->rows($userId, $criteria, $sort), false);
         $export->audited('print', count($rows), $userId, $criteria, $r->ip(), $r->header('User-Agent'));
-        return new Response($this->view->render('admin/members/print', ['title' => 'Liste des adhérents', 'headers' => MemberExport::HEADERS, 'rows' => $rows, 'filtered' => $criteria !== []], 'layouts/print'), 200, ['Cache-Control' => 'private, no-store']);
+        return new Response($this->view->render('admin/members/print', ['title' => 'Liste des adhérents', 'headers' => MemberExport::HEADERS, 'rows' => $rows, 'summary' => $this->summary($criteria)], 'layouts/print'), 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    /** @param array<string,mixed> $criteria @return list<string> libellés lisibles des critères appliqués (échappés par la vue) */
+    private function summary(array $criteria): array
+    {
+        $applied = MemberExport::applied($criteria);
+        $name = fn (string $table, string $col, mixed $id): string => (string) ($this->db->fetchValue("SELECT $col FROM $table WHERE id = ?", [(int) $id]) ?? '?');
+        $out = [];
+        foreach ($applied as $k => $v) {
+            $out[] = match ($k) {
+                'q' => 'Recherche : « ' . trim((string) $criteria['q']) . ' »',
+                'status' => 'Statut : ' . ($this->db->fetchValue('SELECT label FROM member_statuses WHERE code = ?', [$v]) ?? $v),
+                'category_id' => 'Catégorie : ' . $name('member_categories', 'name', $v),
+                'zone_id' => 'Zone : ' . $name('zones', 'name', $v),
+                'profession_id' => 'Profession : ' . $name('maritime_professions', 'name', $v),
+                'joined_from' => 'Adhésion depuis le ' . $v,
+                'joined_to' => 'Adhésion jusqu\'au ' . $v,
+            };
+        }
+        return $out;
     }
 
     public function index(Request $r): Response

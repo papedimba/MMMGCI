@@ -33,12 +33,38 @@ final class MemberExport
         return $format === 'xlsx' ? Xlsx::build('Adhérents', self::HEADERS, $rows) : Csv::build(self::HEADERS, $rows);
     }
 
+    /** Critères réellement appliqués par MemberSearch (clés connues, valeurs valides) ; le texte libre n'est jamais conservé (q => true).
+     * @param array<string,mixed> $criteria @return array<string,mixed> */
+    public static function applied(array $criteria): array
+    {
+        $out = [];
+        $q = $criteria['q'] ?? null;
+        if (is_string($q) && trim($q) !== '') {
+            $out['q'] = true;
+        }
+        $v = $criteria['status'] ?? null;
+        if (is_string($v) && preg_match('/^[a-z_]{1,30}$/', $v)) {
+            $out['status'] = $v;
+        }
+        foreach (['category_id', 'zone_id', 'profession_id'] as $k) {
+            $v = $criteria[$k] ?? null;
+            if (is_int($v) || (is_string($v) && ctype_digit($v))) {
+                $out[$k] = (string) $v;
+            }
+        }
+        foreach (['joined_from', 'joined_to'] as $k) {
+            $v = $criteria[$k] ?? null;
+            if (is_string($v) && preg_match('/^\d{4}-\d{2}-\d{2}$/', $v)) {
+                $out[$k] = $v;
+            }
+        }
+        return $out;
+    }
+
     /** @param array<string,mixed> $criteria */
     public function audited(string $format, int $count, int $userId, array $criteria, ?string $ip, ?string $ua): void
     {
-        if (isset($criteria['q'])) {
-            $criteria['q'] = true;
-        }
+        $criteria = self::applied($criteria);
         $this->audit->log($userId, 'member.exported', 'member', null, null, ['rows' => $count, 'format' => $format, 'criteria' => $criteria], null, $ip, $ua);
     }
 }

@@ -184,6 +184,16 @@ final class MemberCardTest extends AdminTestCase
         $this->issue($id, ['conditions_checked' => '1']);
     }
 
+    public function test_validated_but_empty_conditions_count_as_not_configured(): void
+    {
+        $id = $this->member();
+        $this->validate('card_conditions', '');
+        $body = $this->request('GET', "/admin/adherents/$id/carte")->body();
+        $this->assertStringContainsString('en attente de validation par les instances', $body);
+        $this->assertStringNotContainsString('conditions_checked', $body);
+        $this->issue($id);
+    }
+
     public function test_pending_conditions_banner_is_shown(): void
     {
         $id = $this->member();

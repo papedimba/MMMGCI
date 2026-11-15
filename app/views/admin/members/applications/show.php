@@ -11,7 +11,7 @@ if ($st === 'validee') { $s3 = ['label' => 'Validée', 'state' => 'done', 'who' 
 if ($st === 'rejetee') { $s3 = ['label' => 'Rejetée', 'state' => 'rejected', 'who' => $reviewer, 'when' => date_fr($app['updated_at'])]; }
 $steps = [
     ['label' => 'Demande reçue', 'state' => 'done', 'when' => date_fr($app['created_at'])],
-    ['label' => $st === 'complements_demandes' ? 'Compléments demandés' : 'Vérification du dossier', 'state' => in_array($st, ['validee', 'rejetee'], true) ? 'done' : 'current'],
+    ['label' => $st === 'complements_demandes' ? 'Compléments demandés' : 'Vérification du dossier', 'state' => in_array($st, ['validee', 'rejetee'], true) ? 'done' : ($st === 'recue' ? 'todo' : 'current')],
     $s3,
 ];
 $val = static fn (mixed $v): string => $v === null || $v === '' ? '—' : (string) $v;
@@ -40,7 +40,7 @@ if ($canDocuments) {
 <?= ui('alert', ['kind' => 'warn', 'message' => 'Des homonymes existent déjà : vérifiez qu\'il ne s\'agit pas d\'une personne déjà enregistrée avant de valider.']) ?>
 <?php if ($dup['visible'] !== []): ?>
 <ul>
-<?php foreach ($dup['visible'] as $d): ?><li><a href="/admin/adherents/<?= e((string) $d['id']) ?>"><?= e($d['last_name'] . ' ' . $d['first_names']) ?></a> (<?= e($d['member_number']) ?>)</li>
+<?php foreach ($dup['visible'] as $d): ?><li><a class="cell-link" href="/admin/adherents/<?= e((string) $d['id']) ?>"><?= e($d['last_name'] . ' ' . $d['first_names']) ?></a> (<?= e($d['member_number']) ?>)</li>
 <?php endforeach; ?>
 </ul>
 <?php endif; ?>
@@ -91,6 +91,7 @@ if (in_array($st, ['recue', 'en_verification'], true)) {
 }
 $actions .= '<form method="post" action="' . e($base) . '/rejeter"><input type="hidden" name="_csrf" value="' . e($csrfToken) . '">'
     . ui('field', ['name' => 'reason', 'label' => 'Motif du rejet', 'type' => 'textarea', 'required' => true, 'attrs' => ['maxlength' => 1000]])
+    . '<label class="check"><input type="checkbox" name="confirm" value="1" required><span>Je confirme le rejet (décision définitive)</span></label>'
     . '<div class="form-actions">' . ui('button', ['label' => 'Rejeter la demande', 'type' => 'submit', 'variant' => 'danger']) . '</div></form>';
 ?>
 <?= ui('panel', ['title' => 'Instruction'], $actions) ?>

@@ -6,7 +6,7 @@ $hidden = $found['hidden_count'];
     'breadcrumbs' => [['Adhérents', '/admin/adherents'], ['Nouvel adhérent', '/admin/adherents/nouveau'], ['Homonymes', null]]], '') ?>
 <?php if ($found['visible'] !== []): ?>
 <?= ui('table', ['caption' => 'Adhérents ressemblant à votre saisie', 'rows' => $found['visible'], 'columns' => [
-    ['last_name', 'Adhérent', 'left', false, static fn (array $r): string => '<a href="/admin/adherents/' . e((string) $r['id']) . '"><strong>' . e($r['last_name'] . ' ' . $r['first_names']) . '</strong></a>'],
+    ['last_name', 'Adhérent', 'left', false, static fn (array $r): string => '<a class="cell-link" href="/admin/adherents/' . e((string) $r['id']) . '"><strong>' . e($r['last_name'] . ' ' . $r['first_names']) . '</strong></a>'],
     ['member_number', 'Numéro'],
     ['zone_id', 'Zone', 'left', false, static fn (array $r): string => e($zones[$r['zone_id']] ?? '—')],
 ]]) ?>

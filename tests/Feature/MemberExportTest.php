@@ -137,6 +137,26 @@ final class MemberExportTest extends AdminTestCase
         $this->assertSame([2, 'print'], [$b['rows'], $b['format']]);
     }
 
+    public function test_audit_keeps_only_applied_criteria(): void
+    {
+        $this->member('M1', 'Kouassi', $this->zoneA);
+        $u = $this->exporter();
+        $this->request('GET', '/admin/adherents/export.csv?zone_id=abc&status=Actif!&q=%20&category_id=7&tri=x');
+        $a = json_decode((string) $this->db->fetchValue("SELECT new_values FROM audit_logs WHERE action = 'member.exported' AND user_id = ?", [$u]), true);
+        $this->assertSame(['category_id' => '7'], $a['criteria']);
+    }
+
+    public function test_print_list_shows_escaped_filter_summary(): void
+    {
+        $this->member('M1', 'Kouassi', $this->zoneA);
+        $this->exporter();
+        $body = $this->request('GET', '/admin/adherents/imprimer?q=' . urlencode('<b>Kou</b>') . '&zone_id=' . $this->zoneA)->body();
+        $this->assertStringContainsString('Filtres appliqués', $body);
+        $this->assertStringContainsString('Recherche : « &lt;b&gt;Kou&lt;/b&gt; »', $body);
+        $this->assertStringNotContainsString('<b>Kou</b>', $body);
+        $this->assertStringNotContainsString('liste filtrée', $body);
+    }
+
     public function test_print_list_uses_print_layout(): void
     {
         $this->member('M1', 'Kouassi', $this->zoneA);

@@ -48,3 +48,7 @@ body.print { background: var(--frame); color: #000; font-size: 11pt; line-height
   .sheet { max-width: none; margin: 0; padding: 0; box-shadow: none; } /* taste-skill-ignore */
   a { color: #000; text-decoration: none; }
 }
+
+/* Liste des adhérents : le numéro (MMMGCI-AAAA-NNNNN) ne doit pas se couper sur deux lignes. */
+.doc-body .list-print { font-size: 9pt; }
+.doc-body .list-print th:first-child, .doc-body .list-print td:first-child { white-space: nowrap; }

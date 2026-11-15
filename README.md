@@ -11,7 +11,7 @@ Plateforme institutionnelle et de gestion de la **Mutuelle des Marins Marchands 
 ## Prérequis
 
 - PHP ≥ 8.2 avec les extensions `pdo_mysql`, `mbstring`, `fileinfo`, `gd`, `zip`, `intl`, `dom` (pas de `bcmath`).
-- MariaDB ≥ 10.2 ou MySQL ≥ 8.0.16 (les contraintes `CHECK` ne sont appliquées qu'à partir de ces versions).
+- MariaDB ≥ 10.2.3 ou MySQL ≥ 8.0.16 (les contraintes `CHECK` ne sont appliquées qu'à partir de ces versions ; `JSON_EXTRACT` demande MariaDB 10.2.3 / MySQL 5.7).
 - Hébergement cible : mutualisé cPanel ; seul `public/` est exposé au web.
 
 Aucune dépendance PHP tierce en production : `vendor/` (PHPUnit) ne sert qu'aux tests et n'est jamais déployé.

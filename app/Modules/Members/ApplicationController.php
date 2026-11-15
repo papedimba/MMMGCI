@@ -44,7 +44,7 @@ final class ApplicationController
         $pages = max(1, (int) ceil($total / self::PAGE));
         $page = min($page, $pages);
         $rows = $this->db->fetchAll("SELECT a.id, a.reference, a.status, a.source, a.created_at, a.member_id,
-            JSON_VALUE(a.payload, '$.last_name') AS last_name, JSON_VALUE(a.payload, '$.first_names') AS first_names
+            JSON_UNQUOTE(JSON_EXTRACT(a.payload, '$.last_name')) AS last_name, JSON_UNQUOTE(JSON_EXTRACT(a.payload, '$.first_names')) AS first_names
             FROM membership_applications a WHERE $where ORDER BY a.id DESC LIMIT " . self::PAGE . ' OFFSET ' . (($page - 1) * self::PAGE), $params);
         return $this->page($r, 'admin/members/applications/index', 'Demandes d\'adhésion', ['rows' => $rows, 'total' => $total, 'page' => $page, 'pages' => $pages, 'etat' => $status]);
     }
@@ -130,6 +130,10 @@ final class ApplicationController
 
     public function reject(Request $r): Response
     {
+        if ($r->post('confirm') !== '1') {
+            $this->session->flash('error', 'Cochez « Je confirme le rejet » : cette décision est définitive.');
+            return Response::redirect('/admin/adherents/demandes/' . (int) $r->attribute('id'));
+        }
         $reason = $r->post('reason');
         return $this->act($r, fn (int $id, int $u) => $this->service->reject($id, is_string($reason) ? $reason : '', $u), 'Demande rejetée.');
     }
@@ -220,7 +224,7 @@ final class ApplicationController
         return match (true) {
             $zone === null => ['1 = 1', []],
             $zone === 0 => ['1 = 0', []],
-            default => ["CAST(JSON_VALUE(a.payload, '$.zone_id') AS UNSIGNED) = ?", [$zone]],
+            default => ["CAST(JSON_UNQUOTE(JSON_EXTRACT(a.payload, '$.zone_id')) AS UNSIGNED) = ?", [$zone]],
         };
     }
 
