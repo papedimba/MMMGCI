@@ -40,7 +40,7 @@ final class AccountService
     /** Les verrous nommés sont propres au serveur : préfixe = base courante (la base de test ne partage pas celui de la base de dev). */
     public function lockName(): string
     {
-        return 'mmmgci.solidarity-fund.' . $this->db->fetchValue('SELECT DATABASE()');
+        return 'mmmgci.solidarity.' . substr(sha1((string) $this->db->fetchValue('SELECT DATABASE()')), 0, 16); // < 64 caractères quel que soit le nom de la base
     }
 
     private function assertNoActiveFund(): void
@@ -48,6 +48,12 @@ final class AccountService
         if ($this->db->fetchValue("SELECT 1 FROM financial_accounts WHERE type = 'solidarity_fund' AND is_active = 1 LIMIT 1") !== null) {
             throw new DomainException('Un compte de fonds de solidarité actif existe déjà : il ne peut y en avoir qu\'un seul.');
         }
+    }
+
+    /** 1062 : l'index du fonds unique (filet de la migration 0015) ou le nom déjà pris. */
+    private function duplicate(PDOException $e): DomainException
+    {
+        return str_contains($e->getMessage(), 'uq_fa_one_active_fund') ? new DomainException('Un seul fonds de solidarité actif est autorisé.', 0, $e) : new DomainException('Un compte porte déjà ce nom.', 0, $e);
     }
 
     public function create(string $name, string $type, string $openingInput, int $actor): int
@@ -71,7 +77,7 @@ final class AccountService
             try {
                 $id = $this->db->insert('financial_accounts', ['name' => $name, 'type' => $type, 'opening_balance' => Money::toDecimal($opening)]);
             } catch (PDOException $e) {
-                throw ($e->errorInfo[1] ?? 0) === 1062 ? new DomainException('Un compte porte déjà ce nom.', 0, $e) : $e;
+                throw ($e->errorInfo[1] ?? 0) === 1062 ? $this->duplicate($e) : $e;
             }
             $this->audit->log($actor, 'finance.account_created', 'financial_account', $id, null, ['name' => $name, 'type' => $type, 'opening_balance' => Money::toDecimal($opening)]);
             return $id;
@@ -89,7 +95,11 @@ final class AccountService
             if ($active && $row['type'] === 'solidarity_fund') {
                 $this->assertNoActiveFund();
             }
-            $this->db->update('financial_accounts', ['is_active' => (int) $active], ['id' => $id]);
+            try {
+                $this->db->update('financial_accounts', ['is_active' => (int) $active], ['id' => $id]);
+            } catch (PDOException $e) {
+                throw ($e->errorInfo[1] ?? 0) === 1062 ? $this->duplicate($e) : $e;
+            }
             $this->audit->log($actor, $active ? 'finance.account_activated' : 'finance.account_deactivated', 'financial_account', $id, ['is_active' => (int) !$active], ['is_active' => (int) $active]);
         });
         $type = $this->db->fetchValue('SELECT type FROM financial_accounts WHERE id = ?', [$id]);

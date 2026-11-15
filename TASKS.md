@@ -12,7 +12,7 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **Délégués et création directe** : `delegue` et `point_focal` détiennent `members.create` et peuvent créer un adhérent actif et numéroté sans validation (`/admin/adherents/nouveau`) ; les instances doivent dire si c'est voulu (sinon ne leur laisser que la saisie de demandes)
 - [ ] **D3 Approbateurs des décaissements** - instances : désigner au moins deux approbateurs distincts (`disbursement.approve`) et un payeur tiers (`disbursement.pay`) avant toute utilisation (le module refuse de fonctionner sinon)
 - [ ] **Paramètres L6 à valider par les instances** : politique de solde insuffisant, payeur = initiateur, règle « à jour », génération automatique des appels, début d'exercice, tranches d'approbation (`approval_rules`), montants, périodicités et autorisations des types de cotisation, population des appels en lot
-- [ ] **Décisions L6 à trancher** : approbation d'un utilisateur désactivé ensuite ; rejet depuis `approuve_2` ; contre-passation pouvant rendre un solde négatif ; dépenses courantes hors décaissement
+- [ ] **Décisions L6 à trancher** : approbation d'un utilisateur désactivé ensuite ; rejet depuis `approuve_2` ; contre-passation pouvant rendre un solde négatif ; double contrôle des annulations et contre-passations ; dépenses courantes hors décaissement
 - [ ] **Reports de L6** : budgets et engagements (T6.9) ; rapports financiers → L11 ; exports en flux ; purge des fichiers orphelins ; pagination du filtre « à approuver par moi »
 - [ ] **C38 Dépôt de demandes d'assistance en ligne par l'adhérent : oui/non** - commanditaire
 - [ ] **D4 Domaine, hébergeur cPanel, SMTP** - commanditaire (pas encore d'hébergement)

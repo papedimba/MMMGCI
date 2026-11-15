@@ -108,7 +108,7 @@ final class SolidarityFundTest extends AdminTestCase
             $this->assertSame(1062, $e->errorInfo[1]);
         }
         $this->assertSame(1, $this->service()->activeFunds());
-        $this->assertStringContainsString((string) $this->db->fetchValue('SELECT DATABASE()'), (new AccountService($this->db, $this->audit()))->lockName());
+        $this->assertStringContainsString(substr(sha1((string) $this->db->fetchValue('SELECT DATABASE()')), 0, 16), (new AccountService($this->db, $this->audit()))->lockName());
     }
 
     public function test_single_fund_creation_is_serialised_across_connections(): void
@@ -245,5 +245,35 @@ final class SolidarityFundTest extends AdminTestCase
         $this->assertSame(403, $this->request('GET', '/admin/solidarite/export.csv')->status());
         $this->assertSame(403, $this->request('POST', '/admin/solidarite/compte')->status());
         $this->assertStringContainsString('Fonds de solidarité', $this->request('GET', '/admin')->body()); // entrée de menu
+    }
+
+    /** Un 1062 sur l'index du fonds unique devient un refus métier, y compris à la réactivation (jamais une erreur 500). */
+    public function test_unique_index_violation_is_translated_on_create_and_reactivation(): void
+    {
+        $svc = new AccountService($this->db, $this->audit());
+        $first = $svc->create('Fonds A ' . bin2hex(random_bytes(3)), 'solidarity_fund', '', $this->initiator);
+        $svc->setActive($first, false, $this->initiator);
+        $second = $svc->create('Fonds B ' . bin2hex(random_bytes(3)), 'solidarity_fund', '', $this->initiator);
+        // On neutralise le contrôle applicatif pour atteindre le filet de la base.
+        $db = $this->db;
+        $e = null;
+        try {
+            $db->update('financial_accounts', ['is_active' => 1], ['id' => $first]);
+        } catch (\PDOException $p) {
+            $e = $p;
+        }
+        $this->assertNotNull($e);
+        $m = new \ReflectionMethod($svc, 'duplicate');
+        $this->assertStringContainsString('Un seul fonds de solidarité actif', $m->invoke($svc, $e)->getMessage());
+        $this->expectException(DomainException::class);
+        $this->expectExceptionMessage('un seul');
+        $svc->setActive($first, true, $this->initiator);
+    }
+
+    public function test_lock_name_never_exceeds_64_characters(): void
+    {
+        $name = (new AccountService($this->db, $this->audit()))->lockName();
+        $this->assertLessThanOrEqual(64, strlen($name));
+        $this->assertStringStartsWith('mmmgci.solidarity.', $name);
     }
 }

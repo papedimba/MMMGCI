@@ -206,8 +206,7 @@ final class FinanceControlTest extends AdminTestCase
     public function test_balance_check_reports_no_gap_on_consistent_data(): void
     {
         $this->tx('recette', '700.00');
-        $this->tx('depense', '150.25');
-        $this->tx('depense', '100.00');
+        $this->payNow($this->approved(1_000_000)); // une sortie légitime : seul le circuit écrit une dépense
         $this->as($this->controller);
         $res = $this->request('GET', '/admin/controle/soldes');
         $this->assertSame(200, $res->status());
@@ -221,8 +220,8 @@ final class FinanceControlTest extends AdminTestCase
             $this->assertSame(0, $b['gap']);
         }
         $mine = array_values(array_filter($rows, fn (array $b): bool => $b['id'] === $this->account))[0];
-        $this->assertSame(3, $mine['count']);
-        $this->assertSame(100_000_000 + 70_000 - 15_025 - 10_000, $mine['displayed']);
+        $this->assertSame(2, $mine['count']);
+        $this->assertSame(100_000_000 + 70_000 - 1_000_000, $mine['displayed']);
         $ko = $this->services['view']->render('admin/finance/control/soldes', ['balances' => [['id' => 1, 'name' => 'Caisse', 'count' => 2, 'displayed' => 500, 'recomputed' => 300, 'gap' => 200, 'ok' => false]],
             'anomalies' => [], 'user' => ['name' => 'x']]);
         $this->assertStringContainsString('Écart de solde détecté', $ko);
@@ -389,5 +388,27 @@ final class FinanceControlTest extends AdminTestCase
             $this->assertStringNotContainsString('<i>Caisse', $body, $url);
         }
         $this->assertStringContainsString('&lt;script&gt;', $this->request('GET', "/admin/controle/decaissements/$id")->body());
+    }
+
+    /** Falsifications directes en base : dépense hors circuit, paiement par l'initiateur (tant que le paramètre n'est pas validé à vrai). */
+    public function test_detects_expense_outside_circuit_and_payment_by_initiator(): void
+    {
+        $outside = $this->tx('depense', '20.00', 'ressource', 1);
+        $noSource = $this->tx('depense', '21.00');
+        $this->tx('recette', '5.00'); // une recette n'est pas concernée
+        $paid = $this->approved();
+        $this->payNow($paid);
+        $a = $this->anomalies();
+        $this->assertSame([$outside, $noSource], $a['expense_outside_circuit']);
+        $this->assertSame([], $a['paid_by_initiator']);
+        $this->db->query('UPDATE disbursement_payments SET paid_by = ? WHERE disbursement_request_id = ?', [$this->initiator, $paid]);
+        $this->assertSame([$paid], $this->anomalies()['paid_by_initiator']);
+        $this->db->query("UPDATE settings SET `value` = 'true' WHERE `group` = 'finance' AND `key` = 'payer_may_be_initiator'"); // non validé : toujours signalé
+        $this->assertSame([$paid], $this->anomalies()['paid_by_initiator']);
+        (new \App\Core\Settings($this->db))->validate('finance', 'payer_may_be_initiator', true, $this->initiator, 'PV test');
+        $this->assertSame([], $this->anomalies()['paid_by_initiator']);
+        $this->as($this->controller);
+        $page = $this->request('GET', '/admin/controle/soldes')->body();
+        $this->assertStringContainsString('Dépense hors circuit de décaissement', $page);
     }
 }

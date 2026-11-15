@@ -6,7 +6,7 @@ Commits 6d775bb..(dernier commit de la tâche 10). Suite : 637 tests, `bin/check
 1. **Politique de solde insuffisant** : non configurée, défaut technique « bloquer » (le plus sûr). Coût si les instances veulent seulement alerter : valider `finance.insufficient_balance_policy`.
 2. **Payeur différent de l'initiateur** : appliqué par défaut (A6), paramétrable (`finance.payer_may_be_initiator`). Coût : un trésorier unique qui initie ne peut pas payer.
 3. **Population d'un appel en lot** : non définie par le cahier des charges ; par défaut les adhérents au statut `actif`, avec bandeau « à valider ».
-4. **Dépenses hors décaissement** : interdites. Toute sortie passe par le circuit ; le grand livre refuse une dépense sans source `disbursement`, aucune route ne la saisit, et la contre-passation d'une écriture issue d'un circuit est refusée depuis l'écran du grand livre.
+4. **Dépenses hors décaissement** : interdites. Tout **décaissement** passe par le circuit ; en revanche l'annulation d'un paiement de cotisation (`contributions.manage`) et la contre-passation d'une ressource (`finance.manage`) baissent un solde par l'action d'une seule personne (auditée, visible au contrôle) : « double contrôle des annulations et contre-passations » à décider par les instances, aucune règle ajoutée ; le grand livre refuse une dépense sans source `disbursement`, aucune route ne la saisit, et la contre-passation d'une écriture issue d'un circuit est refusée depuis l'écran du grand livre.
 5. **Aucune permission d'approuver ni de payer par défaut** : le module est inopérant tant que deux approbateurs distincts ne sont pas désignés ; un payeur tiers est requis.
 6. **Aucun paiement sans appel** (pas d'avances : non défini). Génération automatique des appels désactivée tant que `contributions.auto_generate` n'est pas validé ; sans règle « à jour » validée, le mot n'apparaît jamais.
 7. **Révisions** : modification substantielle (montant, bénéficiaire, compte, objet) = nouvelle révision, approbations caduques mais conservées ; `category_id` et la note interne ne sont pas substantiels.
@@ -20,7 +20,7 @@ Commits 6d775bb..(dernier commit de la tâche 10). Suite : 637 tests, `bin/check
 
 ## Points reportés (voir aussi TASKS.md)
 - Budgets et engagements (T6.9) ; rapports financiers (lot L11).
-- Exports en mémoire : mesure sur 50 000 écritures, CSV 7,2 s et 46 Mo, XLSX 9,0 s et 116 Mo ; à passer en flux au-delà (au-delà de ~100 000 lignes sur un hébergement à `memory_limit` 128 Mo, l'export échouerait).
+- Exports en mémoire : mesure sur 50 000 écritures, CSV 7,2 s et 46 Mo, XLSX 9,0 s et 116 Mo ; à passer en flux ; aucun plafond de lignes : le XLSX (116 Mo pour 50 000 lignes) peut échouer vers 55 000 lignes avec un `memory_limit` de 128 Mo.
 - La contre-passation d'une ressource ou l'annulation d'un paiement peut rendre un solde négatif (aucun contrôle de solde).
 - Approbation par un utilisateur désactivé ensuite : elle compte toujours (à trancher). Pas de rejet depuis `approuve_2` (à trancher).
 - Filtre « À approuver par moi » : calcul en PHP sans pagination (≈ 8 requêtes par demande en cours).
@@ -30,6 +30,15 @@ Commits 6d775bb..(dernier commit de la tâche 10). Suite : 637 tests, `bin/check
 - Idempotence du paiement depuis l'écran : elle repose sur le contrôleur (`paidWithKey`), chaque envoi téléversant un nouveau fichier.
 - Un décaissement modifié (`update`) renvoie tous les champs : un compte ou une catégorie désactivé entre-temps empêche d'ajouter une pièce.
 - Chaîne d'audit de la base de développement rompue (lignes 78, 81, 83 supprimées à la main) : ignorée, non réparée ; recréer la base de dev si besoin.
+
+## Précisions de la passe finale
+- « À jour » n'est jamais affiché comme situation d'un adhérent ; le bandeau de règle en attente le cite seulement. Forme proposée de la règle : un nombre entier d'appels échus.
+- Défauts techniques à valider : formats `TX-`/`PAY-`/`REC-`/`DEC-`, échéance = fin de période, périodicités mensuelle/trimestrielle/semestrielle/annuelle.
+- Circuit inopérant : la soumission reste permise ; approbation, rejet, modification et paiement sont bloqués. Un approbateur peut aussi payer (seul payeur différent de l'initiateur est exigé).
+- Un super administrateur peut créer des comptes et leur donner `approve`/`pay` (audité) : le circuit suppose des administrateurs de confiance.
+- Un décaissement payé n'a aucun chemin de correction dans ce lot.
+- Migration 0015 : MySQL 8.0.16 non essayé (seul MariaDB 10.11).
+- Contrôles d'intégrité ajoutés : dépense hors circuit et paiement par l'initiateur (paramètre non validé à vrai).
 
 ## Limites des preuves
 - Les preuves de concurrence utilisent un verrou tenu par une seconde connexion PDO ou des processus enfants ; elles montrent l'absence de double paiement et de double approbation dans ces entrelacements précis, pas dans tous. Le témoin d'interblocage (`DisbursementConcurrencyTest`) dépend de la disposition des intervalles d'index : s'il n'est pas vu, le test est marqué « skipped » (visible), jamais vert par défaut.

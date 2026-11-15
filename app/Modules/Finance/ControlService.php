@@ -9,6 +9,7 @@ use App\Core\Export\Csv;
 use App\Core\Export\Decimal;
 use App\Core\Export\Xlsx;
 use App\Core\Money;
+use App\Core\Settings;
 use App\Modules\Disbursements\ApprovalRules;
 use Generator;
 
@@ -205,6 +206,10 @@ final class ControlService
             ['reversal_orphan', 'Contre-passation dont l\'écriture d\'origine est absente', 'transaction', 'SELECT r.id FROM financial_transactions r LEFT JOIN financial_transactions o ON o.id = r.reversal_of_id WHERE r.reversal_of_id IS NOT NULL AND o.id IS NULL'],
             ['reversal_mismatch', 'Contre-passation incohérente avec son origine (compte, montant ou sens)', 'transaction', 'SELECT r.id FROM financial_transactions r JOIN financial_transactions o ON o.id = r.reversal_of_id
                 WHERE r.account_id <> o.account_id OR r.amount <> o.amount OR r.direction = o.direction'],
+            ['expense_outside_circuit', 'Dépense hors circuit de décaissement (ni contre-passation, ni source « décaissement »)', 'transaction', "SELECT t.id FROM financial_transactions t
+                WHERE t.direction = 'depense' AND t.reversal_of_id IS NULL AND COALESCE(t.source_type, '') <> 'disbursement'"],
+            ['paid_by_initiator', 'Décaissement payé par son initiateur alors que ce n\'est pas validé', 'disbursement', 'SELECT d.id FROM disbursement_requests d JOIN disbursement_payments p ON p.disbursement_request_id = d.id
+                WHERE ' . $this->payerMayBeInitiator() . ' AND p.paid_by = d.initiated_by'],
         ];
         $out = [];
         foreach ($checks as [$key, $label, $table, $sql]) {
@@ -214,6 +219,13 @@ final class ControlService
         }
         $out[] = $this->fewApprovers();
         return $out;
+    }
+
+    /** Fragment SQL constant : « 0 = 1 » si le paramètre est validé à vrai (strict), sinon « 1 = 1 ». */
+    private function payerMayBeInitiator(): string
+    {
+        $s = new Settings($this->db);
+        return $s->isValidated('finance', 'payer_may_be_initiator') && $s->get('finance', 'payer_may_be_initiator') === true ? '0 = 1' : '1 = 1';
     }
 
     /** Payé avec moins d'approbateurs distincts valides que n'en exige la règle applicable à son montant (ApprovalRules, jamais moins de 2). @return array{key:string,label:string,table:string,count:int,ids:list<int>} */

@@ -160,7 +160,7 @@ final class DisbursementScreensTest extends AdminTestCase
         $page = $this->request('GET', '/admin/decaissements/inoperant');
         $this->assertSame(409, $page->status());
         $this->assertStringContainsString('deux personnes distinctes', $page->body());
-        $this->assertStringContainsString('une troisième personne', $page->body());
+        $this->assertStringContainsString('un payeur', $page->body());
         $this->assertStringContainsString('Circuit inopérant', $this->request('GET', '/admin/decaissements')->body());
         $this->assertStringContainsString('Circuit inopérant', $this->request('GET', "/admin/decaissements/$submitted")->body());
         // Page d'action (GET) : explication ; POST : message explicite, rien d'écrit.
