@@ -99,6 +99,10 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/adherents/demandes/{id:\d+}/complements', static fn (Request $q): Response => $applications()->complements($q), $validateMembers);
     $r->post('/admin/adherents/demandes/{id:\d+}/rejeter', static fn (Request $q): Response => $applications()->reject($q), $validateMembers);
     $r->post('/admin/adherents/demandes/{id:\d+}/valider', static fn (Request $q): Response => $applications()->validate($q), $validateMembers);
+    $exportMembers = [$requireAuth, $permission('members.export')];
+    $r->get('/admin/adherents/export.csv', static fn (Request $q): Response => $members()->export($q), $exportMembers);
+    $r->get('/admin/adherents/export.xlsx', static fn (Request $q): Response => $members()->export($q), $exportMembers);
+    $r->get('/admin/adherents/imprimer', static fn (Request $q): Response => $members()->printList($q), $exportMembers);
     $r->get('/admin/adherents', static fn (Request $q): Response => $members()->index($q), $viewMembers);
     $r->get('/admin/adherents/{id:\d+}', static fn (Request $q): Response => $members()->show($q), $viewMembers);
     $r->get('/admin/adherents/{id:\d+}/photo', static fn (Request $q): Response => $documents()->photo($q), $viewMembers);

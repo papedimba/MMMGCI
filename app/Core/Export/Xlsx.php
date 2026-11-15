@@ -38,7 +38,7 @@ final class Xlsx
                 }
                 $sheet .= is_int($v) || is_float($v)
                     ? '<c r="' . $ref . '" t="n"><v>' . $v . '</v></c>'
-                    : '<c r="' . $ref . '" t="inlineStr"><is><t xml:space="preserve">' . self::xml((string) $v) . '</t></is></c>';
+                    : '<c r="' . $ref . '" t="inlineStr"><is><t xml:space="preserve">' . self::xml(Csv::neutralize((string) $v)) . '</t></is></c>';
             }
             $sheet .= '</row>';
         }

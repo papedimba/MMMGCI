@@ -77,6 +77,7 @@
 .sheet .table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .muted { color: var(--ink-3); }
 .count-line { color: var(--ink-3); font-size: var(--text-sm); margin-bottom: var(--s2); }
+.export-links { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s2); }
 .back { margin: calc(-1 * var(--s3)) 0 var(--s4); font-size: var(--text-sm); }
 .back a { display: inline-flex; align-items: center; min-height: var(--control-h); }
 .section-title { font-size: var(--text-lg); margin: var(--s5) 0 var(--s3); }

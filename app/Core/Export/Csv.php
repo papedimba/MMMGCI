@@ -29,6 +29,17 @@ final class Csv
         return implode(';', $parts) . "\r\n";
     }
 
+    /** Anti-injection de formule (CSV et XLSX) : apostrophe devant un texte commençant par = + - @ tabulation ou retour chariot, espaces initiaux ignorés. */
+    public static function neutralize(string $v): string
+    {
+        $t = ltrim($v, ' ');
+        // Un vrai nombre (même négatif) n'est pas une formule : on le laisse tel quel.
+        if ($t !== '' && strpos("=+-@\t\r", $t[0]) !== false && !preg_match('/^-?\d+(?:[.,]\d+)?$/D', $v)) {
+            return "'" . $v;
+        }
+        return $v;
+    }
+
     private static function cell(mixed $v): string
     {
         if ($v === null) {
@@ -46,10 +57,7 @@ final class Csv
         if (!is_string($v)) {
             throw new InvalidArgumentException('Valeur d\'export non prise en charge : un texte, un nombre, un booléen ou null est attendu.');
         }
-        // Un vrai nombre (même négatif) n'est pas une formule : on le laisse tel quel.
-        if ($v !== '' && strpos("=+-@\t\r", $v[0]) !== false && !preg_match('/^-?\d+(?:[.,]\d+)?$/D', $v)) {
-            $v = "'" . $v;
-        }
+        $v = self::neutralize($v);
         return strpbrk($v, ";\"\r\n") !== false ? '"' . str_replace('"', '""', $v) . '"' : $v;
     }
 }

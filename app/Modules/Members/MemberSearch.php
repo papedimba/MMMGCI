@@ -9,6 +9,7 @@ use App\Core\Database;
 final class MemberSearch
 {
     public const PER_PAGE = 50;
+    private const CHUNK = 500;
     private const SORTS = ['name' => 'm.last_name, m.first_names', 'number' => 'm.member_number', 'joined_at' => 'm.joined_at', 'status' => 'm.status'];
 
     public function __construct(private Database $db, private MemberScope $scope)
@@ -21,6 +22,38 @@ final class MemberSearch
      * @return array{rows: list<array<string,mixed>>, total: int, pages: int}
      */
     public function run(int $userId, array $criteria, string $sort, int $page): array
+    {
+        [$cond, $params, $order] = $this->build($userId, $criteria, $sort);
+        $total = (int) $this->db->fetchValue("SELECT COUNT(*) FROM members m WHERE $cond", $params);
+        $pages = max(1, (int) ceil($total / self::PER_PAGE));
+        $page = min(max(1, $page), $pages);
+        $rows = $this->db->fetchAll("SELECT m.id, m.member_number, m.last_name, m.first_names, m.phone, m.status, m.joined_at, m.zone_id, z.name AS zone_name, c.name AS category_name
+            FROM members m LEFT JOIN zones z ON z.id = m.zone_id LEFT JOIN member_categories c ON c.id = m.category_id WHERE $cond ORDER BY $order LIMIT " . self::PER_PAGE . ' OFFSET ' . (($page - 1) * self::PER_PAGE), $params);
+        return ['rows' => $rows, 'total' => $total, 'pages' => $pages];
+    }
+
+    /**
+     * Tous les adhérents du périmètre correspondant aux critères, lus par lots (mémoire bornée) pour les exports.
+     * @param array<string,mixed> $criteria @return \Generator<array<string,mixed>>
+     */
+    public function stream(int $userId, array $criteria, string $sort): \Generator
+    {
+        [$cond, $params, $order] = $this->build($userId, $criteria, $sort);
+        for ($offset = 0;; $offset += self::CHUNK) {
+            $rows = $this->db->fetchAll("SELECT m.member_number, m.last_name, m.first_names, m.phone, m.email, m.joined_at, z.name AS zone_name, c.name AS category_name,
+                p.name AS profession_name, COALESCE(st.label, m.status) AS status_label
+                FROM members m LEFT JOIN zones z ON z.id = m.zone_id LEFT JOIN member_categories c ON c.id = m.category_id
+                LEFT JOIN maritime_professions p ON p.id = m.profession_id LEFT JOIN member_statuses st ON st.code = m.status
+                WHERE $cond ORDER BY $order LIMIT " . self::CHUNK . " OFFSET $offset", $params);
+            yield from $rows;
+            if (count($rows) < self::CHUNK) {
+                return;
+            }
+        }
+    }
+
+    /** @return array{0: string, 1: list<mixed>, 2: string} condition SQL (périmètre inclus), paramètres, ORDER BY */
+    private function build(int $userId, array $criteria, string $sort): array
     {
         [$where, $params] = $this->scope->where($userId);
         $where = [$where];
@@ -58,15 +91,10 @@ final class MemberSearch
             }
         }
         $cond = implode(' AND ', $where);
-        $total = (int) $this->db->fetchValue("SELECT COUNT(*) FROM members m WHERE $cond", $params);
         $desc = str_starts_with($sort, '-');
         $order = self::SORTS[ltrim($sort, '-')] ?? self::SORTS['name'];
         $dir = $desc ? ' DESC' : '';
         $order = implode(', ', array_map(static fn (string $c): string => $c . $dir, explode(', ', $order))) . ', m.id' . $dir; // m.id : ordre stable
-        $pages = max(1, (int) ceil($total / self::PER_PAGE));
-        $page = min(max(1, $page), $pages);
-        $rows = $this->db->fetchAll("SELECT m.id, m.member_number, m.last_name, m.first_names, m.phone, m.status, m.joined_at, m.zone_id, z.name AS zone_name, c.name AS category_name
-            FROM members m LEFT JOIN zones z ON z.id = m.zone_id LEFT JOIN member_categories c ON c.id = m.category_id WHERE $cond ORDER BY $order LIMIT " . self::PER_PAGE . ' OFFSET ' . (($page - 1) * self::PER_PAGE), $params);
-        return ['rows' => $rows, 'total' => $total, 'pages' => $pages];
+        return [$cond, $params, $order];
     }
 }

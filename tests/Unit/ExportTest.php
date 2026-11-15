@@ -58,10 +58,21 @@ final class ExportTest extends TestCase
         $sheet = (string) $zip->getFromName('xl/worksheets/sheet1.xml');
         $this->assertStringContainsString('Kouamé &lt;&amp;&gt; ', $sheet);
         $this->assertStringContainsString('<v>150000</v>', $sheet);
-        $this->assertStringContainsString('<c r="A3" t="inlineStr"><is><t xml:space="preserve">=1+1</t></is></c>', $sheet);
+        $this->assertStringContainsString('<c r="A3" t="inlineStr"><is><t xml:space="preserve">&apos;=1+1</t></is></c>', $sheet);
         $this->assertStringContainsString('name="Membres 2026 ab"', (string) $zip->getFromName('xl/workbook.xml'));
         $zip->close();
         unlink($tmp);
+    }
+
+    public function test_xlsx_neutralizes_formula_strings_but_keeps_numbers(): void
+    {
+        $sheet = $this->sheet(Xlsx::build('S', ['h'], [['=SUM(A1)'], ['+22507'], ['  =x'], ['-5'], [-5], ['ok']]));
+        $this->assertStringContainsString('>&apos;=SUM(A1)</t>', $sheet);
+        $this->assertStringContainsString('>&apos;+22507</t>', $sheet);
+        $this->assertStringContainsString('>&apos;  =x</t>', $sheet);
+        $this->assertStringContainsString('>-5</t>', $sheet);
+        $this->assertStringContainsString('t="n"><v>-5</v>', $sheet);
+        $this->assertStringContainsString('>ok</t>', $sheet);
     }
 
     public function test_xlsx_columns_beyond_z_and_long_sheet_name(): void

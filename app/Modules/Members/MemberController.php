@@ -34,9 +34,9 @@ final class MemberController
     {
     }
 
-    public function index(Request $r): Response
+    /** @return array{0: array<string,string>, 1: string} critères et tri de la liste, lus dans la requête (partagés avec les exports) */
+    private function filters(Request $r): array
     {
-        $userId = (int) $r->attribute('user')['id'];
         $criteria = [];
         foreach (['q', 'status', 'category_id', 'zone_id', 'profession_id'] as $k) {
             $v = $r->input($k);
@@ -45,7 +45,38 @@ final class MemberController
             }
         }
         $sort = $r->input('tri');
-        $sort = is_string($sort) && isset(self::SORTS[$sort]) ? $sort : 'name';
+        return [$criteria, is_string($sort) && isset(self::SORTS[$sort]) ? $sort : 'name'];
+    }
+
+    /** Export CSV ou XLSX de la liste filtrée (route : members.export). */
+    public function export(Request $r): Response
+    {
+        $format = str_ends_with($r->path(), '.xlsx') ? 'xlsx' : 'csv';
+        [$criteria, $sort] = $this->filters($r);
+        $body = (new MemberExport($this->search, $this->audit))->file($format, (int) $r->attribute('user')['id'], $criteria, $sort, $r->ip(), $r->header('User-Agent'));
+        return new Response($body, 200, [
+            'Content-Type' => $format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv; charset=UTF-8',
+            'Content-Length' => (string) strlen($body),
+            'Content-Disposition' => 'attachment; filename="adherents-' . date('Ymd') . '.' . $format . '"',
+            'Cache-Control' => 'private, no-store',
+        ]);
+    }
+
+    /** Liste imprimable (gabarit d'impression L2), mêmes critères et périmètre que l'export. */
+    public function printList(Request $r): Response
+    {
+        $userId = (int) $r->attribute('user')['id'];
+        [$criteria, $sort] = $this->filters($r);
+        $export = new MemberExport($this->search, $this->audit);
+        $rows = iterator_to_array($export->rows($userId, $criteria, $sort), false);
+        $export->audited('print', count($rows), $userId, $criteria, $r->ip(), $r->header('User-Agent'));
+        return new Response($this->view->render('admin/members/print', ['title' => 'Liste des adhérents', 'headers' => MemberExport::HEADERS, 'rows' => $rows, 'filtered' => $criteria !== []], 'layouts/print'), 200, ['Cache-Control' => 'private, no-store']);
+    }
+
+    public function index(Request $r): Response
+    {
+        $userId = (int) $r->attribute('user')['id'];
+        [$criteria, $sort] = $this->filters($r);
         $page = $r->input('page');
         $page = is_string($page) && ctype_digit($page) ? max(1, (int) $page) : 1;
         $res = $this->search->run($userId, $criteria, $sort, $page);

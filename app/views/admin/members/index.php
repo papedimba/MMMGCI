@@ -30,6 +30,13 @@ $create = $can('members.create') ? ['label' => 'Nouvel adhérent', 'icon' => 'us
 <?= ui('button', ['label' => 'Filtrer', 'type' => 'submit', 'icon' => 'search']) ?>
 </form>
 </details>
+<?php if ($can('members.export')): $qs = $query === [] ? '' : '?' . http_build_query($query); ?>
+<p class="export-links">
+<?= ui('button', ['label' => 'Exporter en CSV', 'variant' => 'secondary', 'size' => 'sm', 'icon' => 'download', 'href' => '/admin/adherents/export.csv' . $qs]) ?>
+<?= ui('button', ['label' => 'Exporter en Excel', 'variant' => 'secondary', 'size' => 'sm', 'icon' => 'download', 'href' => '/admin/adherents/export.xlsx' . $qs]) ?>
+<?= ui('button', ['label' => 'Imprimer la liste', 'variant' => 'secondary', 'size' => 'sm', 'icon' => 'print', 'href' => '/admin/adherents/imprimer' . $qs]) ?>
+</p>
+<?php endif; ?>
 <p class="count-line"><?= e((string) $total) ?> adhérent<?= $total > 1 ? 's' : '' ?>.</p>
 <?= ui('table', ['caption' => 'Liste des adhérents', 'columns' => $columns, 'rows' => $rows,
     'empty' => $filtered
