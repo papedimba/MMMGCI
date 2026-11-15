@@ -81,6 +81,14 @@ return static function (Router $r, array $deps): void {
         ], 'layouts/admin'));
     }, [$requireAuth, $permission('users.manage')]);
 
+    // Page d'exemple du gabarit d'impression (contrôle PDF) : mêmes règles que la galerie.
+    $r->get('/admin/composants/document', static function (Request $q) use ($view, $config): Response {
+        if ($config->get('APP_ENV', 'production') === 'production') {
+            return new Response($view->render('errors/404', ['title' => 'Page introuvable']), 404);
+        }
+        return new Response($view->render('admin/design/document', ['title' => 'Document d\'exemple', 'reference' => 'EXEMPLE-0001'], 'layouts/print'));
+    }, [$requireAuth, $permission('users.manage')]);
+
     $r->get('/admin', static function (Request $q) use ($view, $csrf, $session, $gate): Response {
         $user = $q->attribute('user');
         $can = static fn (string $p): bool => $gate()->allows((int) $user['id'], $p); // Gate met en cache : une requête par page

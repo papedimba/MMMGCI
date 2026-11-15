@@ -1,0 +1,45 @@
+/* Gabarit d'impression (lot L2) : A4, noir et blanc lisible. Les gabarits L6/L10/L11 l'étendent. */
+@page { size: A4; margin: 18mm; }
+@page cr80 { size: 85.6mm 54mm; margin: 0; }
+
+body.print { background: var(--frame); color: #000; font-size: 11pt; line-height: 1.4; }
+.print-bar { max-width: 210mm; margin: var(--s4) auto 0; text-align: right; }
+.print-btn { display: none; align-items: center; gap: var(--s2); min-height: var(--control-h); padding: 0 var(--s4); border: 1px solid var(--navy-900); border-radius: var(--r-sm); background: var(--navy-900); color: #fff; font: inherit; font-weight: 600; cursor: pointer; }
+.js .print-btn { display: inline-flex; } /* sans JS le bouton ne ferait rien */
+.sheet { box-sizing: border-box; max-width: 210mm; margin: var(--s4) auto var(--s7); padding: 18mm; background: #fff; box-shadow: 0 1px 6px rgba(7, 22, 49, .25); }
+
+.doc-header { display: flex; align-items: flex-start; gap: 8mm; padding-bottom: 5mm; border-bottom: 1.5pt solid #000; margin-bottom: 6mm; }
+.doc-logo { width: 30mm; height: auto; flex: none; }
+.doc-meta { flex: 1; }
+.doc-meta p { margin: 0; }
+.doc-title { margin: 0 0 2mm; font: 400 20pt/1.2 var(--font-display); }
+
+.doc-frame { width: 100%; border-collapse: collapse; }
+.doc-frame > tbody > tr > td, .doc-frame > tfoot > tr > td { padding: 0; }
+.doc-frame > tfoot { display: table-footer-group; } /* répété en bas de chaque page */
+.doc-foot { margin: 6mm 0 0; padding-top: 2mm; border-top: .75pt solid #000; font-size: 8.5pt; text-align: center; }
+
+.doc-body table { width: 100%; border-collapse: collapse; }
+.doc-body th, .doc-body td { padding: 1.5mm 2mm; border-bottom: .5pt solid #000; text-align: left; }
+.doc-body th { border-bottom-width: 1.5pt; }
+.doc-body h2 { margin: 8mm 0 3mm; font: 400 14pt/1.2 var(--font-display); }
+.doc-body thead { display: table-header-group; }
+.doc-body tr { break-inside: avoid; }
+
+/* Carte de membre CR80 : squelette ; données, photo et QR viennent du lot L5. */
+.card-cr80 { box-sizing: border-box; position: relative; width: 85.6mm; height: 54mm; padding: 4mm; border: .75pt solid #000; border-radius: 3mm; background: #fff; color: #000; overflow: hidden; break-inside: avoid; display: grid; grid-template-columns: 22mm 1fr; grid-template-rows: auto 1fr; gap: 2mm 4mm; }
+.card-cr80 .card-logo { width: 17mm; height: auto; }
+.card-cr80 .card-head { font-size: 6.5pt; line-height: 1.2; font-weight: 600; }
+.card-cr80 .card-photo { grid-row: 2; width: 22mm; height: 24mm; border: .75pt dashed #000; }
+.card-cr80 .card-id { grid-row: 2; align-self: end; padding-right: 18mm; }
+.card-cr80 .card-name { margin: 0; font: 400 11pt/1.2 var(--font-display); }
+.card-cr80 .card-number { margin: 1mm 0 0; font-size: 8.5pt; font-weight: 600; }
+.card-cr80 .card-qr { position: absolute; right: 4mm; bottom: 4mm; width: 14mm; height: 14mm; border: .75pt dashed #000; }
+.card-cr80-page { page: cr80; }
+
+@media print {
+  body.print { background: #fff; }
+  .print-bar { display: none; }
+  .sheet { max-width: none; margin: 0; padding: 0; box-shadow: none; }
+  a { color: #000; text-decoration: none; }
+}

@@ -21,8 +21,9 @@
 
   document.addEventListener('click', function (ev) {
     closeAccount(ev.target.closest ? ev.target.closest('details.account') : null);
-    var t = ev.target.closest ? ev.target.closest('[data-menu-toggle],[data-confirm-open],[data-confirm-close]') : null;
+    var t = ev.target.closest ? ev.target.closest('[data-menu-toggle],[data-confirm-open],[data-confirm-close],[data-print]') : null;
     if (!t) { return; }
+    if (t.hasAttribute('data-print')) { window.print(); return; }
     if (t.hasAttribute('data-menu-toggle')) {
       var menu = document.getElementById(t.getAttribute('aria-controls'));
       if (!menu) { return; }
