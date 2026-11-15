@@ -1,0 +1,53 @@
+/* Site public : gabarit (en-tête, filet national, pied « dos de la carte »). Dépend de tokens.css, base.css, components.css. */
+body.public { background: var(--paper); display: flex; flex-direction: column; min-height: 100vh; }
+body.public main { flex: 1; background: var(--sheet); }
+.skip-link { position: absolute; left: var(--s2); top: -100px; z-index: 30; padding: var(--s3) var(--s4); background: var(--navy-900); color: #fff; border-radius: var(--r-sm); }
+.skip-link:focus { top: var(--s2); outline: var(--focus-ring-on-dark); }
+main:focus { outline: none; }
+
+.pub-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s4); padding: 10px var(--s5); background: var(--sheet); }
+.pub-brand { display: block; line-height: 0; }
+.pub-logo { height: 104px; width: auto; display: block; }
+.pub-emblem { display: none; border-radius: 50%; }
+.pub-menu { display: flex; gap: var(--s5); font-weight: 600; font-size: var(--text-sm); }
+.pub-menu a { color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; min-height: var(--control-h); }
+.pub-menu a[href]:hover { text-decoration: underline; }
+.pub-menu a[aria-disabled="true"] { color: var(--ink-3); cursor: default; }
+.pub-menu-btn { display: none; align-items: center; gap: var(--s2); min-height: var(--control-h); padding: 0 var(--s3); border: 1px solid var(--control-border); border-radius: var(--r-sm); background: var(--sheet); color: var(--navy-900); font: 600 var(--text-sm)/1 var(--font-body); cursor: pointer; }
+
+/* Filet national : orange / blanc / vert de Côte d'Ivoire. */
+.flag { display: flex; height: 4px; }
+.flag i { flex: 1; }
+.flag-orange { background: var(--ci-orange); }
+.flag-white { background: var(--sheet); }
+.flag-green { background: var(--ci-green); }
+
+/* Cordage : barres marine / papier en alternance, en CSS seul. */
+.cordage { height: 28px; background: repeating-linear-gradient(90deg, var(--navy-800) 0 32px, var(--paper) 32px 64px); }
+
+.pub-hero { background: var(--navy-950); padding: var(--s8) var(--s4); }
+.card-paper { max-width: 560px; margin: 0 auto; background: var(--paper); border-radius: var(--r-lg); overflow: hidden; }
+.card-paper .in { padding: var(--s6) var(--s6) var(--s7); display: grid; justify-items: center; gap: var(--s4); text-align: center; }
+.card-emblem { width: 96px; height: 96px; border-radius: 50%; }
+.card-paper h1 { font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem); line-height: var(--leading-tight); max-width: 24ch; }
+.card-paper p { max-width: 68ch; font-size: var(--text-lg); color: var(--ink-2); }
+.card-paper .btn { margin-top: var(--s2); }
+
+.pub-foot { background: var(--paper); }
+.pub-foot-in { max-width: 1100px; margin: 0 auto; padding: var(--s6) var(--s4); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s5); }
+.pub-foot-motto { font-family: var(--font-display); font-size: var(--text-xl); color: var(--navy-900); }
+.pub-credits { flex-basis: 100%; font-size: var(--text-xs); color: var(--ink-3); }
+
+@media (max-width: 767.98px) {
+  .pub-top { padding: var(--s2) var(--s4); flex-wrap: wrap; }
+  .pub-logo { display: none; }
+  .pub-emblem { display: block; }
+  .pub-hero { padding: var(--s6) var(--s4); }
+  .card-paper .in { padding: var(--s5) var(--s4) var(--s6); }
+  .pub-menu { flex-basis: 100%; flex-direction: column; gap: 0; }
+  /* Sans JS : le menu reste affiché sous l'en-tête. Avec JS : bouton « Menu », panneau replié. */
+  html.js .pub-menu-btn { display: inline-flex; }
+  html.js .pub-menu { display: none; }
+  html.js .pub-menu[data-open] { display: flex; }
+}
+.pub-foot img { mix-blend-mode: multiply; } /* le logo est sur fond blanc : il se fond dans le papier */

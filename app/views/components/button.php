@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 /** @var array<string,mixed> $props @var Closure $e */
-$variant = in_array($props['variant'] ?? '', ['primary', 'secondary', 'danger', 'ghost'], true) ? $props['variant'] : 'primary';
+$variant = in_array($props['variant'] ?? '', ['primary', 'secondary', 'danger', 'ghost', 'gold'], true) ? $props['variant'] : 'primary';
 $size = ($props['size'] ?? '') === 'sm' ? ' btn-sm' : '';
 $busy = !empty($props['busy']);
 $off = $busy || !empty($props['disabled']);

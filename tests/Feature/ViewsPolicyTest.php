@@ -17,6 +17,8 @@ final class ViewsPolicyTest extends TestCase
         }
         $files = array_merge($files, glob($root . '/public/assets/js/*.js') ?: []);
         $this->assertNotEmpty($files);
+        $this->assertContains($root . '/app/views/layouts/public.php', $files, 'le gabarit public doit être couvert');
+        $this->assertContains($root . '/app/views/home.php', $files);
         $bad = [];
         foreach ($files as $file) {
             $src = (string) file_get_contents($file);

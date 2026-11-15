@@ -21,7 +21,7 @@ final class SmokeTest extends TestCase
     {
         $res = self::app()->handle(new Request('GET', '/'));
         $this->assertSame(200, $res->status());
-        $this->assertStringContainsString('Socle MMMGCI opérationnel', $res->body());
+        $this->assertStringContainsString('Le site de la Mutuelle est en cours de construction', $res->body());
         $this->assertArrayHasKey('Content-Security-Policy', $res->headers());
         $this->assertSame('nosniff', $res->headers()['X-Content-Type-Options']);
 

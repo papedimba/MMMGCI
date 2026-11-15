@@ -20,6 +20,8 @@
 .btn-danger:hover { background: #8F1B12; }
 .btn-ghost { background: transparent; color: var(--navy-800); }
 .btn-ghost:hover { background: var(--ocean-100); }
+.btn-gold { background: var(--gold-400); color: var(--navy-950); }
+.btn-gold:hover { background: #DDBB6B; }
 .btn:disabled, .btn[aria-disabled="true"] { background: #EDF0F5; color: var(--ink-3); border-color: transparent; cursor: not-allowed; }
 .btn.is-busy::before {
   content: ""; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent;

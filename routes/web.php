@@ -8,9 +8,9 @@ use App\Core\Http\Router;
 use App\Core\View;
 
 return static function (Router $router, View $view, Csrf $csrf, callable $db): void {
-    // Page technique, remplacée en L4.
+    // Page d'attente, remplacée en L4.
     $router->get('/', static fn(Request $r): Response => new Response(
-        $view->render('home', ['title' => 'MMMGCI', 'csrfToken' => $csrf->token()]),
+        $view->render('home', ['title' => 'MMMGCI', 'csrfToken' => $csrf->token()], 'layouts/public'),
     ));
 
     $router->get('/sante', static function (Request $r) use ($db): Response {
