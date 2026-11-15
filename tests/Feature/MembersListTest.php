@@ -100,8 +100,8 @@ final class MembersListTest extends AdminTestCase
         $this->actingAs($u);
         $this->db->insert('member_status_history', ['member_id' => $id, 'from_status' => 'actif', 'to_status' => 'suspendu', 'reason' => 'Impayés', 'changed_by' => $u]);
         $this->assertStringContainsString('Impayés', $this->request('GET', "/admin/adherents/$id?onglet=historique")->body());
-        // L6 T3 : l'espace réservé a disparu ; sans contributions.view l'onglet n'existe pas (repli sur l'identité).
-        $this->assertStringNotContainsString('Disponible avec un prochain lot', $this->request('GET', "/admin/adherents/$id?onglet=cotisations")->body());
+        // L6 T3 : l'onglet existe pour gest_adherents (contributions.view) et affiche son état vide.
+        $this->assertStringContainsString('Aucun appel de cotisation', $this->request('GET', "/admin/adherents/$id?onglet=cotisations")->body());
         $this->assertSame(200, $this->request('GET', "/admin/adherents/$id?onglet=inconnu")->status());
     }
 }

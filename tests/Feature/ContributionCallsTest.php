@@ -32,6 +32,7 @@ final class ContributionCallsTest extends AdminTestCase
             $this->db->query("DELETE FROM $t");
         }
         $this->db->query('DELETE FROM financial_accounts WHERE name LIKE ?', ['Cot %']);
+        $this->db->query("UPDATE settings SET value = NULL, status = 'non_configure' WHERE `group` = 'contributions' AND `key` = 'auto_generate'");
         $this->zoneA = $this->db->insert('zones', ['name' => 'ZA ' . bin2hex(random_bytes(3)), 'type' => 'region']);
         $this->zoneB = $this->db->insert('zones', ['name' => 'ZB ' . bin2hex(random_bytes(3)), 'type' => 'port']);
         $this->account = $this->db->insert('financial_accounts', ['name' => 'Cot ' . bin2hex(random_bytes(3))]);
@@ -198,8 +199,18 @@ final class ContributionCallsTest extends AdminTestCase
         $this->db->query("DELETE FROM scheduled_runs WHERE task = 'contributions.generate_calls'");
         $this->assertSame('ran', $sched->run(time())['contributions.generate_calls']);
         $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM contribution_calls'));
-        // Avec un type actif valide : un appel pour la période courante seulement, et pas de doublon au passage suivant.
+        // Type actif valide mais paramètre non validé, puis faux : rien.
         $t = $this->type();
+        foreach ([null, false] as $v) {
+            if ($v !== null) {
+                (new \App\Core\Settings($this->db))->validate('contributions', 'auto_generate', $v, $this->admin, 'PV-AUTO');
+            }
+            $this->db->query("DELETE FROM scheduled_runs WHERE task = 'contributions.generate_calls'");
+            $sched->run(time());
+            $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM contribution_calls'));
+        }
+        (new \App\Core\Settings($this->db))->validate('contributions', 'auto_generate', true, $this->admin, 'PV-AUTO');
+        // Avec un type actif valide et le paramètre validé : un appel pour la période courante seulement, et pas de doublon au passage suivant.
         $this->db->query("DELETE FROM scheduled_runs WHERE task = 'contributions.generate_calls'");
         $sched->run(time());
         $this->db->query("DELETE FROM scheduled_runs WHERE task = 'contributions.generate_calls'");
@@ -249,5 +260,55 @@ final class ContributionCallsTest extends AdminTestCase
         $this->assertSame(302, $this->request('POST', '/admin/cotisations/appels/lot', ['type_id' => (string) $t, 'start' => $this->today()->format('Y-m-d')])->status());
         $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM contribution_calls'));
         $this->assertSame(302, $this->request('POST', '/admin/cotisations/types/nouveau', ['name' => 'Droit', 'kind' => 'droit_adhesion', 'status' => 'non_configure'])->status());
+    }
+
+    public function test_batch_rerun_creates_nothing_and_burns_no_ids(): void
+    {
+        $this->member('M1', $this->zoneA);
+        $this->member('M2', $this->zoneA);
+        $t = $this->type();
+        $this->calls()->generateBatch($t, $this->today(), $this->admin);
+        $next = fn (): int => (int) $this->db->fetchValue("SELECT AUTO_INCREMENT FROM information_schema.TABLES WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'contribution_calls'");
+        $before = $next();
+        $this->assertSame(['created' => 0, 'skipped' => 2], $this->calls()->generateBatch($t, $this->today(), $this->admin));
+        $this->assertSame($before, $next());
+    }
+
+    public function test_call_refused_when_credited_account_deactivated(): void
+    {
+        $m = $this->member('M1', $this->zoneA);
+        $t = $this->type();
+        $this->db->update('financial_accounts', ['is_active' => 0], ['id' => $this->account]);
+        foreach ([fn () => $this->calls()->createForMember($m, $t, ['start' => $this->today()->format('Y-m-d')], $this->admin),
+            fn () => $this->calls()->generateBatch($t, $this->today(), $this->admin)] as $f) {
+            try {
+                $f();
+                $this->fail('appel accepté');
+            } catch (DomainException) {
+                $this->addToAssertionCount(1);
+            }
+        }
+    }
+
+    public function test_type_with_calls_keeps_kind_periodicity_and_amount(): void
+    {
+        $m = $this->member('M1', $this->zoneA);
+        $t = $this->type(['name' => 'Fige']);
+        $id = $this->calls()->createForMember($m, $t, ['start' => $this->today()->format('Y-m-d')], $this->admin);
+        $base = ['name' => 'Fige', 'kind' => 'periodique', 'amount' => '5000', 'periodicity' => 'mensuelle', 'authorization_ref' => 'PV-1', 'affects_account_id' => $this->account, 'status' => 'actif'];
+        foreach ([['amount' => '6000'], ['periodicity' => 'annuelle'], ['kind' => 'droit_adhesion']] as $change) {
+            try {
+                $this->types()->save($t, $change + $base, $this->admin);
+                $this->fail('modification acceptée');
+            } catch (DomainException $e) {
+                $this->assertStringContainsString('déjà des appels', $e->getMessage());
+            }
+        }
+        $this->types()->save($t, ['name' => 'Fige 2', 'authorization_ref' => 'PV-2'] + $base, $this->admin);
+        $this->types()->save($t, ['status' => 'non_configure'] + $base, $this->admin);
+        // Une fois l'appel annulé, la modification redevient possible.
+        $this->calls()->cancel($id, 'Erreur', $this->admin);
+        $this->types()->save($t, ['amount' => '6000'] + $base, $this->admin);
+        $this->assertSame('6000.00', $this->db->fetchValue('SELECT amount FROM contribution_types WHERE id = ?', [$t]));
     }
 }

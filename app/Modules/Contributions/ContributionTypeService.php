@@ -84,6 +84,10 @@ final class ContributionTypeService
                 } else {
                     $old = $this->db->fetch('SELECT name, kind, amount, periodicity, authorization_ref, affects_account_id, status FROM contribution_types WHERE id = ? FOR UPDATE', [$id])
                         ?? throw new DomainException('Type de cotisation inconnu.');
+                    if ($this->db->fetchValue("SELECT 1 FROM contribution_calls WHERE contribution_type_id = ? AND status <> 'annulee' LIMIT 1", [$id]) !== null
+                        && ($old['kind'] !== $kind || $old['periodicity'] !== $periodicity || $old['amount'] !== ($row['amount']))) {
+                        throw new DomainException('Ce type a déjà des appels : nature, périodicité et montant ne se modifient plus (libellé, autorisation et désactivation restent possibles).');
+                    }
                     $this->db->update('contribution_types', $row, ['id' => $id]);
                     $this->audit->log($actor, 'contributions.type_updated', 'contribution_type', $id, $old, $row);
                 }

@@ -7,6 +7,7 @@ use App\Core\Audit;
 use App\Core\Database;
 use App\Core\Money;
 use App\Core\Scheduler;
+use App\Core\Settings;
 use App\Modules\Finance\Ledger;
 use App\Modules\Members\MemberScope;
 use DateTimeImmutable;
@@ -27,10 +28,16 @@ final class CallService
     {
     }
 
+    public const AUTO_BANNER = 'La génération automatique des appels est désactivée tant que les instances n\'ont pas validé ce paramètre ; les appels groupés se font manuellement.';
+
     /** Tâche planifiée : sans type actif (montant validé, périodicité définie), ne fait rien ; ne crée jamais pour une période non commencée. */
     public static function register(Scheduler $scheduler, Database $db, Audit $audit): void
     {
         $scheduler->register('contributions.generate_calls', 60, static function () use ($db, $audit): void {
+            $settings = new Settings($db);
+            if (!$settings->isValidated('contributions', 'auto_generate') || $settings->get('contributions', 'auto_generate') !== true) {
+                return;
+            }
             $svc = new self($db, $audit, new MemberScope($db, new \App\Core\Gate($db)));
             $types = $db->fetchAll("SELECT id FROM contribution_types WHERE status = 'actif' AND kind = 'periodique' AND amount IS NOT NULL AND periodicity IS NOT NULL");
             foreach ($types as $t) {
@@ -81,8 +88,8 @@ final class CallService
             $eligible = (int) $this->db->fetchValue("SELECT COUNT(*) FROM members m WHERE $where", $params);
             // IGNORE + UNIQUE(member, type, period_start) : idempotent même si deux exécutions se croisent.
             $created = $this->db->query("INSERT IGNORE INTO contribution_calls (member_id, contribution_type_id, period_label, period_start, period_end, amount_due, due_date, status)
-                SELECT m.id, ?, ?, ?, ?, ?, ?, 'appelee' FROM members m WHERE $where",
-                [$typeId, $p['label'], $p['start'], $p['end'], $type['amount'], $p['end'], ...$params])->rowCount();
+                SELECT m.id, ?, ?, ?, ?, ?, ?, 'appelee' FROM members m WHERE $where AND NOT EXISTS (SELECT 1 FROM contribution_calls c WHERE c.member_id = m.id AND c.contribution_type_id = ? AND c.period_start = ?)",
+                [$typeId, $p['label'], $p['start'], $p['end'], $type['amount'], $p['end'], ...$params, $typeId, $p['start']])->rowCount();
             if ($created > 0) {
                 $this->audit->log($actor, 'contributions.batch_generated', 'contribution_type', $typeId, null, ['period' => $p['label'], 'created' => $created, 'skipped' => $eligible - $created]);
             }
@@ -117,10 +124,14 @@ final class CallService
     /** @return array<string,mixed> type actif, montant validé ; périodicité définie pour une cotisation périodique */
     private function callableType(int $typeId, bool $lock): array
     {
-        $t = $this->db->fetch('SELECT id, name, kind, amount, periodicity, status FROM contribution_types WHERE id = ?' . ($lock ? ' FOR UPDATE' : ''), [$typeId])
+        $t = $this->db->fetch('SELECT t.id, t.name, t.kind, t.amount, t.periodicity, t.status, a.is_active AS account_active FROM contribution_types t
+            LEFT JOIN financial_accounts a ON a.id = t.affects_account_id WHERE t.id = ?' . ($lock ? ' FOR UPDATE' : ''), [$typeId])
             ?? throw new DomainException('Type de cotisation inconnu.');
         if ($t['status'] !== 'actif' || $t['amount'] === null) {
             throw new DomainException('Ce type n\'est pas actif avec un montant validé : aucun appel possible.');
+        }
+        if ((int) $t['account_active'] !== 1) {
+            throw new DomainException('Le compte crédité de ce type est désactivé ou absent : aucun appel possible.');
         }
         if ($t['kind'] === 'periodique' && $t['periodicity'] === null) {
             throw new DomainException('La périodicité de ce type n\'est pas définie : aucun appel possible.');

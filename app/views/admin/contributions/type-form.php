@@ -6,6 +6,7 @@ $action = $id > 0 ? "/admin/cotisations/types/$id/modifier" : '/admin/cotisation
     'breadcrumbs' => [['Cotisations', '/admin/cotisations/types'], [$id > 0 ? 'Modifier' : 'Nouveau', null]]], '') ?>
 <?php if ($error !== null): ?><?= ui('alert', ['kind' => 'danger', 'message' => $error]) ?><?php endif; ?>
 <?= ui('alert', ['kind' => 'info', 'message' => 'Périodicités proposées : vocabulaire technique, en attente de validation par les instances.']) ?>
+<?= ui('alert', ['kind' => 'info', 'message' => App\Modules\Contributions\CallService::AUTO_BANNER]) ?>
 <form method="post" action="<?= e($action) ?>">
 <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
 <?= ui('panel', ['title' => 'Type'],
