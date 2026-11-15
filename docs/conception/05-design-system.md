@@ -121,6 +121,14 @@ Composants disponibles (`ui('nom', [...])`) : `button`, `field` (saisie, liste, 
 
 **Couleurs.** Toute nouvelle paire texte/fond se déclare dans `ContrastChecker::PAIRS` ; `php bin/check-contrast.php` (ou `composer test`) échoue sous 4,5:1 (texte) ou 3:1 (grands textes, bordures de champs, anneaux de focus).
 
+### Ajustements de L5
+
+- `page-header` : les actions sont groupées (`.page-actions`, espacement `--s3`, retour à la ligne).
+- `.cell-link` : lien de tableau ou de liste atteignable (44 px au pointeur tactile).
+- `validation-steps` : tous les repères partagent le même fond neutre ; l'état se lit à l'icône, à la couleur et au texte (le contrôleur Taste refusait des pastilles de teintes différentes). Une étape « à venir » n'est jamais marquée courante.
+- `print.php` : liste imprimable (`.list-print`, 10 pt, colonne du numéro sans retour à la ligne) ; l'ombre de la feuille sur écran est réduite à 8 %.
+- Aucun nouveau composant du kit ; le rejet d'une demande utilise la case `.check` « Je confirme » (la boîte `confirm-dialog` ne peut pas porter le motif saisi).
+
 ### Contrôle de qualité (fin de L2)
 
 - Skill Taste : `lint.mjs --app` sur vues, CSS et JS, puis `inspect.mjs --app` sur la galerie, la connexion, le tableau de bord, utilisateurs (liste, création), rôles (liste, fiche), journal, changement de mot de passe, page d'erreur, et `inspect.mjs` (page) sur `/` — 1440, 768 et 390 px. 0 échec. Le détail des avertissements justifiés figure dans le rapport de la tâche 7.

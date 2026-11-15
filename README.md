@@ -2,7 +2,7 @@
 
 Plateforme institutionnelle et de gestion de la **Mutuelle des Marins Marchands et Gens de Mer de Côte d'Ivoire** — « Un nouveau jour se lève ».
 
-État : **lot L0 (socle technique) terminé**. La page d'accueil est une page technique (« Socle MMMGCI opérationnel »), remplacée en L4.
+État : **lots L0 (socle), L1 (accès), L2 (design system) et L5 (adhérents) terminés**. La page d'accueil est une page technique (« Socle MMMGCI opérationnel »), remplacée en L4.
 
 - Conception : [`docs/conception/`](docs/conception/README.md)
 - Contexte produit : [`PRODUCT.md`](PRODUCT.md)
@@ -119,6 +119,39 @@ php /home/USER/mmmgci/bin/create-admin.php admin@exemple.ci "Prénom Nom"
 ```
 
 Le mot de passe est alors envoyé dans l'e-mail du Cron : **supprimer la tâche dès qu'elle a tourné** et changer le mot de passe immédiatement.
+
+## Adhérents (lot L5)
+
+Écrans sous `/admin/adherents` (menu « Adhérents ») :
+
+| Écran | Adresse | Permission |
+|---|---|---|
+| Liste, recherche (nom, numéro, téléphone), filtres, tri | `/admin/adherents` | `members.view` |
+| Fiche (onglets identité, profession, ayants droit, pièces, cotisations, demandes, historique) | `/admin/adherents/{id}` | `members.view` |
+| Création (avec contrôle des homonymes) et modification | `/admin/adherents/nouveau`, `/{id}/modifier` | `members.create`, `members.update` |
+| Demandes d'adhésion saisies (réception, prise en charge, compléments, validation, rejet) | `/admin/adherents/demandes` | `members.view` ; saisie : `members.create` ; instruction : `members.validate` |
+| Changement de statut (motif et référence de décision obligatoires, historisé) | `/{id}/statut` | `members.status` |
+| Export CSV / XLSX et liste imprimable (mêmes filtres et même périmètre que la liste) | `/admin/adherents/export.csv`, `.xlsx`, `/imprimer` | `members.export` |
+| Carte de membre (délivrance, révocation, impression CR80) | `/{id}/carte` | `members.update` |
+| Référentiels (catégories, professions, spécialités, statuts) | `/admin/adherents/referentiels` | `settings.manage` |
+| Pièces d'identité et livret (consultation journalisée) | `/{id}/pieces/{fid}` | `members.documents.view` |
+| Vérification publique d'une carte (QR) | `/verifier/{jeton}` | aucune (page neutre : nom, numéro, statut, validité) |
+
+**Permissions** : `members.view|create|update|validate|export|documents.view`, plus `members.status` (changer le statut ; attribuée avec `members.validate`) et `members.scope.all` (voir les adhérents de toutes les zones). Détail dans les migrations `0005` et `0008`.
+
+**Périmètre des délégués** : sans `members.scope.all`, un compte ne voit que les adhérents de sa **zone de rattachement** (`users.zone_id`, à régler dans l'écran Utilisateurs). Les sous-zones ne sont pas incluses. Sans zone et sans `members.scope.all`, il ne voit personne. Un adhérent, une demande, une pièce ou une carte hors périmètre répond **404** (jamais 403). Le délégué saisit des demandes (zone imposée par le serveur) ; il ne les valide pas.
+
+**Paramètres « non configuré »** (écran Référentiels, bandeau « en attente de validation par les instances ») — aucune valeur n'est inventée :
+
+| Paramètre | Effet tant qu'il n'est pas validé |
+|---|---|
+| `members.number_format` | format technique par défaut `MMMGCI-AAAA-NNNNN` (changer plus tard impose une renumérotation) |
+| `members.card_validity_months` | carte sans date d'expiration (« Validité non définie ») |
+| `members.card_conditions` | délivrance manuelle, sans case de conditions ; une valeur validée mais vide compte comme non configurée |
+| `members.retention_months` | aucune purge ni anonymisation (non implémentées) |
+| Statuts `actif`, `suspendu`, `radie`, `decede`, `ancien_marin` | liste **proposée** ; aucune règle de transition ni conséquence automatique |
+
+**Limites connues** : les exports sont construits en mémoire (ordre de grandeur validé : 2 000 lignes en moins de 0,1 s ; au-delà de ~100 000 lignes, prévoir de relever `memory_limit` ou de filtrer) ; l'impression physique d'une carte CR80 (marges, recto/verso) n'a pas été vérifiée sur imprimante ; pas d'anonymisation après conservation, pas de suppression de pièce ni de photo, pas d'Espace adhérent ni d'adhésion en ligne (lots L15 et L4).
 
 ## Rôles et permissions
 

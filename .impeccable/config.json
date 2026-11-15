@@ -29,6 +29,15 @@
         ],
         "createdAt": "2026-11-13T22:10:38.977Z",
         "reason": "Claude: panels shown inside a screen-mockup frame in a spec document, not a product page"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "public/assets/css/components.css"
+        ],
+        "createdAt": "2026-11-15T11:00:00.000Z",
+        "reason": "Claude: .step::before is the vertical connector of a timeline (validation-steps), not a card accent border"
       }
     ]
   }

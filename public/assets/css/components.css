@@ -130,11 +130,11 @@ textarea.control { padding: 10px 12px; resize: vertical; }
 .step > div { display: grid; gap: 2px; padding-top: 4px; }
 .step-state { font-size: var(--text-xs); font-weight: 600; color: var(--ink-2); }
 .step-meta { font-size: var(--text-sm); color: var(--ink-3); }
-.step-done .step-mark { background: var(--ok-bg); color: var(--ok); }
+.step-done .step-mark { color: var(--ok); } /* même fond pour tous les repères : l'état se lit à l'icône, à la couleur et au texte */
 .step-done:not(:last-child)::before { border-color: var(--ok); }
-.step-current .step-mark { background: var(--navy-800); color: #fff; }
+.step-current .step-mark { color: var(--navy-800); border: 2px solid var(--navy-800); }
 .step-current .step-state { color: var(--navy-800); }
-.step-rejected .step-mark { background: var(--danger-bg); color: var(--danger); }
+.step-rejected .step-mark { color: var(--danger); }
 .step-rejected .step-state { color: var(--danger); }
 
 /* Galerie */
