@@ -19,7 +19,7 @@ $columns = [
     }],
     ['amount', 'Montant', 'right', true, static fn (array $t): string => '<span class="nowrap">' . ($t['direction'] === 'recette' ? '+ ' : '− ') . e(Money::format(Money::fromDecimal((string) $t['amount']))) . '</span>'],
 ];
-$rowActions = $manage ? static fn (array $t): string => $t['reversal_of_id'] === null && (int) $t['reversed'] === 0
+$rowActions = $manage ? static fn (array $t): string => $t['reversal_of_id'] === null && (int) $t['reversed'] === 0 && \App\Modules\Finance\Ledger::isManual($t['source_type'])
     ? ui('button', ['label' => 'Contre-passer', 'variant' => 'secondary', 'size' => 'sm', 'href' => '/admin/finances/ecritures/' . $t['id'] . '/contre-passation']) : '' : null;
 ?>
 <form class="filter-row" method="get" action="<?= e($base) ?>" role="search">

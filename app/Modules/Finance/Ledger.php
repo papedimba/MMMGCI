@@ -93,6 +93,24 @@ final class Ledger
         });
     }
 
+    public const WORKFLOW_REVERSAL_MESSAGE = 'Cette écriture provient d\'un processus métier (cotisation, décaissement…) : annulez le paiement ou l\'opération d\'origine, qui contre-passe l\'écriture.';
+
+    /** Une écriture saisie à la main (sans source, ou « ressource ») peut être contre-passée depuis l'écran des finances ; toute autre source passe par son service. */
+    public static function isManual(?string $sourceType): bool
+    {
+        return $sourceType === null || $sourceType === 'ressource';
+    }
+
+    /** Contre-passation depuis l'écran : refuse les écritures d'un processus métier, puis délègue à reverse() (que les services appellent directement). */
+    public function reverseResource(int $transactionId, string $reason, int $actor): int
+    {
+        $src = $this->db->fetch('SELECT source_type FROM financial_transactions WHERE id = ?', [$transactionId]) ?? throw new DomainException('Écriture introuvable.');
+        if (!self::isManual($src['source_type'])) {
+            throw new DomainException(self::WORKFLOW_REVERSAL_MESSAGE);
+        }
+        return $this->reverse($transactionId, $reason, $actor);
+    }
+
     /**
      * Solde = ouverture + Σ recettes − Σ dépenses, calculé en SQL (DECIMAL). $at est un jour : inclus jusqu'à 23:59:59 ;
      * Africa/Abidjan est à UTC+0 sans changement d'heure, donc les dates stockées (UTC) sont déjà celles d'Abidjan.

@@ -50,9 +50,12 @@ final class PaymentService
         }
         return $this->db->atomic(function () use ($memberId, $callId, $amount, $method, $paidAt, $externalRef, $accountId, $idempotencyKey, $actor): int {
             // 1. verrou de l'appel AVANT toute lecture de son état (sérialise avec CallService::cancel et les autres paiements)
-            $call = $this->db->fetch('SELECT c.id, c.member_id, c.status, c.amount_due, t.kind, t.name AS type_name, t.affects_account_id, t.authorization_ref
+            $call = $this->db->fetch('SELECT c.id, c.member_id, c.status, c.amount_due, c.period_start, t.kind, t.name AS type_name, t.affects_account_id, t.authorization_ref
                 FROM contribution_calls c JOIN contribution_types t ON t.id = c.contribution_type_id WHERE c.id = ? FOR UPDATE', [$callId]) ?? throw new DomainException('Appel inconnu.');
             $this->scope->assertMayAccess($actor, (int) $call['member_id']);
+            if ($paidAt->format('Y-m-d') < $call['period_start']) {
+                throw new DomainException('La date du paiement ne peut pas précéder le début de la période de l\'appel (' . date('d/m/Y', strtotime($call['period_start'])) . ').');
+            }
             $existing = $this->db->fetch('SELECT id, member_id, contribution_call_id, amount FROM payments WHERE idempotency_key = ?', [$idempotencyKey]);
             if ($existing !== null) { // rejeu : même charge utile = même paiement, sinon refus
                 if ((int) $existing['member_id'] !== $memberId || (int) $existing['contribution_call_id'] !== $callId || Money::fromDecimal($existing['amount']) !== $amount) {

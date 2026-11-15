@@ -80,7 +80,7 @@ final class FinanceController
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min($pages, max(1, (int) $r->input('page', 1)));
         $rows = $this->db->fetchAll(
-            "SELECT t.id, t.reference, t.direction, t.amount, t.occurred_at, t.description, t.authorization_ref, t.reversal_of_id, c.name AS category_name,
+            "SELECT t.id, t.reference, t.direction, t.amount, t.occurred_at, t.description, t.authorization_ref, t.reversal_of_id, t.source_type, c.name AS category_name,
                     (SELECT x.reference FROM financial_transactions x WHERE x.id = t.reversal_of_id) AS reversal_of_reference,
                     (SELECT COUNT(*) FROM financial_transactions x WHERE x.reversal_of_id = t.id) AS reversed
              FROM financial_transactions t JOIN financial_categories c ON c.id = t.category_id
@@ -179,7 +179,8 @@ final class FinanceController
 
     public function reverseForm(Request $r): Response
     {
-        return $this->reversePage($r, '', null);
+        $t = $this->transaction($r);
+        return $this->reversePage($r, '', Ledger::isManual($t['source_type']) ? null : Ledger::WORKFLOW_REVERSAL_MESSAGE);
     }
 
     public function reverse(Request $r): Response
@@ -187,7 +188,7 @@ final class FinanceController
         $t = $this->transaction($r);
         $v = $this->texts($r, ['reason']);
         try {
-            $this->ledger->reverse((int) $t['id'], $v['reason'], $this->actor($r));
+            $this->ledger->reverseResource((int) $t['id'], $v['reason'], $this->actor($r));
         } catch (DomainException $e) {
             return $this->reversePage($r, $v['reason'], $e->getMessage());
         }
@@ -238,7 +239,7 @@ final class FinanceController
     private function transaction(Request $r): array
     {
         $id = (int) $r->attribute('id');
-        return $this->db->fetch('SELECT t.id, t.reference, t.account_id, t.direction, t.amount, t.occurred_at, t.description, t.reversal_of_id, a.name AS account_name, c.name AS category_name
+        return $this->db->fetch('SELECT t.id, t.reference, t.account_id, t.direction, t.amount, t.occurred_at, t.description, t.reversal_of_id, t.source_type, a.name AS account_name, c.name AS category_name
             FROM financial_transactions t JOIN financial_accounts a ON a.id = t.account_id JOIN financial_categories c ON c.id = t.category_id WHERE t.id = ?', [$id])
             ?? throw new NotFound("Écriture $id introuvable.");
     }

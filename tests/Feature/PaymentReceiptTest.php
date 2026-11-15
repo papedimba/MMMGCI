@@ -40,7 +40,7 @@ final class PaymentReceiptTest extends AdminTestCase
         $this->zoneB = $this->db->insert('zones', ['name' => 'ZB ' . bin2hex(random_bytes(3)), 'type' => 'port']);
         $this->account = $this->db->insert('financial_accounts', ['name' => 'Rec ' . bin2hex(random_bytes(3))]);
         foreach (['pr_view' => ['members.view', 'contributions.view', 'members.scope.all'], 'pr_manage' => ['members.view', 'contributions.view', 'contributions.manage', 'members.scope.all'],
-            'pr_deleg' => ['members.view', 'contributions.view']] as $role => $perms) {
+            'pr_deleg' => ['members.view', 'contributions.view'], 'fin_manage' => ['finance.view', 'finance.manage']] as $role => $perms) {
             $this->db->query('INSERT IGNORE INTO roles (name, label) VALUES (?, ?)', [$role, $role]);
             foreach ($perms as $p) {
                 $this->db->query('INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = ? AND p.name = ?', [$role, $p]);
@@ -320,5 +320,37 @@ final class PaymentReceiptTest extends AdminTestCase
         $this->svc()->cancel($p, 'erreur', $this->manager);
         $callSvc->cancel($c, 'x', $this->manager);
         $this->refuses(fn () => $this->pay($m, $c, 100_000), 'annulé');
+    }
+
+    public function test_ledger_reversal_screen_refuses_payment_transactions_but_cancel_still_works(): void
+    {
+        [$m, $c] = $this->call();
+        $p = $this->pay($m, $c, 100_000);
+        $tx = (int) $this->db->fetchValue('SELECT financial_transaction_id FROM payments WHERE id = ?', [$p]);
+        $fin = $this->createUser('fm' . bin2hex(random_bytes(3)) . '@pr.test', ['fin_manage']);
+        $this->actingAs($fin);
+        $url = "/admin/finances/ecritures/$tx/contre-passation";
+        $get = $this->request('GET', $url);
+        $this->assertSame(422, $get->status());
+        $this->assertStringContainsString('annulez le paiement', $get->body());
+        $post = $this->request('POST', $url, ['reason' => 'Tentative']);
+        $this->assertSame(422, $post->status());
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM financial_transactions WHERE reversal_of_id = ?', [$tx]));
+        $list = $this->request('GET', '/admin/finances/comptes/' . $this->account)->body();
+        $this->assertStringNotContainsString($url, $list);
+        $this->svc()->cancel($p, 'Erreur', $this->manager);
+        $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM financial_transactions WHERE reversal_of_id = ?', [$tx]));
+        // Écriture manuelle (ressource) : toujours contre-passable depuis l'écran.
+        $cat = (int) $this->db->fetchValue("SELECT id FROM financial_categories WHERE name = 'Dons, legs et subventions'");
+        $res = (new Ledger($this->db, $this->audit(), new Sequence($this->db)))->record($this->account, $cat, 'recette', 5_000, $this->now(), ['source_type' => 'ressource'], $this->manager);
+        $this->assertSame(302, $this->request('POST', "/admin/finances/ecritures/$res/contre-passation", ['reason' => 'Erreur'])->status());
+    }
+
+    public function test_payment_date_before_period_start_is_refused(): void
+    {
+        [$m, $c] = $this->call();
+        $before = $this->now()->modify('first day of this month')->modify('-1 day');
+        $this->refuses(fn () => $this->svc()->record($m, $c, 100, 'especes', $before, null, $this->account, bin2hex(random_bytes(16)), $this->manager), 'précéder');
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM payments'));
     }
 }
