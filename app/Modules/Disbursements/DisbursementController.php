@@ -125,8 +125,10 @@ final class DisbursementController
         $uid = $this->actor($r);
         $remove = $r->post('remove');
         try {
+            // Fichier stocké seulement si le service autoriserait l'action : un refus ne laisse aucun fichier orphelin.
+            $may = in_array('revise', $this->service->allowedActions((int) $d['id'], $uid), true);
             $changes = $this->fields($v) + ['remove_attachments' => array_values(array_map('intval', is_array($remove) ? $remove : [])),
-                'add_files' => $this->upload($r, 'justificatif', $uid, $v['label'])];
+                'add_files' => $may ? $this->upload($r, 'justificatif', $uid, $v['label']) : []];
             $this->service->revise((int) $d['id'], $changes, $v['reason'], $uid, $r->ip());
         } catch (DomainException | UploadError $e) {
             return $this->formPage($r, $this->load($r), $v, $e->getMessage(), $this->status($e));
@@ -197,11 +199,14 @@ final class DisbursementController
                 throw new DisbursementRuleViolation('Date invalide : choisissez une date.');
             }
             $now = Ledger::now();
-            $proof = $this->upload($r, 'preuve', $uid, '');
-            if ($proof === []) {
+            // Fichier stocké seulement si l'action est permise et la page vue à jour ; sinon le service refuse (identifiant 0) avant tout fichier.
+            $may = in_array('pay', $this->service->allowedActions($id, $uid), true) && (int) $v['seen_revision'] === (int) $d['revision']
+                && (int) $v['seen_amount'] === Money::fromDecimal((string) $d['amount']);
+            $proof = $may ? $this->upload($r, 'preuve', $uid, '') : [];
+            if ($may && $proof === []) {
                 throw new UploadError('Joignez la pièce justificative du paiement (reçu signé, bordereau, capture du transfert).');
             }
-            // shortcut: un fichier stocké reste orphelin si le service refuse ensuite le paiement ; à purger par une tâche si le volume le justifie.
+            // shortcut: un fichier reste orphelin si une course change l'état entre ce contrôle et le service ; à purger par une tâche si le volume le justifie.
             $this->service->pay($id, $uid, (int) $v['seen_revision'], (int) $v['seen_amount'], ['method' => $v['method'],
                 'paid_at' => $day->format('Y-m-d') === $now->format('Y-m-d') ? $now : $day->setTime(12, 0), 'external_ref' => $v['external_ref']],
                 (int) array_key_first($proof), $v['key'], $r->ip());

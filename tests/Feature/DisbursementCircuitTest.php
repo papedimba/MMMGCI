@@ -639,4 +639,17 @@ final class DisbursementCircuitTest extends DatabaseTestCase
         $this->assertSame([], $this->svc()->allowedActions(999_999, $this->initiator));
         $this->assertSame(Money::toDecimal(5_000_000), $this->db->fetchValue('SELECT amount FROM disbursement_requests WHERE id = ?', [$id]));
     }
+
+    /** Messages de refus de transition : élision correcte pour tous les verbes. */
+    public function test_transition_messages_use_correct_elision(): void
+    {
+        $paid = $this->approved();
+        $this->payNow($paid);
+        $this->refuses(fn () => $this->svc()->submit($paid, $this->initiator), DisbursementTransitionInvalid::class, 'Impossible de soumettre cette demande');
+        $this->refuses(fn () => $this->approveNow($paid, $this->approverA, null), DisbursementTransitionInvalid::class, 'Impossible d\'approuver cette demande');
+        $this->refuses(fn () => $this->rejectNow($paid, $this->approverA, 'x'), DisbursementTransitionInvalid::class, 'Impossible de rejeter cette demande');
+        $this->refuses(fn () => $this->svc()->revise($paid, ['purpose' => 'x'], '', $this->initiator), DisbursementTransitionInvalid::class, 'Impossible de modifier cette demande');
+        $this->refuses(fn () => $this->svc()->cancel($paid, $this->initiator), DisbursementTransitionInvalid::class, 'Impossible d\'annuler cette demande');
+        $this->refuses(fn () => $this->payNow($paid), DisbursementTransitionInvalid::class, 'Impossible de payer cette demande');
+    }
 }

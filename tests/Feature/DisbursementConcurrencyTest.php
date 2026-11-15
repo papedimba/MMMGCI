@@ -237,4 +237,27 @@ final class DisbursementConcurrencyTest extends DatabaseTestCase
         $this->assertSame('approuve_2', $this->state($id));
         $this->assertSame(2, $this->approvals($id, validOnly: true));
     }
+
+    /** Transaction de l'appelant : une attente trop longue (1205) remonte en exception SQL brute, jamais en DomainException rattrapable puis validée. */
+    public function test_caller_owned_transaction_gets_the_raw_sql_exception(): void
+    {
+        $id = $this->submitted();
+        $other = Database::connect(self::config(), test: true);
+        $this->db->query('SET SESSION innodb_lock_wait_timeout = 1');
+        $other->pdo()->beginTransaction();
+        $other->fetchAll('SELECT id FROM disbursement_requests WHERE id = ? FOR UPDATE', [$id]);
+        $this->db->pdo()->beginTransaction();
+        try {
+            $this->approveNow($id, $this->approverA, null);
+            $this->fail('1205 attendu');
+        } catch (\PDOException $e) {
+            $this->assertSame(1205, $e->errorInfo[1]);
+        } catch (DisbursementBusy) {
+            $this->fail('DisbursementBusy ne doit pas sortir d\'une transaction appelante');
+        } finally {
+            $this->db->pdo()->rollBack();
+            $other->pdo()->rollBack();
+        }
+        $this->assertSame('soumis', $this->state($id));
+    }
 }

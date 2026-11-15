@@ -1,5 +1,5 @@
 <?php declare(strict_types=1);
-/** @var ?array $summary @var array $latest @var bool $canSeeDisbursements @var Closure $can @var string $csrfToken */
+/** @var int $activeFunds @var ?array $summary @var array $latest @var bool $canSeeDisbursements @var Closure $can @var string $csrfToken */
 use App\Core\Money;
 $months = ['01' => 'janvier', '02' => 'février', '03' => 'mars', '04' => 'avril', '05' => 'mai', '06' => 'juin', '07' => 'juillet', '08' => 'août', '09' => 'septembre', '10' => 'octobre', '11' => 'novembre', '12' => 'décembre'];
 $money = static fn (int $c): string => '<span class="nowrap">' . e(Money::format($c)) . '</span>';
@@ -9,6 +9,7 @@ $actions = $summary !== null && $can('reports.export')
 ?>
 <?= ui('page-header', ['title' => 'Fonds de solidarité', 'subtitle' => 'Solde, entrées et sorties du fonds, recalculés depuis le grand livre.'], $actions) ?>
 <?= ui('alert', ['kind' => 'info', 'message' => 'Les critères et plafonds d\'intervention du fonds sont en attente de validation par les instances.']) ?>
+<?php if ($activeFunds > 1): ?><?= ui('alert', ['kind' => 'danger', 'message' => 'Plusieurs comptes de fonds de solidarité sont actifs (' . $activeFunds . ') : seul le plus ancien est affiché. Désactivez les autres dans la liste des comptes.']) ?><?php endif; ?>
 <?php if ($summary === null): ?>
 <?php
 $form = '';

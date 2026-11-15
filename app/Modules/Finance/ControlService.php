@@ -227,7 +227,7 @@ final class ControlService
                 $ids[] = (int) $d['id'];
             }
         }
-        return ['key' => 'paid_few_approvers', 'label' => 'Décaissement payé avec moins d\'approbateurs distincts valides que la règle applicable', 'table' => 'disbursement', 'count' => count($ids), 'ids' => array_slice($ids, 0, 50)];
+        return ['key' => 'paid_few_approvers', 'label' => 'Décaissement payé avec moins d\'approbateurs distincts valides que la règle d\'approbation ACTUELLE (celle en vigueur aujourd\'hui, pas celle d\'à la date du paiement)', 'table' => 'disbursement', 'count' => count($ids), 'ids' => array_slice($ids, 0, 50)];
     }
 
     /** Export audité d'un jeu (« ecritures » ou « decaissements »). @param array<string,string> $f @return array{body: string, rows: int} */

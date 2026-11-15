@@ -95,10 +95,26 @@ final class SolidarityFundTest extends AdminTestCase
         }
     }
 
+    /** Filet en base (migration 0015) : un second fonds actif est refusé même par SQL direct ; les inactifs et les autres types restent libres. */
+    public function test_database_refuses_a_second_active_fund(): void
+    {
+        $this->makeFund();
+        $this->db->insert('financial_accounts', ['name' => 'Inactif ' . bin2hex(random_bytes(3)), 'type' => 'solidarity_fund', 'is_active' => 0, 'opening_balance' => '0.00']);
+        $this->db->insert('financial_accounts', ['name' => 'Banque ' . bin2hex(random_bytes(3)), 'type' => 'bank', 'opening_balance' => '0.00']);
+        try {
+            $this->db->insert('financial_accounts', ['name' => 'Second ' . bin2hex(random_bytes(3)), 'type' => 'solidarity_fund', 'opening_balance' => '0.00']);
+            $this->fail('un second fonds actif aurait dû être refusé par la base');
+        } catch (\PDOException $e) {
+            $this->assertSame(1062, $e->errorInfo[1]);
+        }
+        $this->assertSame(1, $this->service()->activeFunds());
+        $this->assertStringContainsString((string) $this->db->fetchValue('SELECT DATABASE()'), (new AccountService($this->db, $this->audit()))->lockName());
+    }
+
     public function test_single_fund_creation_is_serialised_across_connections(): void
     {
         $other = Database::connect(self::config(), test: true);
-        $this->assertSame(1, (int) $other->fetchValue('SELECT GET_LOCK(?, 1)', ['mmmgci.solidarity-fund'])); // l'autre session est en train de créer le fonds
+        $this->assertSame(1, (int) $other->fetchValue('SELECT GET_LOCK(?, 1)', [(new AccountService($this->db, $this->audit()))->lockName()])); // l'autre session est en train de créer le fonds
         try {
             (new AccountService($this->db, $this->audit(), 1))->create('Fonds X ' . bin2hex(random_bytes(3)), 'solidarity_fund', '', $this->initiator);
             $this->fail('création concurrente refusée');
@@ -108,7 +124,7 @@ final class SolidarityFundTest extends AdminTestCase
         $this->assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM financial_accounts WHERE type = 'solidarity_fund' AND is_active = 1"));
         // L'autre session crée son fonds, libère le verrou : la nôtre voit son commit et se voit refuser.
         (new AccountService($other, $this->audit($other)))->create('Fonds Y ' . bin2hex(random_bytes(3)), 'solidarity_fund', '', $this->initiator);
-        $other->query('SELECT RELEASE_LOCK(?)', ['mmmgci.solidarity-fund']);
+        $other->query('SELECT RELEASE_LOCK(?)', [(new AccountService($this->db, $this->audit()))->lockName()]);
         $this->expectException(DomainException::class);
         $this->expectExceptionMessage('un seul');
         (new AccountService($this->db, $this->audit(), 1))->create('Fonds Z ' . bin2hex(random_bytes(3)), 'solidarity_fund', '', $this->initiator);

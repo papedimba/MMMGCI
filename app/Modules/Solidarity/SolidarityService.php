@@ -16,7 +16,7 @@ use DomainException;
  *
  * Traitement des contre-passations (lignes avec reversal_of_id) : elles ne sont jamais des décaissements.
  *  - recettes nettes   = recettes d'origine − contre-passations de recettes (écritures « depense » avec reversal_of_id) ;
- *  - décaissé net      = dépenses d'origine (uniquement source « disbursement ») − contre-passations de décaissements (« recette » avec reversal_of_id) ;
+ *  - décaissé net      = dépenses d'origine (tout débit du compte, qui n'existe que par le circuit : le grand livre refuse toute autre dépense) − contre-passations de décaissements (« recette » avec reversal_of_id) ;
  *  - invariant : solde = ouverture + recettes nettes − décaissé net. Rien ici n'écrit au grand livre.
  */
 final class SolidarityService
@@ -34,6 +34,12 @@ final class SolidarityService
     {
         $a = $this->db->fetch("SELECT id, name, opening_balance FROM financial_accounts WHERE type = 'solidarity_fund' AND is_active = 1 ORDER BY id LIMIT 1");
         return $a === null ? null : ['id' => (int) $a['id'], 'name' => (string) $a['name'], 'opening_balance' => (string) $a['opening_balance']];
+    }
+
+    /** Nombre de comptes de fonds actifs : plus d'un = données héritées incohérentes, à signaler (le filet UNIQUE l'interdit désormais). */
+    public function activeFunds(): int
+    {
+        return (int) $this->db->fetchValue("SELECT COUNT(*) FROM financial_accounts WHERE type = 'solidarity_fund' AND is_active = 1");
     }
 
     /**

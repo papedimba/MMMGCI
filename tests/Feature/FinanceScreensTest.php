@@ -69,6 +69,12 @@ final class FinanceScreensTest extends AdminTestCase
         $this->assertSame(422, $this->request('POST', "/admin/finances/ecritures/$tx/contre-passation", ['reason' => ''])->status());
         $this->assertSame(302, $this->request('POST', "/admin/finances/ecritures/$tx/contre-passation", ['reason' => 'Erreur de saisie'])->status());
         $this->assertSame(422, $this->request('POST', "/admin/finances/ecritures/$tx/contre-passation", ['reason' => 'Encore'])->status());
+        // Le GET refuse (422) comme le POST : déjà contre-passée, contre-passation elle-même.
+        $this->assertSame(422, $this->request('GET', "/admin/finances/ecritures/$tx/contre-passation")->status());
+        $rev = (int) $this->db->fetchValue('SELECT id FROM financial_transactions WHERE reversal_of_id = ?', [$tx]);
+        $res = $this->request('GET', "/admin/finances/ecritures/$rev/contre-passation");
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString('elle-même une contre-passation', $res->body());
         $this->assertSame(302, $this->request('POST', "/admin/finances/comptes/{$this->account}/activation", ['active' => '0'])->status());
         $this->assertSame(422, $this->request('POST', '/admin/finances/ressources', $this->resource())->status(), 'compte désactivé');
     }

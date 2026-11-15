@@ -10,6 +10,7 @@ use App\Core\Money;
 use App\Core\NotFound;
 use App\Core\Sequence;
 use App\Core\Settings;
+use App\Modules\Contributions\PaymentService;
 use App\Modules\Finance\Ledger;
 use DateTimeImmutable;
 use DomainException;
@@ -32,14 +33,13 @@ use PDOException;
  * vue cohérente avant le verrou). Les tests d'existence suivis d'un INSERT (décision déjà prise, clé d'idempotence, pièces)
  * sont des lectures SIMPLES : une lecture verrouillante d'une clé absente pose un verrou d'intervalle qui interbloque deux
  * demandes différentes (1213). Ces lignes ne changent que sous le verrou de la demande ; l'UNIQUE reste le filet (1062 traduit).
- * run() rejoue une fois l'action victime d'un interblocage (transaction propre) ; sinon, ou en cas d'attente trop longue (1205),
- * DisbursementBusy : jamais d'erreur 500 brute.
+ * run() rejoue une fois l'action victime d'un interblocage (transaction propre) ; sinon (ou si l'interblocage se répète), ou en cas d'attente trop longue (1205),
+ * DisbursementBusy quand la transaction est la nôtre ; dans celle d'un appelant, l'exception SQL brute est relancée (jamais d'état partiel validé).
  *
  * Le paramètre $ip (facultatif, en dernier) est porté dans l'audit.
  */
 final class DisbursementService
 {
-    public const METHODS = ['especes', 'mobile_money', 'virement', 'cheque'];
     /** Champs dont la modification crée une révision (avec l'ensemble des justificatifs) ; category_id et internal_note ne le sont pas. */
     public const SUBSTANTIAL = ['amount', 'beneficiary_name', 'beneficiary_member_id', 'account_id', 'purpose'];
     public const ACTIONS = ['revise', 'submit', 'approve', 'reject', 'cancel', 'pay'];
@@ -49,6 +49,9 @@ final class DisbursementService
     public const STALE = 'La demande a été modifiée depuis votre lecture, relisez-la avant de continuer.';
     private const LABELS = ['brouillon' => 'au brouillon', 'soumis' => 'soumise', 'approuve_1' => 'en cours d\'approbation', 'approuve_2' => 'approuvée',
         'rejete' => 'rejetée', 'annule' => 'annulée', 'paye' => 'déjà payée'];
+
+    private const VERBS = ['soumettre' => 'de soumettre', 'approuver' => 'd\'approuver', 'rejeter' => 'de rejeter', 'modifier' => 'de modifier',
+        'annuler' => 'd\'annuler', 'payer' => 'de payer'];
 
     private ApprovalRules $rules;
     private DisbursementGate $operational;
@@ -236,7 +239,7 @@ final class DisbursementService
             throw new DisbursementRuleViolation('Données de paiement invalides.');
         }
         $method = $payment['method'] ?? null;
-        if (!in_array($method, self::METHODS, true)) {
+        if (!is_string($method) || !isset(PaymentService::METHODS[$method])) {
             throw new DisbursementRuleViolation('Mode de paiement invalide.');
         }
         $paidAt = $payment['paid_at'] ?? Ledger::now();
@@ -393,7 +396,7 @@ final class DisbursementService
     /** @param array<string,mixed> $r */
     private function invalid(array $r, string $verb): DisbursementTransitionInvalid
     {
-        return new DisbursementTransitionInvalid("Impossible de $verb cette demande : elle est " . (self::LABELS[$r['status']] ?? $r['status']) . '.');
+        return new DisbursementTransitionInvalid('Impossible ' . (self::VERBS[$verb] ?? "de $verb") . ' cette demande : elle est ' . (self::LABELS[$r['status']] ?? $r['status']) . '.');
     }
 
     private function payerMayBeInitiator(): bool
@@ -471,7 +474,7 @@ final class DisbursementService
         }
     }
 
-    /** Transaction de l'action ; interblocage (1213) : un rejeu si la transaction est la nôtre ; sinon, ou attente trop longue (1205) : DisbursementBusy. */
+    /** Transaction de l'action ; interblocage (1213) : un rejeu si la transaction est la nôtre ; attente trop longue (1205) ou second interblocage : DisbursementBusy seulement si la transaction est la nôtre, sinon l'exception SQL brute. */
     private function run(callable $fn): mixed
     {
         $owned = !$this->db->pdo()->inTransaction();
@@ -483,7 +486,8 @@ final class DisbursementService
                 if ($errno === 1213 && $owned && $attempt === 1) {
                     continue;
                 }
-                throw in_array($errno, [1213, 1205], true) ? new DisbursementBusy(DisbursementBusy::MESSAGE, 0, $e) : $e;
+                // Transaction de l'appelant : SQL brut (un DomainException rattrapé dans sa closure pourrait faire valider un état partiel).
+                throw $owned && in_array($errno, [1213, 1205], true) ? new DisbursementBusy(DisbursementBusy::MESSAGE, 0, $e) : $e;
             }
         }
     }

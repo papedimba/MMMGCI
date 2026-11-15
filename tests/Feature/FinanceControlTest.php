@@ -262,6 +262,7 @@ final class FinanceControlTest extends AdminTestCase
         $this->assertStringContainsString('Anomalies détectées', $page);
         $this->assertStringContainsString('href="/admin/controle/decaissements/' . $paidDraft . '"', $page);
         $this->assertStringContainsString('Reçu sans paiement', $page);
+        $this->assertStringContainsString('règle d&#039;approbation ACTUELLE', $page);
     }
 
     public function test_proof_download_goes_through_existing_binding_and_is_logged(): void

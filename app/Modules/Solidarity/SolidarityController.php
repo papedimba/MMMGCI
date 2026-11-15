@@ -12,7 +12,7 @@ use App\Core\View;
 use App\Modules\Finance\AccountService;
 use DomainException;
 
-/** Fonds de solidarité : lecture (solidarity.view), création du compte (solidarity.manage ou finance.manage), export (reports.export) ; permissions posées par routes/admin.php. */
+/** Fonds de solidarité : lecture (solidarity.view), création du compte (solidarity.manage ou finance.manage), export (solidarity.view ET reports.export) ; permissions posées par routes/admin.php. */
 final class SolidarityController
 {
     public function __construct(private View $view, private Csrf $csrf, private Session $session, private Gate $gate, private SolidarityService $fund, private AccountService $accounts)
@@ -28,7 +28,7 @@ final class SolidarityController
         return new Response($this->view->render('admin/solidarity/index', [
             'title' => 'Fonds de solidarité', 'user' => $user, 'can' => fn (string $p): bool => $this->gate->allows($uid, $p),
             'csrfToken' => $this->csrf->token(), 'flash' => $error ?? $this->session->pullFlash('status'), 'flashKind' => $error !== null ? 'danger' : 'ok',
-            'summary' => $has ? $this->fund->summary() : null, 'latest' => $has ? $this->fund->latest(20) : [],
+            'activeFunds' => $this->fund->activeFunds(), 'summary' => $has ? $this->fund->summary() : null, 'latest' => $has ? $this->fund->latest(20) : [],
             'canSeeDisbursements' => array_filter(['finance.view', 'finance.control', 'disbursement.initiate', 'disbursement.approve', 'disbursement.pay'], fn (string $p): bool => $this->gate->allows($uid, $p)) !== [],
         ], 'layouts/admin'));
     }

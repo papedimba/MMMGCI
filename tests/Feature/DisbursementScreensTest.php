@@ -417,4 +417,41 @@ final class DisbursementScreensTest extends AdminTestCase
         $this->assertSame('approuve_1', $this->state($todo));
         $this->assertStringContainsString('Décaissements', $this->request('GET', '/admin')->body(), 'lien du menu');
     }
+
+    /** Un refus (action interdite, révision ou montant périmé) ne laisse aucun fichier téléversé. */
+    public function test_refused_pay_and_update_leave_no_orphan_file(): void
+    {
+        $submitted = $this->submitted();
+        $approved = $this->approved();
+        $files = fn (): int => (int) $this->db->fetchValue('SELECT COUNT(*) FROM files');
+        $before = $files();
+        $this->as($this->payer);
+        $f = ['method' => 'virement', 'paid_on' => date('Y-m-d'), 'key' => bin2hex(random_bytes(16)), 'seen_revision' => '1', 'seen_amount' => '5000000'];
+        $this->assertSame(422, $this->request('POST', "/admin/decaissements/$submitted/payer", $f, ['preuve' => $this->pdf()])->status(), 'pas encore approuvée');
+        $this->assertSame(422, $this->request('POST', "/admin/decaissements/$approved/payer", ['seen_revision' => '9'] + $f, ['preuve' => $this->pdf()])->status(), 'révision périmée');
+        $this->assertSame(422, $this->request('POST', "/admin/decaissements/$approved/payer", ['seen_amount' => '1'] + $f, ['preuve' => $this->pdf()])->status(), 'montant périmé');
+        $this->assertSame($before, $files());
+        $paid = $this->approved();
+        $this->payNow($paid);
+        $before = $files();
+        $this->as($this->initiator);
+        $res = $this->request('POST', "/admin/decaissements/$paid/modifier", ['amount' => '50 000', 'beneficiary_name' => 'X', 'account_id' => (string) $this->account,
+            'category_id' => (string) $this->category, 'purpose' => 'x', 'reason' => 'x', 'label' => ''], ['justificatif' => $this->pdf()]);
+        $this->assertSame(422, $res->status(), 'demande payée : modification refusée');
+        $this->assertSame($before, $files());
+        // Le cas passant stocke bien le fichier (le contrôle ne bloque pas un envoi légitime).
+        $this->as($this->payer);
+        $this->assertSame(302, $this->request('POST', "/admin/decaissements/$approved/payer", $this->payFields($approved), ['preuve' => $this->pdf()])->status());
+        $this->assertSame('paye', $this->state($approved));
+        $this->assertGreaterThan($before, $files());
+    }
+
+    public function test_payment_proof_is_marked_required_in_the_form(): void
+    {
+        $id = $this->approved();
+        $this->as($this->payer);
+        $html = $this->request('GET', "/admin/decaissements/$id/payer")->body();
+        $this->assertMatchesRegularExpression('/<input type="file"[^>]*name="preuve"[^>]*\brequired\b/', $html);
+        $this->assertStringContainsString('Pièce justificative du paiement <span class="req"', $html);
+    }
 }

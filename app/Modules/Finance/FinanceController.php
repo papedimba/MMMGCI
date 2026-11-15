@@ -181,7 +181,11 @@ final class FinanceController
     public function reverseForm(Request $r): Response
     {
         $t = $this->transaction($r);
-        return $this->reversePage($r, '', Ledger::isManual($t['source_type']) ? null : Ledger::WORKFLOW_REVERSAL_MESSAGE);
+        // Même refus (422) qu'au POST pour une cible non contre-passable : source de circuit, contre-passation, ou déjà contre-passée.
+        $error = !Ledger::isManual($t['source_type']) ? Ledger::WORKFLOW_REVERSAL_MESSAGE
+            : ($t['reversal_of_id'] !== null ? 'Cette écriture est elle-même une contre-passation : elle ne peut pas être contre-passée.'
+            : ($this->db->fetchValue('SELECT 1 FROM financial_transactions WHERE reversal_of_id = ? LIMIT 1', [$t['id']]) !== null ? 'Cette écriture a déjà été contre-passée.' : null));
+        return $this->reversePage($r, '', $error);
     }
 
     public function reverse(Request $r): Response

@@ -17,26 +17,30 @@ final class AccountService
 {
     public const TYPES = ['general' => 'Compte général', 'solidarity_fund' => 'Fonds de solidarité', 'bank' => 'Compte bancaire', 'cash' => 'Caisse', 'mobile_money' => 'Mobile money'];
 
-    private const FUND_LOCK = 'mmmgci.solidarity-fund';
-
     public function __construct(private Database $db, private Audit $audit, private int $lockWaitSeconds = 5)
     {
     }
 
     /**
      * Un seul fonds de solidarité actif. Verrou nommé (GET_LOCK, comme FirstAdmin) pris AVANT la transaction : le contrôle et l'écriture
-     * sont ainsi sérialisés entre connexions, et l'instantané de la transaction est postérieur au dernier commit d'un concurrent.
+     * sont ainsi sérialisés entre connexions, et, quand l'appelant n'a pas de transaction ouverte, l'instantané est postérieur au dernier commit d'un concurrent. Filet en base : index UNIQUE (migration 0015).
      */
     private function withFundLock(callable $fn): mixed
     {
-        if ((int) $this->db->fetchValue('SELECT GET_LOCK(?, ?)', [self::FUND_LOCK, $this->lockWaitSeconds]) !== 1) {
+        if ((int) $this->db->fetchValue('SELECT GET_LOCK(?, ?)', [$this->lockName(), $this->lockWaitSeconds]) !== 1) {
             throw new DomainException('Le fonds de solidarité est en cours de modification par un autre utilisateur : réessayez dans un instant.');
         }
         try {
             return $fn();
         } finally {
-            $this->db->query('SELECT RELEASE_LOCK(?)', [self::FUND_LOCK]);
+            $this->db->query('SELECT RELEASE_LOCK(?)', [$this->lockName()]);
         }
+    }
+
+    /** Les verrous nommés sont propres au serveur : préfixe = base courante (la base de test ne partage pas celui de la base de dev). */
+    public function lockName(): string
+    {
+        return 'mmmgci.solidarity-fund.' . $this->db->fetchValue('SELECT DATABASE()');
     }
 
     private function assertNoActiveFund(): void
