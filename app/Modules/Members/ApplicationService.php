@@ -58,7 +58,7 @@ final class ApplicationService
         if ($note === '') {
             throw new DomainException('Indiquez les compléments demandés.');
         }
-        $this->transition($id, ['recue', 'en_verification'], 'complements_demandes', 'application.complements_requested', $actor, ['reviewer_id' => $actor], ['note' => $note]);
+        $this->transition($id, ['recue', 'en_verification'], 'complements_demandes', 'application.complements_requested', $actor, ['reviewer_id' => $actor, 'complements_note' => $note], ['note' => $note]);
     }
 
     public function reject(int $id, string $reason, int $actor): void
@@ -90,10 +90,7 @@ final class ApplicationService
                     throw new DuplicatesFound($found);
                 }
             }
-            $memberId = $this->members->create($payload, $actor);
-            $status = (string) $this->db->fetchValue('SELECT status FROM members WHERE id = ?', [$memberId]);
-            $this->db->insert('member_status_history', ['member_id' => $memberId, 'from_status' => null, 'to_status' => $status,
-                'reason' => 'Adhésion validée', 'decision_ref' => $app['reference'], 'changed_by' => $actor]);
+            $memberId = $this->members->create($payload, $actor, ['reason' => 'Adhésion validée', 'decision_ref' => $app['reference']]);
             // Les pièces de la demande rejoignent la fiche (mêmes fichiers, pas de copie).
             $this->db->query('INSERT INTO member_documents (member_id, type, file_id) SELECT ?, type, file_id FROM membership_application_files WHERE application_id = ?', [$memberId, $id]);
             $this->db->update('membership_applications', ['status' => 'validee', 'member_id' => $memberId, 'reviewer_id' => $actor], ['id' => $id]);

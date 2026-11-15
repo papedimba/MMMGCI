@@ -28,15 +28,19 @@ final class MemberService
 
     /**
      * Ne bloque pas un doublon : le contrôleur exige confirm_duplicate=1 après findDuplicates().
-     * @param array<string,mixed> $data
+     * Écrit la ligne initiale de l'historique de statut (motif et référence de décision par défaut : « Création de la fiche », aucune).
+     * @param array<string,mixed> $data @param array{reason?: string, decision_ref?: ?string} $history
      */
-    public function create(array $data, int $actor): int
+    public function create(array $data, int $actor, array $history = []): int
     {
         $fields = $this->validate($data, true);
-        return $this->db->atomic(function () use ($fields, $actor): int {
+        return $this->db->atomic(function () use ($fields, $actor, $history): int {
             // Séquence et insertion dans la même transaction : pas de numéro perdu ni dupliqué en concurrence.
             $fields['member_number'] = $this->nextNumber();
             $id = $this->db->insert('members', $fields);
+            $this->db->insert('member_status_history', ['member_id' => $id, 'from_status' => null,
+                'to_status' => (string) $this->db->fetchValue('SELECT status FROM members WHERE id = ?', [$id]),
+                'reason' => $history['reason'] ?? 'Création de la fiche', 'decision_ref' => $history['decision_ref'] ?? null, 'changed_by' => $actor]);
             $this->audit->log($actor, 'member.created', 'member', $id, null, $this->auditable($fields));
             return $id;
         });

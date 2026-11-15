@@ -54,6 +54,7 @@ if ($canDocuments) {
 <?php endif; ?>
 <?php endif; ?>
 <?= ui('panel', ['title' => 'Avancement'], ui('validation-steps', ['steps' => $steps])
+    . ((string) $app['complements_note'] !== '' ? '<p><strong>Derniers compléments demandés :</strong> ' . e($app['complements_note']) . '</p>' : '')
     . ($st === 'rejetee' && (string) $app['rejection_reason'] !== '' ? '<p><strong>Motif du rejet :</strong> ' . e($app['rejection_reason']) . '</p>' : '')
     . ($st === 'validee' && $app['member_id'] !== null && $can('members.view') ? '<p><a href="/admin/adherents/' . e((string) $app['member_id']) . '">Voir la fiche adhérente</a></p>' : '')) ?>
 <?= ui('panel', ['title' => 'Informations saisies'], $dl($pairs)) ?>

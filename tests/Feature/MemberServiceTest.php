@@ -20,7 +20,7 @@ final class MemberServiceTest extends DatabaseTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        foreach (['members', 'sequences'] as $t) {
+        foreach (['member_status_history', 'members', 'sequences'] as $t) {
             $this->db->query("DELETE FROM $t");
         }
         $this->db->query('DELETE FROM users');

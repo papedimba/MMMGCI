@@ -10,6 +10,9 @@ $back = $app ? '/admin/adherents/demandes' : ($member === null ? '/admin/adheren
     : ui('page-header', ['title' => $member === null ? 'Nouvel adhérent' : $member['last_name'] . ' ' . $member['first_names'],
     'subtitle' => $member === null ? 'Le numéro d\'adhérent est attribué à l\'enregistrement.' : 'N° ' . $member['member_number'],
     'breadcrumbs' => [['Adhérents', '/admin/adherents'], [$member === null ? 'Nouvel adhérent' : 'Modifier', null]]], '') ?>
+<?php if ($numberPending ?? false): ?>
+<?= ui('alert', ['kind' => 'warn', 'message' => 'Paramètre en attente de validation par les instances : le format du numéro de membre (technique par défaut).']) ?>
+<?php endif; ?>
 <?php if ($error !== null): ?>
 <?= ui('alert', ['kind' => 'danger', 'message' => $error]) ?>
 <?php endif; ?>

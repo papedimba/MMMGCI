@@ -386,6 +386,7 @@ final class MemberController
             'docs' => $this->gate->allows($userId, 'members.documents.view'),
             'scopeAll' => $scopeAll,
             'zones' => $opts('zones', $values['zone_id'] ?? 0, 'Aucune'),
+            'numberPending' => !(new \App\Core\Settings($this->db))->isValidated('members', 'number_format'),
             'zoneName' => (string) $this->db->fetchValue('SELECT name FROM zones WHERE id = ?', [(int) ($values['zone_id'] ?? 0)]),
             'categories' => $opts('member_categories', $values['category_id'] ?? 0, 'Aucune'),
             'professions' => $opts('maritime_professions', $values['profession_id'] ?? 0, 'Aucune'),

@@ -247,6 +247,7 @@ final class ApplicationController
             'application' => true, 'member' => null, 'values' => array_map(static fn ($v) => is_string($v) ? $v : '', $values), 'error' => $error, 'errors' => [],
             'docs' => $this->gate->allows($userId, 'members.documents.view'), 'scopeAll' => $this->scope->forUser($userId) === null,
             'zones' => $opts('zones', $values['zone_id'] ?? 0, 'Aucune'),
+            'numberPending' => !(new \App\Core\Settings($this->db))->isValidated('members', 'number_format'),
             'zoneName' => (string) $db->fetchValue('SELECT name FROM zones WHERE id = ?', [(int) ($values['zone_id'] ?? 0)]),
             'categories' => $opts('member_categories', $values['category_id'] ?? 0, 'Aucune'),
             'professions' => $opts('maritime_professions', $values['profession_id'] ?? 0, 'Aucune'),

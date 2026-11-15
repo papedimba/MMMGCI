@@ -11,7 +11,7 @@ Plateforme institutionnelle et de gestion de la **Mutuelle des Marins Marchands 
 ## Prérequis
 
 - PHP ≥ 8.2 avec les extensions `pdo_mysql`, `mbstring`, `fileinfo`, `gd`, `zip`, `intl`, `dom` (pas de `bcmath`).
-- MariaDB ≥ 10.2.3 ou MySQL ≥ 8.0.16 (les contraintes `CHECK` ne sont appliquées qu'à partir de ces versions ; `JSON_EXTRACT` demande MariaDB 10.2.3 / MySQL 5.7).
+- MariaDB ≥ 10.2.7 ou MySQL ≥ 8.0.16 (les contraintes `CHECK` ne sont appliquées qu'à partir de ces versions ; le type `JSON` des migrations, utilisé depuis `0001`, demande MariaDB 10.2.7). En dessous, une migration échoue en laissant des tables partielles.
 - Hébergement cible : mutualisé cPanel ; seul `public/` est exposé au web.
 
 Aucune dépendance PHP tierce en production : `vendor/` (PHPUnit) ne sert qu'aux tests et n'est jamais déployé.
@@ -132,16 +132,16 @@ Le mot de passe est alors envoyé dans l'e-mail du Cron : **supprimer la tâche 
 | Demandes d'adhésion saisies (réception, prise en charge, compléments, validation, rejet) | `/admin/adherents/demandes` | `members.view` ; saisie : `members.create` ; instruction : `members.validate` |
 | Changement de statut (motif et référence de décision obligatoires, historisé) | `/{id}/statut` | `members.status` |
 | Export CSV / XLSX et liste imprimable (mêmes filtres et même périmètre que la liste) | `/admin/adherents/export.csv`, `.xlsx`, `/imprimer` | `members.export` |
-| Carte de membre (délivrance, révocation, impression CR80) | `/{id}/carte` | `members.update` |
+| Carte de membre (délivrance, révocation, impression sur A4 au format CR80) | `/{id}/carte` | `members.update` |
 | Référentiels (catégories, professions, spécialités, statuts) | `/admin/adherents/referentiels` | `settings.manage` |
 | Pièces d'identité et livret (consultation journalisée) | `/{id}/pieces/{fid}` | `members.documents.view` |
 | Vérification publique d'une carte (QR) | `/verifier/{jeton}` | aucune (page neutre : nom, numéro, statut, validité) |
 
 **Permissions** : `members.view|create|update|validate|export|documents.view`, plus `members.status` (changer le statut ; attribuée avec `members.validate`) et `members.scope.all` (voir les adhérents de toutes les zones). Détail dans les migrations `0005` et `0008`.
 
-**Périmètre des délégués** : sans `members.scope.all`, un compte ne voit que les adhérents de sa **zone de rattachement** (`users.zone_id`, à régler dans l'écran Utilisateurs). Les sous-zones ne sont pas incluses. Sans zone et sans `members.scope.all`, il ne voit personne. Un adhérent, une demande, une pièce ou une carte hors périmètre répond **404** (jamais 403). Le délégué saisit des demandes (zone imposée par le serveur) ; il ne les valide pas.
+**Périmètre des délégués** : sans `members.scope.all`, un compte ne voit que les adhérents de sa **zone de rattachement** (`users.zone_id`, à régler dans l'écran Utilisateurs). Les sous-zones ne sont pas incluses. Sans zone et sans `members.scope.all`, il ne voit personne. Un adhérent, une demande, une pièce ou une carte hors périmètre répond **404** (jamais 403). Le délégué (et le point focal) détient `members.create` : il saisit des demandes (zone imposée par le serveur), ne les valide pas (`members.validate`), **mais peut aussi créer directement un adhérent actif et numéroté** via `/admin/adherents/nouveau`, sans circuit de validation. À faire trancher par les instances (rôles inchangés).
 
-**Paramètres « non configuré »** (écran Référentiels, bandeau « en attente de validation par les instances ») — aucune valeur n'est inventée :
+**Paramètres « non configuré »** — aucune valeur n'est inventée. Le bandeau « en attente de validation par les instances » apparaît sur l'onglet Statuts des Référentiels, sur les formulaires de création (format du numéro) et sur la page carte (conditions) ; validité de la carte et conservation n'ont pas d'écran :
 
 | Paramètre | Effet tant qu'il n'est pas validé |
 |---|---|
@@ -151,7 +151,9 @@ Le mot de passe est alors envoyé dans l'e-mail du Cron : **supprimer la tâche 
 | `members.retention_months` | aucune purge ni anonymisation (non implémentées) |
 | Statuts `actif`, `suspendu`, `radie`, `decede`, `ancien_marin` | liste **proposée** ; aucune règle de transition ni conséquence automatique |
 
-**Limites connues** : les exports sont construits en mémoire (ordre de grandeur validé : 2 000 lignes en moins de 0,1 s ; au-delà de ~100 000 lignes, prévoir de relever `memory_limit` ou de filtrer) ; l'impression physique d'une carte CR80 (marges, recto/verso) n'a pas été vérifiée sur imprimante ; pas d'anonymisation après conservation, pas de suppression de pièce ni de photo, pas d'Espace adhérent ni d'adhésion en ligne (lots L15 et L4).
+**Production** : renseigner `APP_URL` (https://votre-domaine) dans `.env` ; le QR de la carte en est tiré. En production sans `APP_URL`, l'impression de carte est refusée avec un message (jamais construit depuis l'en-tête Host ; ce repli ne sert qu'en développement).
+
+**Limites connues** : la vérification publique `/verifier` est limitée à 30 requêtes par minute et par `REMOTE_ADDR` (limite partagée derrière un proxy ou un CDN) ; les exports et la liste imprimable sont construits en mémoire (ordre de grandeur validé : 2 000 lignes en moins de 0,1 s ; au-delà de ~100 000 lignes, prévoir de relever `memory_limit` ou de filtrer) ; la carte s'imprime sur une page A4 (le format physique CR80 sur imprimante de cartes, page nommée `cr80`, n'est pas utilisé ni vérifié) ; pas d'anonymisation après conservation, pas de suppression de pièce ni de photo, pas d'Espace adhérent ni d'adhésion en ligne (lots L15 et L4).
 
 ## Rôles et permissions
 

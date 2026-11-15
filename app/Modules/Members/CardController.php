@@ -17,7 +17,7 @@ use DomainException;
 final class CardController
 {
     public function __construct(private View $view, private Csrf $csrf, private Session $session, private Database $db, private Gate $gate,
-        private MemberScope $scope, private CardService $cards, private string $appUrl)
+        private MemberScope $scope, private CardService $cards, private string $appUrl, private bool $production = false)
     {
     }
 
@@ -64,6 +64,10 @@ final class CardController
         $card = $this->active($id);
         if ($card === null) {
             $this->session->flash('error', 'Aucune carte active à imprimer : délivrez d\'abord une carte.');
+            return Response::redirect("/admin/adherents/$id/carte");
+        }
+        if ($this->production && $this->appUrl === '') {
+            $this->session->flash('error', 'APP_URL n\'est pas renseigné dans .env : le QR de la carte ne peut pas être construit en production. Renseignez APP_URL (https://votre-domaine) puis réessayez.');
             return Response::redirect("/admin/adherents/$id/carte");
         }
         $m = $this->member($id);

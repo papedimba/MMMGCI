@@ -8,6 +8,7 @@
   /* Écart : --line-strong ne fait que 1,78:1 sur blanc ; les champs de saisie exigent 3:1 (WCAG 1.4.11). */
   --control-border: #7D8AA0;
   --paper: #FAF8F3; --frame: #F1F4F9; --sheet: #fff;
+  --muted-bg: #EDF0F5;
   --ok: #1C7A4A; --ok-bg: #E5F3EB;
   --warn: #8F5600; --warn-bg: #FBF0DD;
   --danger: #B42318; --danger-bg: #FCE9E7;

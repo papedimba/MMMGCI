@@ -16,7 +16,7 @@ use DateTimeZone;
  */
 final class VerifyController
 {
-    /** Statuts pour lesquels la carte n'est plus valable (cités par le cahier des charges ; aucun autre statut n'est jugé ici). */
+    /** Statuts pour lesquels la carte n'est plus valable (règle du plan L5 §147, non fixée par le cahier des charges ; aucun autre statut n'est jugé ici). */
     public const INVALID_STATUSES = ['radie', 'decede'];
     private const MAX_PER_MINUTE = 30;
     private const THROTTLE_MARK = 4; // login_attempts.succeeded : jamais compté par LoginThrottle (qui ne compte que 0) ; purgé avec le reste
