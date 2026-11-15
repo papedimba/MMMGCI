@@ -30,7 +30,7 @@ final class MemberController
 
     public function __construct(private View $view, private Csrf $csrf, private Session $session, private Database $db,
         private Gate $gate, private MemberSearch $search, private MemberScope $scope, private SensitiveAccess $sensitive,
-        private MemberService $members, private Uploads $uploads, private Audit $audit, private StatusService $statuses)
+        private MemberService $members, private Uploads $uploads, private Audit $audit, private StatusService $statuses, private ?\App\Modules\Contributions\ArrearsService $arrears = null)
     {
     }
 
@@ -146,6 +146,7 @@ final class MemberController
             $data['calls'] = $this->db->fetchAll('SELECT c.id, c.period_label, c.amount_due, c.due_date, c.status, t.name AS type_name,
                 COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.contribution_call_id = c.id AND p.cancelled_at IS NULL), 0) AS paid
                 FROM contribution_calls c JOIN contribution_types t ON t.id = c.contribution_type_id WHERE c.member_id = ? ORDER BY c.period_start DESC, c.id DESC', [$id]);
+            $data['situation'] = $this->arrears?->memberSituation($id);
             $data['payments'] = $this->db->fetchAll('SELECT id, reference, paid_at, amount, cancelled_at FROM payments WHERE member_id = ? ORDER BY paid_at DESC, id DESC', [$id]);
         } elseif ($tab === 'historique') {
             $data['rows'] = $this->db->fetchAll(

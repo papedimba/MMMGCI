@@ -14,6 +14,8 @@ use App\Modules\Auth\LoginController;
 use App\Modules\Auth\LoginThrottle;
 use App\Modules\Auth\PasswordController;
 use App\Modules\Auth\PasswordReset;
+use App\Modules\Contributions\ArrearsController;
+use App\Modules\Contributions\ArrearsService;
 use App\Modules\Contributions\CallService;
 use App\Modules\Contributions\ContributionController;
 use App\Modules\Contributions\ContributionTypeService;
@@ -58,10 +60,11 @@ return static function (Router $r, array $deps): void {
     $journal = static fn (): AuditLogController => new AuditLogController($view, $csrf, $session, $db(), $gate(), $audit(),
         new AuditQuery($db()), new SensitiveAccess($db()));
     $referentials = static fn (): ReferentialController => new ReferentialController($view, $csrf, $session, $db(), $gate(), new Referentials($db(), $audit()));
+    $arrearsService = static fn (): ArrearsService => new ArrearsService($db(), new MemberScope($db(), $gate()), new Settings($db()), $audit());
     $members = static fn (): MemberController => new MemberController($view, $csrf, $session, $db(), $gate(), new MemberSearch($db(), new MemberScope($db(), $gate())),
         new MemberScope($db(), $gate()), new SensitiveAccess($db()),
         new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), $uploads(), $audit(),
-        new StatusService($db(), $audit(), new MemberScope($db(), $gate())));
+        new StatusService($db(), $audit(), new MemberScope($db(), $gate())), $arrearsService());
     $documents = static fn (): DocumentController => new DocumentController($db(), $session, new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit());
     $cards = static fn (): CardController => new CardController($view, $csrf, $session, $db(), $gate(), new MemberScope($db(), $gate()),
         new CardService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), (string) $config->get('APP_URL', ''), $config->get('APP_ENV', 'production') === 'production');
@@ -74,6 +77,7 @@ return static function (Router $r, array $deps): void {
     $payments = static fn (): PaymentController => new PaymentController($view, $csrf, $session, $db(), $gate(),
         new PaymentService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db())), new Sequence($db()), new ReceiptService($db(), new Sequence($db())), new MemberScope($db(), $gate())),
         new ReceiptService($db(), new Sequence($db())), new MemberScope($db(), $gate()), new Ledger($db(), $audit(), new Sequence($db())));
+    $arrears = static fn (): ArrearsController => new ArrearsController($view, $csrf, $session, $db(), $gate(), $arrearsService());
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -159,6 +163,10 @@ return static function (Router $r, array $deps): void {
     $viewContrib = [$requireAuth, $permission('contributions.view')];
     $manageContrib = [$requireAuth, $permission('contributions.manage')];
     $r->get('/admin/cotisations', static fn (Request $q): Response => Response::redirect('/admin/cotisations/types'), $viewContrib);
+    $r->get('/admin/cotisations/impayes', static fn (Request $q): Response => $arrears()->index($q), $viewContrib);
+    $exportContrib = [$requireAuth, $permission('contributions.export')];
+    $r->get('/admin/cotisations/impayes/export.csv', static fn (Request $q): Response => $arrears()->export($q), $exportContrib);
+    $r->get('/admin/cotisations/impayes/export.xlsx', static fn (Request $q): Response => $arrears()->export($q), $exportContrib);
     $r->get('/admin/cotisations/types', static fn (Request $q): Response => $contributions()->types($q), $viewContrib);
     $r->get('/admin/cotisations/appels', static fn (Request $q): Response => $contributions()->calls($q), $viewContrib);
     $r->get('/admin/cotisations/types/nouveau', static fn (Request $q): Response => $contributions()->typeForm($q), $manageContrib);
