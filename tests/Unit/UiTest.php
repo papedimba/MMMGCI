@@ -53,7 +53,29 @@ final class UiTest extends TestCase
         $html = ui('panel', ['title' => '<b>t</b>'], '<p class="ok">dedans</p>');
         $this->assertStringContainsString('<p class="ok">dedans</p>', $html);
         $this->assertStringContainsString('&lt;b&gt;t&lt;/b&gt;', $html);
+        $raw = '<i>brut</i>';
+        $this->assertStringContainsString($raw, ui('panel', ['title' => 'T', 'actions' => $raw]));
+        $this->assertStringNotContainsString($raw, ui('panel', ['title' => $raw, 'actions' => '']));
+        $this->assertStringNotContainsString($raw, ui('table', ['columns' => [['n', $raw]], 'rows' => [['n' => $raw]]]));
+        $this->assertStringContainsString($raw, ui('table', ['columns' => [['n', 'N', 'left', false, static fn (array $r): string => $raw]], 'rows' => [['n' => 'x']],
+            'row_actions' => static fn (array $r): string => '<b>act</b>']));
         $this->assertStringContainsString('<a href="#">Ok</a>', ui('page-header', ['title' => 'T'], '<a href="#">Ok</a>'));
+    }
+
+    public function test_confirm_dialog_requires_csrf(): void
+    {
+        $this->expectException(InvalidArgumentException::class);
+        ui('confirm-dialog', ['id' => 'd', 'title' => 'T', 'message' => 'M', 'form_action' => '/z']);
+    }
+
+    public function test_table_marks_primary_and_status_cells_and_keeps_roles(): void
+    {
+        $html = ui('table', ['columns' => [['n', 'Nom'], ['s', 'Statut', 'left', false, null, 'status'], ['r', 'Rôle']], 'rows' => [['n' => 'A', 's' => 'ok', 'r' => 'x']]]);
+        $this->assertStringContainsString('cell-primary"', $html);
+        $this->assertStringContainsString('cell-status"', $html);
+        $this->assertStringContainsString('cell-meta"', $html);
+        $this->assertStringContainsString('role="row"', $html);
+        $this->assertStringContainsString('role="columnheader"', $html);
     }
 
     public function test_unknown_component_throws_a_clear_exception(): void
@@ -140,8 +162,8 @@ final class UiTest extends TestCase
         $this->assertStringNotContainsString('<table', $empty);
         $html = ui('table', ['columns' => $cols, 'rows' => [['n' => 'A', 'amt' => '1 000']], 'caption' => 'Cap',
             'row_actions' => static fn (array $r): string => '<i>act</i>']);
-        $this->assertStringContainsString('<td class="num" data-label="Montant">1 000</td>', $html);
-        $this->assertStringContainsString('<th scope="col" class="num">Montant</th>', $html);
+        $this->assertStringContainsString('<td role="cell" class="num cell-meta">1 000</td>', $html);
+        $this->assertStringContainsString('<th role="columnheader" scope="col" class="num">Montant</th>', $html);
         $this->assertStringContainsString('<caption>Cap</caption>', $html);
         $this->assertStringContainsString('<i>act</i>', $html);
     }

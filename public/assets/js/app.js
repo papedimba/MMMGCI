@@ -40,6 +40,7 @@
   document.addEventListener('submit', function (ev) {
     if (ev.defaultPrevented) { return; }
     var form = ev.target;
+    if (form.target === '_blank' || form.hasAttribute('download')) { return; } // la page reste ouverte : ne pas verrouiller le bouton
     // Différé : désactiver tout de suite retirerait la valeur du bouton déclencheur de l'envoi.
     setTimeout(function () {
       var buttons = form.querySelectorAll('button[type="submit"]');

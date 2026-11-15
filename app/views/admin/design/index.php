@@ -5,7 +5,7 @@ $rows = [
     ['name' => 'Yao Kouassi', 'role' => 'Trésorier général', 'status' => 'Invité', 'amount' => '8 500 FCFA'],
 ];
 $badge = static fn (array $r): string => ui('badge', ['label' => $r['status'], 'kind' => $r['status'] === 'Actif' ? 'ok' : 'warn']);
-$columns = [['name', 'Nom'], ['role', 'Rôle'], ['status', 'Statut', 'left', false, $badge], ['amount', 'Montant', 'right', true]];
+$columns = [['name', 'Nom'], ['role', 'Rôle'], ['status', 'Statut', 'left', false, $badge, 'status'], ['amount', 'Montant', 'right', true]];
 $h = static fn (string $t): string => '<h2>' . e($t) . '</h2>';
 ?>
 <?= ui('page-header', ['title' => 'Composants', 'subtitle' => 'Référence visuelle du kit ui(), dans tous ses états.', 'breadcrumbs' => [['Administration', '/admin'], ['Composants']]], ui('button', ['label' => 'Action principale', 'icon' => 'plus'])) ?>
