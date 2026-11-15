@@ -16,6 +16,8 @@ use App\Modules\Auth\PasswordController;
 use App\Modules\Auth\PasswordReset;
 use App\Modules\Members\ApplicationController;
 use App\Modules\Members\ApplicationService;
+use App\Modules\Members\CardController;
+use App\Modules\Members\CardService;
 use App\Modules\Members\DocumentController;
 use App\Modules\Members\MemberController;
 use App\Modules\Members\MemberScope;
@@ -50,6 +52,8 @@ return static function (Router $r, array $deps): void {
         new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), $uploads(), $audit(),
         new StatusService($db(), $audit(), new MemberScope($db(), $gate())));
     $documents = static fn (): DocumentController => new DocumentController($db(), $session, new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit());
+    $cards = static fn (): CardController => new CardController($view, $csrf, $session, $db(), $gate(), new MemberScope($db(), $gate()),
+        new CardService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), (string) $config->get('APP_URL', ''));
     $applications = static fn (): ApplicationController => new ApplicationController($view, $csrf, $session, $db(), $gate(), new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit(),
         new ApplicationService($db(), $audit(), new Sequence($db()), new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate()))));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
@@ -116,6 +120,10 @@ return static function (Router $r, array $deps): void {
     $changeStatus = [$requireAuth, $permission('members.status')];
     $r->get('/admin/adherents/{id:\d+}/statut', static fn (Request $q): Response => $members()->statusForm($q), $changeStatus);
     $r->post('/admin/adherents/{id:\d+}/statut', static fn (Request $q): Response => $members()->changeStatus($q), $changeStatus);
+    $r->get('/admin/adherents/{id:\d+}/carte', static fn (Request $q): Response => $cards()->show($q), $updateMembers);
+    $r->get('/admin/adherents/{id:\d+}/carte/imprimer', static fn (Request $q): Response => $cards()->printCard($q), $updateMembers);
+    $r->post('/admin/adherents/{id:\d+}/carte', static fn (Request $q): Response => $cards()->issue($q), $updateMembers);
+    $r->post('/admin/adherents/{id:\d+}/carte/{cardId:\d+}/revoquer', static fn (Request $q): Response => $cards()->revoke($q), $updateMembers);
     $r->post('/admin/adherents/{id:\d+}/ayants-droit', static fn (Request $q): Response => $members()->addBeneficiary($q), $updateMembers);
     $r->post('/admin/adherents/{id:\d+}/ayants-droit/{bid:\d+}/supprimer', static fn (Request $q): Response => $members()->deleteBeneficiary($q), $updateMembers);
     $documentsView = [$requireAuth, $permission('members.documents.view')];

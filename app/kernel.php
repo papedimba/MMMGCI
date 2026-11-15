@@ -91,7 +91,7 @@ return static function (Config $config, bool $httpSession, array $overrides = []
     return new App($config, $router, [
         new ForceHttps((string) $config->get('APP_ENV', 'production')),
         new SecurityHeaders(),
-        new StartSession($session, $httpSession, ['/sante']),
+        new StartSession($session, $httpSession, ['/sante', '/verifier/']),
         new VerifyCsrf($csrf, $view),
         new ShareLayoutData($view, $router),
     ]);

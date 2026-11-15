@@ -9,7 +9,7 @@ final class StartSession implements Middleware
 {
     /**
      * @param bool $httpSession false en CLI/tests : la session reste un tableau local, sans cookie
-     * @param list<string> $except chemins servis sans session (sondes)
+     * @param list<string> $except chemins servis sans session (sondes) ; un chemin terminé par « / » vaut pour tout ce qu'il contient
      */
     public function __construct(private readonly Session $session, private readonly bool $httpSession = true, private readonly array $except = [])
     {
@@ -17,8 +17,10 @@ final class StartSession implements Middleware
 
     public function handle(Request $r, callable $next): Response
     {
-        if (in_array($r->path(), $this->except, true)) {
-            return $next($r);
+        foreach ($this->except as $path) {
+            if ($r->path() === $path || (str_ends_with($path, '/') && str_starts_with($r->path(), $path))) {
+                return $next($r);
+            }
         }
         if ($this->httpSession) {
             $this->session->start($r->isSecure());
