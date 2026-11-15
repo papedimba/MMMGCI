@@ -81,9 +81,27 @@ trait DisbursementFixtures
         return new Settings($this->db);
     }
 
-    protected function file(): int
+    /** Fichier téléversé par $by (l'initiateur par défaut). */
+    protected function file(?int $by = null): int
     {
-        return $this->db->insert('files', ['path' => 'p/' . bin2hex(random_bytes(4)), 'original_name' => 'facture-secrete.pdf', 'mime' => 'application/pdf', 'size' => 10, 'sha256' => str_repeat('c', 64)]);
+        return $this->db->insert('files', ['path' => 'p/' . bin2hex(random_bytes(4)), 'original_name' => 'facture-secrete.pdf', 'mime' => 'application/pdf', 'size' => 10,
+            'sha256' => str_repeat('c', 64), 'uploaded_by' => $by ?? $this->initiator]);
+    }
+
+    protected function revision(int $id): int
+    {
+        return (int) $this->db->fetchValue('SELECT revision FROM disbursement_requests WHERE id = ?', [$id]);
+    }
+
+    /** Approbation sur la révision courante (celle que l'approbateur a sous les yeux), sauf $seenRevision explicite. */
+    protected function approveNow(int $id, int $approver, ?string $comment = null, ?int $seenRevision = null): void
+    {
+        $this->svc()->approve($id, $approver, $seenRevision ?? $this->revision($id), $comment);
+    }
+
+    protected function rejectNow(int $id, int $actor, string $reason): void
+    {
+        $this->svc()->reject($id, $actor, $this->revision($id), $reason);
     }
 
     protected function draft(int $cents = 5_000_000, ?int $initiator = null): int
@@ -95,7 +113,7 @@ trait DisbursementFixtures
     protected function submitted(int $cents = 5_000_000, ?int $initiator = null): int
     {
         $id = $this->draft($cents, $initiator);
-        $this->svc()->revise($id, ['add_files' => [$this->file() => 'Acte de décès']], '', $initiator ?? $this->initiator);
+        $this->svc()->revise($id, ['add_files' => [$this->file($initiator) => 'Acte de décès']], '', $initiator ?? $this->initiator);
         $this->svc()->submit($id, $initiator ?? $this->initiator);
         return $id;
     }
@@ -103,14 +121,17 @@ trait DisbursementFixtures
     protected function approved(int $cents = 5_000_000, ?int $initiator = null): int
     {
         $id = $this->submitted($cents, $initiator);
-        $this->svc()->approve($id, $this->approverA, 'ok');
-        $this->svc()->approve($id, $this->approverB, null);
+        $this->approveNow($id, $this->approverA, 'ok');
+        $this->approveNow($id, $this->approverB);
         return $id;
     }
 
-    protected function payNow(int $id, ?int $payer = null, ?string $key = null, string $method = 'virement', ?int $proof = null): int
+    /** Paiement de ce que le payeur voit à l'écran (révision et montant courants), sauf valeurs vues explicites. */
+    protected function payNow(int $id, ?int $payer = null, ?string $key = null, string $method = 'virement', ?int $proof = null, ?int $seenRevision = null, ?int $seenAmount = null): int
     {
-        return $this->svc()->pay($id, $payer ?? $this->payer, ['method' => $method], $proof ?? $this->file(), $key ?? bin2hex(random_bytes(16)));
+        $payer ??= $this->payer;
+        $amount = \App\Core\Money::fromDecimal((string) $this->db->fetchValue('SELECT amount FROM disbursement_requests WHERE id = ?', [$id]));
+        return $this->svc()->pay($id, $payer, $seenRevision ?? $this->revision($id), $seenAmount ?? $amount, ['method' => $method], $proof ?? $this->file($payer), $key ?? bin2hex(random_bytes(16)));
     }
 
     protected function state(int $id): string

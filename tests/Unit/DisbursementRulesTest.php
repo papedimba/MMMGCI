@@ -29,10 +29,10 @@ final class DisbursementRulesTest extends DatabaseTestCase
         $this->assertSame(1, (int) $this->db->fetchValue('SELECT approvals_required FROM approval_rules'));
         $this->assertSame(2, (new ApprovalRules($this->db))->requiredFor(5_000_000));
         $id = $this->submitted();
-        $this->svc()->approve($id, $this->approverA, null);
+        $this->approveNow($id, $this->approverA, null);
         $this->assertSame('approuve_1', $this->state($id));
         $this->refuses(fn () => $this->payNow($id), DisbursementTransitionInvalid::class);
-        $this->svc()->approve($id, $this->approverB, null);
+        $this->approveNow($id, $this->approverB, null);
         $this->assertSame('approuve_2', $this->state($id));
         // Et le CHECK de la base refuse la ligne en temps normal.
         $this->expectException(\PDOException::class);
@@ -62,11 +62,11 @@ final class DisbursementRulesTest extends DatabaseTestCase
         $this->db->insert('approval_rules', ['min_amount' => '10000', 'max_amount' => null, 'approvals_required' => 3]);
         $third = $this->user('appC', ['dec_appr']);
         $id = $this->submitted(2_000_000); // 20 000 >= 10 000 : 3 approbations
-        $this->svc()->approve($id, $this->approverA, null);
-        $this->svc()->approve($id, $this->approverB, null);
+        $this->approveNow($id, $this->approverA, null);
+        $this->approveNow($id, $this->approverB, null);
         $this->assertSame('approuve_1', $this->state($id));
         $this->refuses(fn () => $this->payNow($id), DisbursementTransitionInvalid::class);
-        $this->svc()->approve($id, $third, null);
+        $this->approveNow($id, $third, null);
         $this->assertSame('approuve_2', $this->state($id));
     }
 

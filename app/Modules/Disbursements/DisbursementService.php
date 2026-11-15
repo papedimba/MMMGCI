@@ -18,18 +18,24 @@ use PDOException;
 /**
  * Circuit de décaissement à double validation (A5.3). Toutes les règles sont ici, jamais dans les vues ni les contrôleurs.
  *
- * Chaque action : Database::atomic (rejoint une transaction ouverte), verrou FOR UPDATE de la demande AVANT toute lecture
+ * Chaque action : run() -> Database::atomic (rejoint une transaction ouverte), verrou FOR UPDATE de la demande AVANT toute lecture
  * de son état, contrôles (prédicats partagés avec allowedActions), écritures, puis Audit::log EN DERNIER.
  *
  * Ordre des verrous (un interblocage serait un défaut) :
- *   demande (FOR UPDATE) -> approbations / pièces (lectures verrouillantes, écrites seulement sous le verrou de la demande)
+ *   demande (FOR UPDATE) -> décompte des approbations (lecture verrouillante ; approbations et pièces écrites seulement sous le verrou de la demande)
  *   -> compte (FOR UPDATE, puis Ledger::record) -> ligne de paiement insérée -> séquences -> audit_chain.
  * Audit::log verrouille la ligne unique audit_chain jusqu'au commit : c'est TOUJOURS le dernier verrou pris. Dans pay(),
  * Ledger::record audite lui-même ; après lui, seule la ligne de paiement déjà insérée (donc déjà verrouillée) par cette
  * transaction est mise à jour. Épinglé par DisbursementCircuitTest::test_audit_is_the_last_lock.
  *
- * Les lectures d'approbations, de pièces, de paiement et de solde sont verrouillantes : elles lisent le dernier état validé
- * même si l'appelant a ouvert sa transaction (et figé sa vue cohérente) avant le verrou de la demande.
+ * Le décompte des approbations et le solde sont lus de façon verrouillante (dernier état validé, même si l'appelant a figé sa
+ * vue cohérente avant le verrou). Les tests d'existence suivis d'un INSERT (décision déjà prise, clé d'idempotence, pièces)
+ * sont des lectures SIMPLES : une lecture verrouillante d'une clé absente pose un verrou d'intervalle qui interbloque deux
+ * demandes différentes (1213). Ces lignes ne changent que sous le verrou de la demande ; l'UNIQUE reste le filet (1062 traduit).
+ * run() rejoue une fois l'action victime d'un interblocage (transaction propre) ; sinon, ou en cas d'attente trop longue (1205),
+ * DisbursementBusy : jamais d'erreur 500 brute.
+ *
+ * Le paramètre $ip (facultatif, en dernier) est porté dans l'audit.
  */
 final class DisbursementService
 {
@@ -40,6 +46,7 @@ final class DisbursementService
     private const EDITABLE = [...self::SUBSTANTIAL, 'category_id', 'internal_note'];
     private const ATTACHABLE = 'disbursement_request'; // absent d'AttachmentService::TARGETS : les pièces ne s'ajoutent que par revise()
     private const MAX_CENTS = 999_999_999_999_999;
+    public const STALE = 'La demande a été modifiée depuis votre lecture, relisez-la avant de continuer.';
     private const LABELS = ['brouillon' => 'au brouillon', 'soumis' => 'soumise', 'approuve_1' => 'en cours d\'approbation', 'approuve_2' => 'approuvée',
         'rejete' => 'rejetée', 'annule' => 'annulée', 'paye' => 'déjà payée'];
 
@@ -54,9 +61,9 @@ final class DisbursementService
     }
 
     /** @param array<string,mixed> $data amount (centimes int), beneficiary_name, beneficiary_member_id?, account_id, category_id, purpose, internal_note? */
-    public function create(array $data, int $initiator): int
+    public function create(array $data, int $initiator, ?string $ip = null): int
     {
-        return $this->db->atomic(function () use ($data, $initiator): int {
+        return $this->run(function () use ($data, $initiator, $ip): int {
             $this->deny($this->permission($initiator, 'disbursement.initiate'));
             if (($data['social_decision_id'] ?? null) !== null) {
                 throw new DisbursementRuleViolation('Le lien avec une décision sociale n\'est pas encore disponible.');
@@ -68,33 +75,31 @@ final class DisbursementService
             $row = $this->clean($data); // verrou partagé du compte avant la séquence
             $reference = $this->sequence->next('disbursement', 'DEC', 5);
             $id = $this->db->insert('disbursement_requests', $row + ['reference' => $reference, 'initiated_by' => $initiator, 'status' => 'brouillon', 'revision' => 1]);
-            $this->audit->log($initiator, 'disbursement.created', 'disbursement_request', $id, null, ['status' => 'brouillon', 'revision' => 1, 'amount' => $row['amount']], $reference);
+            $this->audit->log($initiator, 'disbursement.created', 'disbursement_request', $id, null, ['status' => 'brouillon', 'revision' => 1, 'amount' => $row['amount']], $reference, $ip);
             return $id;
         });
     }
 
-    public function submit(int $id, int $actor): void
+    public function submit(int $id, int $actor, ?string $ip = null): void
     {
-        $this->db->atomic(function () use ($id, $actor): void {
+        $this->run(function () use ($id, $actor, $ip): void {
             $r = $this->lock($id);
             $this->deny($this->canSubmit($r, $actor));
             $this->clean(['account_id' => (int) $r['account_id'], 'category_id' => (int) $r['category_id']]); // toujours actifs ?
             $this->db->query('UPDATE disbursement_requests SET status = \'soumis\', submitted_at = UTC_TIMESTAMP() WHERE id = ?', [$id]);
             $this->snapshot($id, (int) $r['revision'], $actor, 'Soumission');
-            $this->auditTransition($actor, 'submitted', $r, 'soumis');
+            $this->auditTransition($actor, 'submitted', $r, 'soumis', $ip);
         });
     }
 
-    /** $seenRevision : révision affichée à l'approbateur ; si elle n'est plus la courante, refus (jamais utilisée pour choisir la révision). */
-    public function approve(int $id, int $approver, ?string $comment, ?int $seenRevision = null): void
+    /** $seenRevision : révision affichée à l'approbateur (obligatoire) ; si elle n'est plus la courante, refus (jamais utilisée pour choisir la révision). */
+    public function approve(int $id, int $approver, int $seenRevision, ?string $comment, ?string $ip = null): void
     {
         $comment = $this->text($comment, 500, 'Commentaire');
-        $this->db->atomic(function () use ($id, $approver, $comment, $seenRevision): void {
+        $this->run(function () use ($id, $approver, $comment, $seenRevision, $ip): void {
             $r = $this->lock($id);
             $this->deny($this->canApprove($r, $approver));
-            if ($seenRevision !== null && $seenRevision !== (int) $r['revision']) {
-                throw new DisbursementRuleViolation('La demande a été modifiée depuis votre lecture (révision ' . $r['revision'] . ') : relisez-la avant d\'approuver.');
-            }
+            $this->assertSeen($r, $seenRevision);
             try {
                 $this->db->insert('disbursement_approvals', ['disbursement_request_id' => $id, 'revision' => (int) $r['revision'], 'approver_id' => $approver,
                     'decision' => 'approve', 'comment' => $comment]);
@@ -105,17 +110,18 @@ final class DisbursementService
             $required = $this->rules->requiredFor(Money::fromDecimal($r['amount']));
             $to = $count >= $required ? 'approuve_2' : 'approuve_1';
             $this->db->update('disbursement_requests', ['status' => $to], ['id' => $id]);
-            $this->auditTransition($approver, 'approved', $r, $to, ['comment' => $comment, 'approvals' => $count, 'required' => $required]);
+            $this->auditTransition($approver, 'approved', $r, $to, $ip, ['comment' => $comment, 'approvals' => $count, 'required' => $required]);
         });
     }
 
     /** Rejet motivé, définitif. Un approbateur qui avait déjà approuvé peut encore rejeter (frein de sécurité) : sa décision est alors portée par la demande. */
-    public function reject(int $id, int $actor, string $reason): void
+    public function reject(int $id, int $actor, int $seenRevision, string $reason, ?string $ip = null): void
     {
         $reason = $this->text($reason, 500, 'Motif du rejet') ?? throw new DisbursementRuleViolation('Le motif du rejet est obligatoire.');
-        $this->db->atomic(function () use ($id, $actor, $reason): void {
+        $this->run(function () use ($id, $actor, $seenRevision, $reason, $ip): void {
             $r = $this->lock($id);
             $this->deny($this->canReject($r, $actor));
+            $this->assertSeen($r, $seenRevision);
             if (!$this->decided($r, $actor)) {
                 try {
                     $this->db->insert('disbursement_approvals', ['disbursement_request_id' => $id, 'revision' => (int) $r['revision'], 'approver_id' => $actor,
@@ -125,7 +131,7 @@ final class DisbursementService
                 }
             }
             $this->db->update('disbursement_requests', ['status' => 'rejete', 'rejected_by' => $actor, 'rejection_reason' => $reason], ['id' => $id]);
-            $this->auditTransition($actor, 'rejected', $r, 'rejete', ['reason' => $reason]);
+            $this->auditTransition($actor, 'rejected', $r, 'rejete', $ip, ['reason' => $reason]);
         });
     }
 
@@ -136,13 +142,13 @@ final class DisbursementService
      *
      * @param array<string,mixed> $changes champs EDITABLE, plus add_files (array<int,string> file_id => libellé) et remove_attachments (list<int>)
      */
-    public function revise(int $id, array $changes, string $reason, int $actor): void
+    public function revise(int $id, array $changes, string $reason, int $actor, ?string $ip = null): void
     {
         $reason = trim($reason);
         if (mb_strlen($reason) > 500) {
             throw new DisbursementRuleViolation('Motif de la modification : 500 caractères au maximum.');
         }
-        $this->db->atomic(function () use ($id, $changes, $reason, $actor): void {
+        $this->run(function () use ($id, $changes, $reason, $actor, $ip): void {
             $r = $this->lock($id);
             $this->deny($this->canRevise($r, $actor));
             $adds = $changes['add_files'] ?? [];
@@ -160,9 +166,7 @@ final class DisbursementService
                 }
             }
             foreach ($adds as $fileId => $label) {
-                if (!is_int($fileId) || $this->db->fetchValue('SELECT 1 FROM files WHERE id = ?', [$fileId]) === null) {
-                    throw new DisbursementRuleViolation('Fichier justificatif introuvable.');
-                }
+                $this->assertOwnFile($fileId, $actor, 'Fichier justificatif');
                 if (mb_strlen(trim((string) $label)) > 160) {
                     throw new DisbursementRuleViolation('Libellé du justificatif : 160 caractères au maximum.');
                 }
@@ -201,28 +205,29 @@ final class DisbursementService
                     WHERE disbursement_request_id = ? AND revision < ? AND invalidated_at IS NULL', [$id, $revision])->rowCount();
                 $this->snapshot($id, $revision, $actor, $reason);
             }
-            $this->auditTransition($actor, 'revised', $r, $bump ? 'soumis' : $r['status'], ['changed' => $changed, 'files_added' => array_keys($adds),
+            $this->auditTransition($actor, 'revised', $r, $bump ? 'soumis' : $r['status'], $ip, ['changed' => $changed, 'files_added' => array_keys($adds),
                 'attachments_removed' => array_values(array_unique($removes)), 'approvals_invalidated' => $invalidated, 'reason' => $reason === '' ? null : $reason], $revision);
         });
     }
 
-    public function cancel(int $id, int $initiator): void
+    public function cancel(int $id, int $initiator, ?string $ip = null): void
     {
-        $this->db->atomic(function () use ($id, $initiator): void {
+        $this->run(function () use ($id, $initiator, $ip): void {
             $r = $this->lock($id);
             $this->deny($this->canCancel($r, $initiator));
             $this->db->query('UPDATE disbursement_requests SET status = \'annule\', cancelled_at = UTC_TIMESTAMP() WHERE id = ?', [$id]);
-            $this->auditTransition($initiator, 'cancelled', $r, 'annule');
+            $this->auditTransition($initiator, 'cancelled', $r, 'annule', $ip);
         });
     }
 
     /**
      * Enregistre l'unique paiement : dépense au grand livre (Ledger::record, source 'disbursement'), ligne disbursement_payments, état « paye ».
      * Rejeu de la même clé avec la même charge utile = même paiement ; autre charge utile = refus.
+     * $seenRevision et $seenAmount (centimes) : ce que le payeur a affiché ; s'ils diffèrent de la demande verrouillée, refus.
      *
      * @param array{method: string, paid_at?: ?DateTimeImmutable, external_ref?: ?string} $payment
      */
-    public function pay(int $id, int $payer, array $payment, int $proofFileId, string $idempotencyKey): int
+    public function pay(int $id, int $payer, int $seenRevision, int $seenAmount, array $payment, int $proofFileId, string $idempotencyKey, ?string $ip = null): int
     {
         if (!preg_match('/^[A-Za-z0-9_-]{16,100}$/', $idempotencyKey)) {
             throw new DisbursementRuleViolation('Formulaire expiré : rechargez la page.');
@@ -239,9 +244,9 @@ final class DisbursementService
             throw new DisbursementRuleViolation('La date du paiement est invalide ou dans le futur.');
         }
         $externalRef = $this->text($payment['external_ref'] ?? null, 100, 'Référence externe');
-        return $this->db->atomic(function () use ($id, $payer, $method, $paidAt, $externalRef, $proofFileId, $idempotencyKey): int {
+        return $this->run(function () use ($id, $payer, $seenRevision, $seenAmount, $method, $paidAt, $externalRef, $proofFileId, $idempotencyKey, $ip): int {
             $r = $this->lock($id);
-            $existing = $this->db->fetch('SELECT id, disbursement_request_id, method, external_ref, proof_file_id, paid_by FROM disbursement_payments WHERE idempotency_key = ? LOCK IN SHARE MODE', [$idempotencyKey]);
+            $existing = $this->db->fetch('SELECT id, disbursement_request_id, method, external_ref, proof_file_id, paid_by FROM disbursement_payments WHERE idempotency_key = ?', [$idempotencyKey]);
             if ($existing !== null) {
                 if ((int) $existing['disbursement_request_id'] !== $id || $existing['method'] !== $method || $existing['external_ref'] !== $externalRef
                     || (int) $existing['proof_file_id'] !== $proofFileId || (int) $existing['paid_by'] !== $payer) {
@@ -250,9 +255,8 @@ final class DisbursementService
                 return (int) $existing['id'];
             }
             $this->deny($this->canPay($r, $payer));
-            if ($this->db->fetchValue('SELECT 1 FROM files WHERE id = ?', [$proofFileId]) === null) {
-                throw new DisbursementRuleViolation('Joignez la pièce justificative du paiement (fichier téléversé).');
-            }
+            $this->assertSeen($r, $seenRevision, $seenAmount);
+            $this->assertOwnFile($proofFileId, $payer, 'Pièce justificative du paiement');
             $amount = Money::fromDecimal($r['amount']);
             $accountId = (int) $r['account_id'];
             $this->db->fetch('SELECT id FROM financial_accounts WHERE id = ? FOR UPDATE', [$accountId]);
@@ -275,10 +279,31 @@ final class DisbursementService
             $tx = $this->ledger->record($accountId, (int) $r['category_id'], 'depense', $amount, $paidAt,
                 ['source_type' => 'disbursement', 'source_id' => $id, 'description' => 'Décaissement ' . $r['reference']], $payer);
             $this->db->update('disbursement_payments', ['financial_transaction_id' => $tx], ['id' => $paymentId]); // ligne insérée plus haut : déjà verrouillée
-            $this->auditTransition($payer, 'paid', $r, 'paye', ['payment_id' => $paymentId, 'transaction_id' => $tx, 'amount' => $r['amount'], 'method' => $method,
+            $this->auditTransition($payer, 'paid', $r, 'paye', $ip, ['payment_id' => $paymentId, 'transaction_id' => $tx, 'amount' => $r['amount'], 'method' => $method,
                 'proof_file_id' => $proofFileId, 'balance_warning' => $warning]);
             return $paymentId;
         });
+    }
+
+    /**
+     * État du circuit pour l'affichage : approbations requises, valides (révision courante), approbateurs éligibles restants
+     * (actifs, autres que l'initiateur, sans décision sur la révision courante) ; stalled = il en reste moins que d'approbations manquantes.
+     * @return array{required:int, valid:int, other_eligible_approvers:int, stalled:bool}
+     */
+    public function circuitStatus(int $id): array
+    {
+        $r = $this->db->fetch('SELECT * FROM disbursement_requests WHERE id = ?', [$id]) ?? throw new NotFound('Demande de décaissement introuvable.');
+        $required = $this->rules->requiredFor(Money::fromDecimal($r['amount']));
+        $valid = $this->validApprovals($r);
+        $eligible = (int) $this->db->fetchValue(
+            "SELECT COUNT(DISTINCT u.id) FROM users u
+             JOIN user_roles ur ON ur.user_id = u.id
+             JOIN role_permissions rp ON rp.role_id = ur.role_id
+             JOIN permissions p ON p.id = rp.permission_id AND p.name = 'disbursement.approve'
+             WHERE u.is_active = 1 AND u.id <> ?
+               AND NOT EXISTS (SELECT 1 FROM disbursement_approvals a WHERE a.disbursement_request_id = ? AND a.revision = ? AND a.approver_id = u.id)",
+            [(int) $r['initiated_by'], $id, (int) $r['revision']]);
+        return ['required' => $required, 'valid' => $valid, 'other_eligible_approvers' => $eligible, 'stalled' => $eligible < max(0, $required - $valid)];
     }
 
     /** Actions que $userId peut faire maintenant (lecture seule, mêmes prédicats que les actions ; pay hors contrôles de charge utile et de solde). @return list<string> */
@@ -401,7 +426,7 @@ final class DisbursementService
     /** @param array<string,mixed> $r */
     private function decided(array $r, int $actor): bool
     {
-        return $this->db->fetchValue('SELECT 1 FROM disbursement_approvals WHERE disbursement_request_id = ? AND revision = ? AND approver_id = ? LOCK IN SHARE MODE',
+        return $this->db->fetchValue('SELECT 1 FROM disbursement_approvals WHERE disbursement_request_id = ? AND revision = ? AND approver_id = ?',
             [(int) $r['id'], (int) $r['revision'], $actor]) !== null;
     }
 
@@ -409,7 +434,7 @@ final class DisbursementService
     private function attachments(int $id): array
     {
         return array_map(fn (array $a): array => ['id' => (int) $a['id'], 'file_id' => (int) $a['file_id'], 'label' => $a['label']],
-            $this->db->fetchAll('SELECT id, file_id, label FROM financial_attachments WHERE attachable_type = ? AND attachable_id = ? ORDER BY id LOCK IN SHARE MODE', [self::ATTACHABLE, $id]));
+            $this->db->fetchAll('SELECT id, file_id, label FROM financial_attachments WHERE attachable_type = ? AND attachable_id = ? ORDER BY id', [self::ATTACHABLE, $id]));
     }
 
     /** Instantané d'une révision (champs + identifiants des justificatifs, jamais leur contenu). */
@@ -421,10 +446,46 @@ final class DisbursementService
     }
 
     /** @param array<string,mixed> $r @param array<string,mixed> $extra */
-    private function auditTransition(int $actor, string $action, array $r, string $to, array $extra = [], ?int $revision = null): void
+    private function auditTransition(int $actor, string $action, array $r, string $to, ?string $ip, array $extra = [], ?int $revision = null): void
     {
         $this->audit->log($actor, 'disbursement.' . $action, 'disbursement_request', (int) $r['id'], ['status' => $r['status'], 'revision' => (int) $r['revision']],
-            ['status' => $to, 'revision' => $revision ?? (int) $r['revision']] + $extra, $r['reference']);
+            ['status' => $to, 'revision' => $revision ?? (int) $r['revision']] + $extra, $r['reference'], $ip);
+    }
+
+    /** @param array<string,mixed> $r */
+    private function assertSeen(array $r, int $revision, ?int $amount = null): void
+    {
+        if ($revision !== (int) $r['revision'] || ($amount !== null && $amount !== Money::fromDecimal($r['amount']))) {
+            throw new DisbursementRuleViolation(self::STALE);
+        }
+    }
+
+    /** Fichier téléversé par l'acteur lui-même, et jamais une pièce d'un dossier d'adhérent ou de demande d'adhésion. */
+    private function assertOwnFile(mixed $fileId, int $actor, string $label): void
+    {
+        $ok = is_int($fileId) && $this->db->fetchValue('SELECT 1 FROM files f WHERE f.id = ? AND f.uploaded_by = ?
+            AND NOT EXISTS (SELECT 1 FROM member_documents d WHERE d.file_id = f.id)
+            AND NOT EXISTS (SELECT 1 FROM membership_application_files m WHERE m.file_id = f.id)', [$fileId, $actor]) !== null;
+        if (!$ok) {
+            throw new DisbursementRuleViolation("$label : fichier introuvable ou non téléversé par vous pour ce décaissement.");
+        }
+    }
+
+    /** Transaction de l'action ; interblocage (1213) : un rejeu si la transaction est la nôtre ; sinon, ou attente trop longue (1205) : DisbursementBusy. */
+    private function run(callable $fn): mixed
+    {
+        $owned = !$this->db->pdo()->inTransaction();
+        for ($attempt = 1; ; $attempt++) {
+            try {
+                return $this->db->atomic($fn);
+            } catch (PDOException $e) {
+                $errno = $e->errorInfo[1] ?? 0;
+                if ($errno === 1213 && $owned && $attempt === 1) {
+                    continue;
+                }
+                throw in_array($errno, [1213, 1205], true) ? new DisbursementBusy(DisbursementBusy::MESSAGE, 0, $e) : $e;
+            }
+        }
     }
 
     /**
