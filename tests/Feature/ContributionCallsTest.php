@@ -311,4 +311,38 @@ final class ContributionCallsTest extends AdminTestCase
         $this->types()->save($t, ['amount' => '6000'] + $base, $this->admin);
         $this->assertSame('6000.00', $this->db->fetchValue('SELECT amount FROM contribution_types WHERE id = ?', [$t]));
     }
+
+    public function test_cron_skips_type_with_inactive_account_and_serves_the_others(): void
+    {
+        $this->member('M1', $this->zoneA);
+        $badAccount = $this->db->insert('financial_accounts', ['name' => 'Cot bad ' . bin2hex(random_bytes(3))]);
+        $bad = $this->type(['affects_account_id' => $badAccount]);
+        $good = $this->type();
+        $this->db->update('financial_accounts', ['is_active' => 0], ['id' => $badAccount]);
+        (new \App\Core\Settings($this->db))->validate('contributions', 'auto_generate', true, $this->admin, 'PV-AUTO');
+        $sched = new Scheduler($this->db);
+        CallService::register($sched, $this->db, new Audit($this->db, 'base64:' . base64_encode(str_repeat('k', 32))));
+        $this->db->query("DELETE FROM scheduled_runs WHERE task = 'contributions.generate_calls'");
+        $this->assertSame('ran', $sched->run(time())['contributions.generate_calls']);
+        $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM contribution_calls WHERE contribution_type_id = ?', [$good]));
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM contribution_calls WHERE contribution_type_id = ?', [$bad]));
+    }
+
+    public function test_auto_banner_follows_setting_and_gate_rejects_non_true_values(): void
+    {
+        $settings = new \App\Core\Settings($this->db);
+        $this->assertFalse(CallService::autoEnabled($this->db));
+        $this->assertStringContainsString('désactivée', CallService::autoBanner($this->db));
+        foreach ([0, 'false', false, 'true', 1] as $v) {
+            $settings->validate('contributions', 'auto_generate', $v, $this->admin, 'PV-AUTO');
+            $this->assertFalse(CallService::autoEnabled($this->db), var_export($v, true));
+        }
+        $settings->validate('contributions', 'auto_generate', true, $this->admin, 'PV-AUTO');
+        $this->assertTrue(CallService::autoEnabled($this->db));
+        $this->assertStringContainsString('est active', CallService::autoBanner($this->db));
+        $this->actingAs((int) $this->viewer);
+        $this->assertStringContainsString('est active', $this->request('GET', '/admin/cotisations/appels')->body());
+        $this->db->query("UPDATE settings SET value = NULL, status = 'non_configure' WHERE `group` = 'contributions' AND `key` = 'auto_generate'");
+        $this->assertStringContainsString('désactivée', $this->request('GET', '/admin/cotisations/appels')->body());
+    }
 }

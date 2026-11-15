@@ -256,7 +256,7 @@ final class ContributionController
         return new Response($this->view->render($view, [
             'title' => $title, 'user' => $user,
             'can' => fn (string $p): bool => $this->gate->allows((int) $user['id'], $p),
-            'csrfToken' => $this->csrf->token(),
+            'csrfToken' => $this->csrf->token(), 'autoBanner' => CallService::autoBanner($this->db),
             'flash' => $error ?? $this->session->pullFlash('status'), 'flashKind' => $error !== null ? 'danger' : 'ok',
         ] + $data, 'layouts/admin'), $status);
     }

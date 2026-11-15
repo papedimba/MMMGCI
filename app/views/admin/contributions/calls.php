@@ -1,5 +1,5 @@
 <?php declare(strict_types=1);
-/** @var array $rows @var int $total @var int $page @var int $pages @var array $query @var array $statuses @var array $statusOptions @var array $typeOptions @var array $periodOptions @var array $values @var Closure $can */
+/** @var string $autoBanner @var array $rows @var int $total @var int $page @var int $pages @var array $query @var array $statuses @var array $statusOptions @var array $typeOptions @var array $periodOptions @var array $values @var Closure $can */
 use App\Core\Money;
 $manage = $can('contributions.manage');
 $kinds = ['appelee' => 'info', 'partielle' => 'warn', 'payee' => 'ok', 'annulee' => 'neutral'];
@@ -17,7 +17,7 @@ $actions = $manage ? ui('button', ['label' => 'Appel individuel', 'icon' => 'plu
 ?>
 <?= ui('page-header', ['title' => 'Cotisations', 'subtitle' => 'Appels de cotisation. Le montant est celui du type, jamais saisi.'], $actions) ?>
 <?php $current = 'appels'; require __DIR__ . '/_tabs.php'; ?>
-<?= ui('alert', ['kind' => 'info', 'message' => App\Modules\Contributions\CallService::AUTO_BANNER]) ?>
+<?= ui('alert', ['kind' => 'info', 'message' => $autoBanner]) ?>
 <form class="filter-row" method="get" action="/admin/cotisations/appels" role="search">
 <?= ui('field', ['name' => 'statut', 'label' => 'Statut', 'type' => 'select', 'options' => $statusOptions, 'value' => $values['statut']]) ?>
 <?= ui('field', ['name' => 'type', 'label' => 'Type', 'type' => 'select', 'options' => $typeOptions, 'value' => $values['type']]) ?>

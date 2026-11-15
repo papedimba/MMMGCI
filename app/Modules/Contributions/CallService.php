@@ -30,18 +30,36 @@ final class CallService
 
     public const AUTO_BANNER = 'La génération automatique des appels est désactivée tant que les instances n\'ont pas validé ce paramètre ; les appels groupés se font manuellement.';
 
+    /** Seule la valeur booléenne true validée active la génération (0, « false », absente ou non validée : non). */
+    public static function autoEnabled(Database $db): bool
+    {
+        $s = new Settings($db);
+        return $s->isValidated('contributions', 'auto_generate') && $s->get('contributions', 'auto_generate') === true;
+    }
+
+    public static function autoBanner(Database $db): string
+    {
+        return self::autoEnabled($db)
+            ? 'La génération automatique des appels est active (validée par les instances) : les appels périodiques sont créés chaque période ; les appels groupés restent possibles manuellement.'
+            : self::AUTO_BANNER;
+    }
+
     /** Tâche planifiée : sans type actif (montant validé, périodicité définie), ne fait rien ; ne crée jamais pour une période non commencée. */
     public static function register(Scheduler $scheduler, Database $db, Audit $audit): void
     {
         $scheduler->register('contributions.generate_calls', 60, static function () use ($db, $audit): void {
-            $settings = new Settings($db);
-            if (!$settings->isValidated('contributions', 'auto_generate') || $settings->get('contributions', 'auto_generate') !== true) {
+            if (!self::autoEnabled($db)) {
                 return;
             }
             $svc = new self($db, $audit, new MemberScope($db, new \App\Core\Gate($db)));
-            $types = $db->fetchAll("SELECT id FROM contribution_types WHERE status = 'actif' AND kind = 'periodique' AND amount IS NOT NULL AND periodicity IS NOT NULL");
+            $types = $db->fetchAll("SELECT t.id FROM contribution_types t JOIN financial_accounts a ON a.id = t.affects_account_id AND a.is_active = 1
+                WHERE t.status = 'actif' AND t.kind = 'periodique' AND t.amount IS NOT NULL AND t.periodicity IS NOT NULL");
             foreach ($types as $t) {
-                $svc->generateBatch((int) $t['id'], Ledger::now(), null);
+                try {
+                    $svc->generateBatch((int) $t['id'], Ledger::now(), null);
+                } catch (DomainException $e) { // un type inapplicable ne bloque pas les autres
+                    $audit->log(null, 'contributions.auto_generate_skipped', 'contribution_type', (int) $t['id'], null, ['reason' => $e->getMessage()]);
+                }
             }
         });
     }
