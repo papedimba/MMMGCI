@@ -14,9 +14,10 @@ $columns = [
 ?>
 <?php if ($can('contributions.manage')): ?><p><?= ui('button', ['label' => 'Nouvel appel', 'icon' => 'plus', 'size' => 'sm', 'href' => '/admin/cotisations/appels/individuel?adherent=' . $m['id']]) ?></p><?php endif; ?>
 <?= ui('table', ['caption' => 'Appels de cotisation', 'columns' => $columns, 'rows' => $calls,
+    'row_actions' => $can('contributions.manage') ? static fn (array $r): string => in_array($r['status'], ['appelee', 'partielle'], true) ? ui('button', ['label' => 'Encaisser', 'size' => 'sm', 'href' => '/admin/cotisations/appels/' . $r['id'] . '/encaisser']) : '' : null,
     'empty' => ['title' => 'Aucun appel de cotisation', 'message' => 'Aucune cotisation n\'a été appelée pour cet adhérent.']]) ?>
 <?= ui('table', ['caption' => 'Paiements', 'columns' => [
-        ['reference', 'Référence', 'left'],
+        ['reference', 'Référence', 'left', false, static fn (array $r): string => '<a href="/admin/cotisations/paiements/' . e((string) $r['id']) . '">' . e($r['reference']) . '</a>'],
         ['paid_at', 'Date', 'left', false, static fn (array $r): string => '<span class="nowrap">' . e(date('d/m/Y', strtotime($r['paid_at']))) . '</span>'],
         ['amount', 'Montant', 'right', true, static fn (array $r): string => '<span class="nowrap">' . e(Money::format(Money::fromDecimal($r['amount']))) . '</span>'],
         ['cancelled_at', 'État', 'left', false, static fn (array $r): string => $r['cancelled_at'] === null ? ui('badge', ['label' => 'Valide', 'kind' => 'ok']) : ui('badge', ['label' => 'Annulé', 'kind' => 'neutral']), 'status'],

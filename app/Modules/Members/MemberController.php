@@ -146,7 +146,7 @@ final class MemberController
             $data['calls'] = $this->db->fetchAll('SELECT c.id, c.period_label, c.amount_due, c.due_date, c.status, t.name AS type_name,
                 COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.contribution_call_id = c.id AND p.cancelled_at IS NULL), 0) AS paid
                 FROM contribution_calls c JOIN contribution_types t ON t.id = c.contribution_type_id WHERE c.member_id = ? ORDER BY c.period_start DESC, c.id DESC', [$id]);
-            $data['payments'] = $this->db->fetchAll('SELECT reference, paid_at, amount, cancelled_at FROM payments WHERE member_id = ? ORDER BY paid_at DESC, id DESC', [$id]);
+            $data['payments'] = $this->db->fetchAll('SELECT id, reference, paid_at, amount, cancelled_at FROM payments WHERE member_id = ? ORDER BY paid_at DESC, id DESC', [$id]);
         } elseif ($tab === 'historique') {
             $data['rows'] = $this->db->fetchAll(
                 'SELECT h.from_status, h.to_status, h.reason, h.decision_ref, h.created_at, u.name AS author, f.label AS from_label, t.label AS to_label

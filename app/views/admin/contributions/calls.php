@@ -12,7 +12,7 @@ $columns = [
     ['rest', 'Reste dû', 'right', true, static fn (array $r): string => $r['status'] === 'annulee' ? '—' : '<span class="nowrap">' . e(Money::format(max(0, Money::fromDecimal($r['amount_due']) - Money::fromDecimal((string) $r['paid'])))) . '</span>'],
     ['status', 'Statut', 'left', false, static fn (array $r): string => ui('badge', ['label' => $statuses[$r['status']] ?? $r['status'], 'kind' => $kinds[$r['status']] ?? 'neutral']), 'status'],
 ];
-$rowActions = $manage ? static fn (array $r): string => $r['status'] === 'annulee' ? '' : ui('button', ['label' => 'Annuler', 'variant' => 'secondary', 'size' => 'sm', 'href' => '/admin/cotisations/appels/' . $r['id'] . '/annuler']) : null;
+$rowActions = $manage ? static fn (array $r): string => $r['status'] === 'annulee' ? '' : (in_array($r['status'], ['appelee', 'partielle'], true) ? ui('button', ['label' => 'Encaisser', 'size' => 'sm', 'href' => '/admin/cotisations/appels/' . $r['id'] . '/encaisser']) : '') . ui('button', ['label' => 'Annuler', 'variant' => 'secondary', 'size' => 'sm', 'href' => '/admin/cotisations/appels/' . $r['id'] . '/annuler']) : null;
 $actions = $manage ? ui('button', ['label' => 'Appel individuel', 'icon' => 'plus', 'href' => '/admin/cotisations/appels/individuel']) . ui('button', ['label' => 'Générer un lot', 'variant' => 'secondary', 'href' => '/admin/cotisations/appels/lot']) : '';
 ?>
 <?= ui('page-header', ['title' => 'Cotisations', 'subtitle' => 'Appels de cotisation. Le montant est celui du type, jamais saisi.'], $actions) ?>

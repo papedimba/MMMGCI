@@ -17,6 +17,9 @@ use App\Modules\Auth\PasswordReset;
 use App\Modules\Contributions\CallService;
 use App\Modules\Contributions\ContributionController;
 use App\Modules\Contributions\ContributionTypeService;
+use App\Modules\Contributions\PaymentController;
+use App\Modules\Contributions\PaymentService;
+use App\Modules\Contributions\ReceiptService;
 use App\Modules\Finance\AccountService;
 use App\Modules\Finance\AttachmentService;
 use App\Modules\Finance\CategoryService;
@@ -68,6 +71,9 @@ return static function (Router $r, array $deps): void {
         new Ledger($db(), $audit(), new Sequence($db())), new AccountService($db(), $audit()), new CategoryService($db(), $audit()), new AttachmentService($db(), $audit()), $uploads());
     $contributions = static fn (): ContributionController => new ContributionController($view, $csrf, $session, $db(), $gate(), new ContributionTypeService($db(), $audit()),
         new CallService($db(), $audit(), new MemberScope($db(), $gate())), new MemberScope($db(), $gate()));
+    $payments = static fn (): PaymentController => new PaymentController($view, $csrf, $session, $db(), $gate(),
+        new PaymentService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db())), new Sequence($db()), new ReceiptService($db(), new Sequence($db())), new MemberScope($db(), $gate())),
+        new ReceiptService($db(), new Sequence($db())), new MemberScope($db(), $gate()), new Ledger($db(), $audit(), new Sequence($db())));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -166,6 +172,12 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/cotisations/appels/lot', static fn (Request $q): Response => $contributions()->batchRun($q), $manageContrib);
     $r->get('/admin/cotisations/appels/{id:\d+}/annuler', static fn (Request $q): Response => $contributions()->cancelForm($q), $manageContrib);
     $r->post('/admin/cotisations/appels/{id:\d+}/annuler', static fn (Request $q): Response => $contributions()->cancel($q), $manageContrib);
+    $r->get('/admin/cotisations/appels/{id:\d+}/encaisser', static fn (Request $q): Response => $payments()->form($q), $manageContrib);
+    $r->post('/admin/cotisations/appels/{id:\d+}/encaisser', static fn (Request $q): Response => $payments()->record($q), $manageContrib);
+    $r->get('/admin/cotisations/paiements/{id:\d+}', static fn (Request $q): Response => $payments()->show($q), $viewContrib);
+    $r->get('/admin/cotisations/paiements/{id:\d+}/recu', static fn (Request $q): Response => $payments()->receipt($q), $viewContrib);
+    $r->get('/admin/cotisations/paiements/{id:\d+}/annuler', static fn (Request $q): Response => $payments()->cancelForm($q), $manageContrib);
+    $r->post('/admin/cotisations/paiements/{id:\d+}/annuler', static fn (Request $q): Response => $payments()->cancel($q), $manageContrib);
     // Finances (L6) : aucune route n'enregistre de dépense ; seule DisbursementService (Task 6) peut en écrire.
     $viewFinance = [$requireAuth, $permission('finance.view')];
     $manageFinance = [$requireAuth, $permission('finance.manage')];
