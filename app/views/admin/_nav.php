@@ -12,6 +12,7 @@ return [
     ['Cotisations', 'Impayés', '/admin/cotisations/impayes', 'contributions.view', 'file'],
     ['Finances', 'Comptes', '/admin/finances', 'finance.view', 'coins'],
     ['Finances', 'Décaissements', '/admin/decaissements', ['finance.view', 'finance.control', 'disbursement.initiate', 'disbursement.approve', 'disbursement.pay'], 'file'],
+    ['Finances', 'Contrôle', '/admin/controle', 'finance.control', 'shield'],
     ['Finances', 'Fonds de solidarité', '/admin/solidarite', 'solidarity.view', 'heart'],
     ['Administration', 'Utilisateurs', '/admin/utilisateurs', 'users.manage', 'users'],
     ['Administration', 'Rôles', '/admin/roles', 'roles.manage', 'shield'],

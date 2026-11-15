@@ -28,6 +28,8 @@ use App\Modules\Disbursements\DisbursementController;
 use App\Modules\Disbursements\DisbursementGate;
 use App\Modules\Disbursements\DisbursementService;
 use App\Modules\Finance\AccountService;
+use App\Modules\Finance\ControlController;
+use App\Modules\Finance\ControlService;
 use App\Modules\Finance\AttachmentService;
 use App\Modules\Finance\CategoryService;
 use App\Modules\Finance\FinanceController;
@@ -85,6 +87,7 @@ return static function (Router $r, array $deps): void {
     $disbursements = static fn (): DisbursementController => new DisbursementController($view, $csrf, $session, $db(), $gate(),
         new DisbursementService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db())), new Sequence($db()), new Settings($db()), $gate()),
         new DisbursementGate($db()), $uploads(), new SensitiveAccess($db()));
+    $control = static fn (): ControlController => new ControlController($view, $csrf, $session, $db(), $gate(), new ControlService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))));
     $arrears = static fn (): ArrearsController => new ArrearsController($view, $csrf, $session, $db(), $gate(), $arrearsService());
     $solidarity = static fn (): SolidarityController => new SolidarityController($view, $csrf, $session, $gate(), new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))), new AccountService($db(), $audit()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
@@ -234,6 +237,20 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/decaissements/{id:\d+}/rejeter', static fn (Request $q): Response => $disbursements()->reject($q), $approveDisb);
     $r->get('/admin/decaissements/{id:\d+}/payer', static fn (Request $q): Response => $disbursements()->payForm($q), $payDisb);
     $r->post('/admin/decaissements/{id:\d+}/payer', static fn (Request $q): Response => $disbursements()->pay($q), $payDisb);
+
+    // Contrôle des finances (L6) : STRICTEMENT en lecture, uniquement des routes GET (un test le vérifie). Les pièces passent par /admin/decaissements/{id}/pieces/{fid}.
+    $ctl = [$requireAuth, $permission('finance.control')];
+    $r->get('/admin/controle', static fn (Request $q): Response => $control()->transactions($q), $ctl);
+    $r->get('/admin/controle/decaissements', static fn (Request $q): Response => $control()->disbursements($q), $ctl);
+    $r->get('/admin/controle/decaissements/{id:\d+}', static fn (Request $q): Response => $control()->disbursement($q), $ctl);
+    $r->get('/admin/controle/contre-passations', static fn (Request $q): Response => $control()->reversals($q), $ctl);
+    $r->get('/admin/controle/annulations', static fn (Request $q): Response => $control()->cancelled($q), $ctl);
+    $r->get('/admin/controle/soldes', static fn (Request $q): Response => $control()->balances($q), $ctl);
+    foreach (['ecritures', 'decaissements'] as $set) {
+        foreach (['csv', 'xlsx'] as $fmt) {
+            $r->get("/admin/controle/export/$set.$fmt", static fn (Request $q): Response => $control()->export($q), $ctl);
+        }
+    }
 
     // Fonds de solidarité (L6) : lecture seule du grand livre ; aucune écriture de dépense ici. Export : reports.export (aucune permission dédiée au seed).
     $r->get('/admin/solidarite', static fn (Request $q): Response => $solidarity()->index($q), [$requireAuth, $permission('solidarity.view')]);
