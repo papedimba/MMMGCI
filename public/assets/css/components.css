@@ -1,5 +1,4 @@
 /* Composants (kit ui()). Dépend de tokens.css et base.css. */
-.icon { width: 18px; height: 18px; flex: none; }
 .on-dark :focus-visible { outline: var(--focus-ring-on-dark); }
 
 /* Boutons */

@@ -76,7 +76,13 @@
 
   // Filtres du journal : ouverts partout sans JS ; repliés sur téléphone tant qu'aucun filtre n'est actif.
   var filters = document.querySelector('details.filters[data-collapse-narrow="1"]');
-  if (filters && window.matchMedia && window.matchMedia('(max-width: 639.98px)').matches) { filters.removeAttribute('open'); }
+  if (filters && window.matchMedia) {
+    var narrow = window.matchMedia('(max-width: 639.98px)');
+    if (narrow.matches) { filters.removeAttribute('open'); }
+    // Rotation en paysage : le résumé disparaît, les filtres doivent donc se rouvrir.
+    var reopen = function (m) { if (!m.matches) { filters.setAttribute('open', ''); } };
+    if (narrow.addEventListener) { narrow.addEventListener('change', reopen); } else if (narrow.addListener) { narrow.addListener(reopen); }
+  }
 
   document.addEventListener('change', function (ev) {
     var input = ev.target;

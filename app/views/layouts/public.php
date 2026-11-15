@@ -9,6 +9,7 @@ $menu = require __DIR__ . '/../public/_menu.php';
 <title><?= e($title ?? 'MMMGCI') ?></title>
 <?php if (isset($csrfToken)): ?><meta name="csrf-token" content="<?= e($csrfToken) ?>">
 <?php endif; ?>
+<link rel="icon" type="image/png" href="/assets/img/emblem-40.png">
 <link rel="stylesheet" href="/assets/css/tokens.css">
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/components.css">

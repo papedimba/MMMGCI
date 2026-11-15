@@ -69,25 +69,21 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/journal', static fn (Request $q): Response => $journal()->index($q), $viewAudit);
     $r->post('/admin/journal/verification', static fn (Request $q): Response => $journal()->verify($q), $viewAudit);
 
-    // Galerie du kit de composants : outil de développement, introuvable en production.
-    $r->get('/admin/composants', static function (Request $q) use ($view, $csrf, $session, $gate, $config): Response {
-        if ($config->get('APP_ENV', 'production') === 'production') {
-            return new Response($view->render('errors/404', ['title' => 'Page introuvable']), 404);
-        }
-        $user = $q->attribute('user');
-        return new Response($view->render('admin/design/index', [
-            'title' => 'Composants', 'user' => $user, 'csrfToken' => $csrf->token(), 'flash' => $session->pullFlash('status'),
-            'can' => static fn (string $p): bool => $gate()->allows((int) $user['id'], $p),
-        ], 'layouts/admin'));
-    }, [$requireAuth, $permission('users.manage')]);
+    // Galerie du kit et page d'exemple d'impression : outils de développement, routes non enregistrées en production (404).
+    if ($config->get('APP_ENV', 'production') !== 'production') {
+        $r->get('/admin/composants', static function (Request $q) use ($view, $csrf, $session, $gate): Response {
+            $user = $q->attribute('user');
+            return new Response($view->render('admin/design/index', [
+                'title' => 'Composants', 'user' => $user, 'csrfToken' => $csrf->token(), 'flash' => $session->pullFlash('status'),
+                'can' => static fn (string $p): bool => $gate()->allows((int) $user['id'], $p),
+            ], 'layouts/admin'));
+        }, [$requireAuth, $permission('users.manage')]);
 
-    // Page d'exemple du gabarit d'impression (contrôle PDF) : mêmes règles que la galerie.
-    $r->get('/admin/composants/document', static function (Request $q) use ($view, $config): Response {
-        if ($config->get('APP_ENV', 'production') === 'production') {
-            return new Response($view->render('errors/404', ['title' => 'Page introuvable']), 404);
-        }
-        return new Response($view->render('admin/design/document', ['title' => 'Document d\'exemple', 'reference' => 'EXEMPLE-0001'], 'layouts/print'));
-    }, [$requireAuth, $permission('users.manage')]);
+        // Page d'exemple du gabarit d'impression (contrôle PDF) : mêmes règles que la galerie.
+        $r->get('/admin/composants/document', static function (Request $q) use ($view): Response {
+            return new Response($view->render('admin/design/document', ['title' => 'Document d\'exemple', 'reference' => 'EXEMPLE-0001'], 'layouts/print'));
+        }, [$requireAuth, $permission('users.manage')]);
+    }
 
     $r->get('/admin', static function (Request $q) use ($view, $csrf, $session, $gate): Response {
         $user = $q->attribute('user');

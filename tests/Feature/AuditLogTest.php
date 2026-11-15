@@ -85,6 +85,18 @@ final class AuditLogTest extends AdminTestCase
         $this->assertSame(422, $this->request('GET', '/admin/journal?onglet=sensibles&au=demain')->status());
     }
 
+    public function test_both_flashes_are_consumed_by_one_page_view(): void
+    {
+        $this->admin('journal-flash@example.test');
+        $session = $this->services['session'];
+        $session->flash('status', 'Ancien succès');
+        $session->flash('status_danger', 'Anomalie simulée');
+        $body = $this->request('GET', '/admin/journal')->body();
+        $this->assertStringContainsString('Anomalie simulée', $body);
+        $this->assertNull($session->pullFlash('status'));
+        $this->assertNull($session->pullFlash('status_danger'));
+    }
+
     public function test_verification_reports_intact_and_tampered_chain(): void
     {
         $admin = $this->admin('journal4@example.test');

@@ -26,6 +26,18 @@ final class AssetsTest extends TestCase
         }
     }
 
+    public function test_base_css_sizes_icons_because_the_print_layout_loads_nothing_else(): void
+    {
+        $this->assertMatchesRegularExpression('/^\.icon\s*\{[^}]*width:\s*18px/m', (string) file_get_contents(self::ASSETS . '/css/base.css'));
+        $this->assertDoesNotMatchRegularExpression('/^\.icon\s*\{/m', (string) file_get_contents(self::ASSETS . '/css/components.css'));
+    }
+
+    public function test_filters_reopen_when_the_viewport_widens(): void
+    {
+        $js = (string) file_get_contents(self::ASSETS . '/js/app.js');
+        $this->assertStringContainsString("addEventListener('change', reopen)", $js);
+    }
+
     public function test_tokens_define_every_variable_used_by_other_css_files(): void
     {
         $all = '';

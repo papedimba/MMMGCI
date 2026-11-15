@@ -23,6 +23,10 @@ final class DesignGalleryTest extends AdminTestCase
         $this->actingAs($this->createUser('admin2@example.test', ['super_admin']));
         $res = $this->app()->handle(new Request('GET', '/admin/composants', [], [], [], ['REMOTE_ADDR' => '127.0.0.1', 'HTTPS' => 'on', 'HTTP_HOST' => 'exemple.ci']));
         $this->assertSame(404, $res->status());
+
+        $this->forgetApp(); // route non enregistrée : 404 même sans session
+        $anon = $this->app()->handle(new Request('GET', '/admin/composants', [], [], [], ['REMOTE_ADDR' => '127.0.0.1', 'HTTPS' => 'on', 'HTTP_HOST' => 'exemple.ci']));
+        $this->assertSame(404, $anon->status());
     }
 
     public function test_gallery_requires_users_manage(): void

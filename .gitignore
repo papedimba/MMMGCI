@@ -8,3 +8,4 @@
 .phpunit.result.cache
 /public/media/*
 !/public/media/.htaccess
+/docs/conception/captures-l2/

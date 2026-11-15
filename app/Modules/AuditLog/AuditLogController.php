@@ -61,13 +61,15 @@ final class AuditLogController
         }
 
         $user = $r->attribute('user');
-        $danger = $this->session->pullFlash('status_danger'); // clé distincte : l'anomalie d'intégrité ne s'affiche jamais comme un succès
+        // Clé distincte : l'anomalie d'intégrité ne s'affiche jamais comme un succès. Les deux sont retirées : aucune ne reste en attente.
+        $danger = $this->session->pullFlash('status_danger');
+        $status = $this->session->pullFlash('status');
         $html = $this->view->render('admin/audit/index', [
             'title' => $tab === 'sensibles' ? 'Consultations sensibles' : "Journal d'audit",
             'user' => $user,
             'can' => fn (string $p): bool => $this->gate->allows((int) $user['id'], $p),
             'csrfToken' => $this->csrf->token(),
-            'flash' => $danger ?? $this->session->pullFlash('status'),
+            'flash' => $danger ?? $status,
             'flashKind' => $danger !== null ? 'danger' : 'ok',
             'tab' => $tab,
             'filters' => array_filter($raw, static fn ($x) => $x !== null && $x !== ''),

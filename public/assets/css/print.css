@@ -37,6 +37,7 @@ body.print { background: var(--frame); color: #000; font-size: 11pt; line-height
 .card-cr80 .card-qr { position: absolute; right: 4mm; bottom: 4mm; width: 14mm; height: 14mm; border: .75pt dashed #000; }
 .card-cr80-page { page: cr80; }
 
+@media (max-width: 640px) { .sheet { padding: var(--s4); } }
 @media print {
   body.print { background: #fff; }
   .print-bar { display: none; }

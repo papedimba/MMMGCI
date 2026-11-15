@@ -8,6 +8,7 @@ $initials = mb_strtoupper(implode('', array_map(static fn (string $w): string =>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title ?? 'Administration') ?> — MMMGCI</title>
 <meta name="csrf-token" content="<?= e($csrfToken) ?>">
+<link rel="icon" type="image/png" href="/assets/img/emblem-40.png">
 <link rel="stylesheet" href="/assets/css/tokens.css">
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/components.css">

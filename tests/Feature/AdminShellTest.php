@@ -118,7 +118,6 @@ final class AdminShellTest extends AdminTestCase
         (new \App\Core\Http\ShareLayoutData($view, $router))->handle(
             new \App\Core\Http\Request('GET', '/x'),
             function () use ($view): \App\Core\Http\Response {
-                file_put_contents(sys_get_temp_dir() . '/shared.php', '');
                 return new \App\Core\Http\Response('');
             },
         );

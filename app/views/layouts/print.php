@@ -8,6 +8,7 @@ $generated = $generatedAt ?? date_fr(gmdate('Y-m-d H:i:s'));
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title ?? 'Document') ?> — MMMGCI</title>
+<link rel="icon" type="image/png" href="/assets/img/emblem-40.png">
 <link rel="stylesheet" href="/assets/css/tokens.css">
 <link rel="stylesheet" href="/assets/css/base.css">
 <link rel="stylesheet" href="/assets/css/print.css">
