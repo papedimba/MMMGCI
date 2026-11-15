@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 /**
- * Liste unique du menu d'administration : [groupe, libellé, href, permission (null = tous), icône].
+ * Liste unique du menu d'administration : [groupe, libellé, href, permission (null = tous ; liste = l'une d'elles), icône].
  * Un lien n'apparaît que si la permission est détenue ET la route GET existe : ajouter un module = ajouter une ligne ici.
  */
 return [
@@ -11,6 +11,7 @@ return [
     ['Cotisations', 'Appels', '/admin/cotisations/appels', 'contributions.view', 'file'],
     ['Cotisations', 'Impayés', '/admin/cotisations/impayes', 'contributions.view', 'file'],
     ['Finances', 'Comptes', '/admin/finances', 'finance.view', 'coins'],
+    ['Finances', 'Décaissements', '/admin/decaissements', ['finance.view', 'finance.control', 'disbursement.initiate', 'disbursement.approve', 'disbursement.pay'], 'file'],
     ['Administration', 'Utilisateurs', '/admin/utilisateurs', 'users.manage', 'users'],
     ['Administration', 'Rôles', '/admin/roles', 'roles.manage', 'shield'],
     ['Administration', "Journal d'audit", '/admin/journal', 'audit.view', 'file'],

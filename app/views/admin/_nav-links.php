@@ -4,7 +4,7 @@ $items = (require __DIR__ . '/_nav.php');
 $group = null;
 $open = false;
 foreach ($items as [$grp, $label, $href, $perm, $icon]) {
-    if (($perm !== null && !$can($perm)) || ($routeExists ?? null) === null || !$routeExists($href)) {
+    if (($perm !== null && array_filter((array) $perm, $can) === []) || ($routeExists ?? null) === null || !$routeExists($href)) {
         continue;
     }
     if ($grp !== $group) {

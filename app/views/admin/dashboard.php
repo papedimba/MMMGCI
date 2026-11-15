@@ -3,7 +3,7 @@
 $first = preg_split('/\s+/u', trim((string) $user['name']))[0] ?? '';
 $shortcuts = array_filter(
     (array) (require __DIR__ . '/_nav.php'),
-    static fn (array $i): bool => $i[2] !== '/admin' && ($i[3] === null || $can($i[3])) && ($routeExists ?? null) !== null && $routeExists($i[2]),
+    static fn (array $i): bool => $i[2] !== '/admin' && ($i[3] === null || array_filter((array) $i[3], $can) !== []) && ($routeExists ?? null) !== null && $routeExists($i[2]),
 );
 ?>
 <?= ui('page-header', ['title' => 'Bonjour ' . $first, 'subtitle' => 'Voici votre espace d\'administration.']) ?>

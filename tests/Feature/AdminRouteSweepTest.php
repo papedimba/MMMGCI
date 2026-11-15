@@ -14,7 +14,7 @@ final class AdminRouteSweepTest extends AdminTestCase
     private const OPEN = ['/admin/connexion', '/admin/mot-de-passe-oublie', '/admin/reinitialiser/{token:[a-f0-9]{64}}'];
     private const LOGIN_ONLY = ['GET /admin', 'POST /admin/deconnexion', 'GET /admin/mon-compte/mot-de-passe', 'POST /admin/mon-compte/mot-de-passe'];
 
-    /** @return list<array{method: string, pattern: string, permission: ?string}> routes /admin à protéger */
+    /** @return list<array{method: string, pattern: string, permission: ?string, alternatives: list<string>}> routes /admin à protéger */
     private function protectedRoutes(): array
     {
         $this->app();
@@ -24,7 +24,7 @@ final class AdminRouteSweepTest extends AdminTestCase
                 continue;
             }
             $guards = array_values(array_filter($r['middleware'], static fn ($m) => $m instanceof PermissionGuard));
-            $routes[] = ['method' => $r['method'], 'pattern' => $r['pattern'], 'permission' => $guards[0]->permission ?? null];
+            $routes[] = ['method' => $r['method'], 'pattern' => $r['pattern'], 'permission' => $guards[0]->permission ?? null, 'alternatives' => $guards[0]->alternatives ?? []];
         }
         return $routes;
     }
@@ -69,7 +69,7 @@ final class AdminRouteSweepTest extends AdminTestCase
         $gate = $this->services['gate']();
         $uid = $this->services['auth']()->id();
         foreach ($this->protectedRoutes() as $r) {
-            if ($r['permission'] === null || $gate->allows($uid, $r['permission'])) {
+            if ($r['permission'] === null || array_filter([$r['permission'], ...$r['alternatives']], static fn (string $p): bool => $gate->allows($uid, $p)) !== []) {
                 continue;
             }
             $this->assertSame(403, $this->request($r['method'], self::concrete($r['pattern']))->status(), "{$r['method']} {$r['pattern']}");

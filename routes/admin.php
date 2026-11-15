@@ -22,6 +22,9 @@ use App\Modules\Contributions\ContributionTypeService;
 use App\Modules\Contributions\PaymentController;
 use App\Modules\Contributions\PaymentService;
 use App\Modules\Contributions\ReceiptService;
+use App\Modules\Disbursements\DisbursementController;
+use App\Modules\Disbursements\DisbursementGate;
+use App\Modules\Disbursements\DisbursementService;
 use App\Modules\Finance\AccountService;
 use App\Modules\Finance\AttachmentService;
 use App\Modules\Finance\CategoryService;
@@ -77,11 +80,14 @@ return static function (Router $r, array $deps): void {
     $payments = static fn (): PaymentController => new PaymentController($view, $csrf, $session, $db(), $gate(),
         new PaymentService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db())), new Sequence($db()), new ReceiptService($db(), new Sequence($db())), new MemberScope($db(), $gate())),
         new ReceiptService($db(), new Sequence($db())), new MemberScope($db(), $gate()), new Ledger($db(), $audit(), new Sequence($db())));
+    $disbursements = static fn (): DisbursementController => new DisbursementController($view, $csrf, $session, $db(), $gate(),
+        new DisbursementService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db())), new Sequence($db()), new Settings($db()), $gate()),
+        new DisbursementGate($db()), $uploads(), new SensitiveAccess($db()));
     $arrears = static fn (): ArrearsController => new ArrearsController($view, $csrf, $session, $db(), $gate(), $arrearsService());
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
-    $permission = static fn (string $name): PermissionGuard => new PermissionGuard($name, $auth, $view, $audit);
+    $permission = static fn (string $name, string ...$alternatives): PermissionGuard => new PermissionGuard($name, $auth, $view, $audit, array_values($alternatives));
 
     $r->get('/admin/connexion', static fn (Request $q): Response => $login()->show($q));
     $r->post('/admin/connexion', static fn (Request $q): Response => $login()->login($q));
@@ -202,6 +208,29 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/finances/ressources', static fn (Request $q): Response => $finance()->recordResource($q), $manageFinance);
     $r->get('/admin/finances/ecritures/{id:\d+}/contre-passation', static fn (Request $q): Response => $finance()->reverseForm($q), $manageFinance);
     $r->post('/admin/finances/ecritures/{id:\d+}/contre-passation', static fn (Request $q): Response => $finance()->reverse($q), $manageFinance);
+
+    // Décaissements (L6) : écrans seulement ; DisbursementService décide de tout. Lecture : l'une des permissions du circuit ou des finances
+    // (le contrôleur limite en plus celui qui n'a que disbursement.initiate à ses propres demandes).
+    $readDisb = [$requireAuth, $permission('finance.view', 'finance.control', 'disbursement.initiate', 'disbursement.approve', 'disbursement.pay')];
+    $initDisb = [$requireAuth, $permission('disbursement.initiate')];
+    $approveDisb = [$requireAuth, $permission('disbursement.approve')];
+    $payDisb = [$requireAuth, $permission('disbursement.pay')];
+    $r->get('/admin/decaissements', static fn (Request $q): Response => $disbursements()->index($q), $readDisb);
+    $r->get('/admin/decaissements/inoperant', static fn (Request $q): Response => $disbursements()->notOperational($q), $readDisb);
+    $r->get('/admin/decaissements/{id:\d+}', static fn (Request $q): Response => $disbursements()->show($q), $readDisb);
+    $r->get('/admin/decaissements/{id:\d+}/pieces/{fid:\d+}', static fn (Request $q): Response => $disbursements()->file($q), $readDisb);
+    $r->get('/admin/decaissements/nouveau', static fn (Request $q): Response => $disbursements()->createForm($q), $initDisb);
+    $r->post('/admin/decaissements/nouveau', static fn (Request $q): Response => $disbursements()->store($q), $initDisb);
+    $r->get('/admin/decaissements/{id:\d+}/modifier', static fn (Request $q): Response => $disbursements()->editForm($q), $initDisb);
+    $r->post('/admin/decaissements/{id:\d+}/modifier', static fn (Request $q): Response => $disbursements()->update($q), $initDisb);
+    $r->post('/admin/decaissements/{id:\d+}/soumettre', static fn (Request $q): Response => $disbursements()->submit($q), $initDisb);
+    $r->get('/admin/decaissements/{id:\d+}/annuler', static fn (Request $q): Response => $disbursements()->cancelForm($q), $initDisb);
+    $r->post('/admin/decaissements/{id:\d+}/annuler', static fn (Request $q): Response => $disbursements()->cancel($q), $initDisb);
+    $r->post('/admin/decaissements/{id:\d+}/approuver', static fn (Request $q): Response => $disbursements()->approve($q), $approveDisb);
+    $r->get('/admin/decaissements/{id:\d+}/rejeter', static fn (Request $q): Response => $disbursements()->rejectForm($q), $approveDisb);
+    $r->post('/admin/decaissements/{id:\d+}/rejeter', static fn (Request $q): Response => $disbursements()->reject($q), $approveDisb);
+    $r->get('/admin/decaissements/{id:\d+}/payer', static fn (Request $q): Response => $disbursements()->payForm($q), $payDisb);
+    $r->post('/admin/decaissements/{id:\d+}/payer', static fn (Request $q): Response => $disbursements()->pay($q), $payDisb);
 
     // Galerie du kit et page d'exemple d'impression : outils de développement, routes non enregistrées en production (404).
     if ($config->get('APP_ENV', 'production') !== 'production') {
