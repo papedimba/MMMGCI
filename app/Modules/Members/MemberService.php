@@ -19,9 +19,10 @@ final class MemberService
     public const DEFAULT_FORMAT = 'MMMGCI-{YYYY}-{NNNNN}';
     private const TEXT = ['sex' => 10, 'birth_place' => 120, 'nationality' => 80, 'address' => 255, 'id_document_number' => 60,
         'employment_status' => 60, 'employer' => 160, 'seaman_book_number' => 60];
+    private const SENSITIVE = ['id_document_number', 'seaman_book_number'];
     private const REFS = ['zone_id' => 'zones', 'category_id' => 'member_categories', 'profession_id' => 'maritime_professions', 'specialty_id' => 'maritime_specialties'];
 
-    public function __construct(private Database $db, private Audit $audit, private Settings $settings, private Sequence $sequence)
+    public function __construct(private Database $db, private Audit $audit, private Settings $settings, private Sequence $sequence, private MemberScope $scope)
     {
     }
 
@@ -36,7 +37,7 @@ final class MemberService
             // Séquence et insertion dans la même transaction : pas de numéro perdu ni dupliqué en concurrence.
             $fields['member_number'] = $this->nextNumber();
             $id = $this->db->insert('members', $fields);
-            $this->audit->log($actor, 'member.created', 'member', $id, null, $fields);
+            $this->audit->log($actor, 'member.created', 'member', $id, null, $this->auditable($fields));
             return $id;
         });
     }
@@ -52,17 +53,29 @@ final class MemberService
                 return;
             }
             $this->db->update('members', $changed, ['id' => $id]);
-            $this->audit->log($actor, 'member.updated', 'member', $id, array_intersect_key($before, $changed), $changed);
+            $this->audit->log($actor, 'member.updated', 'member', $id, $this->auditable(array_intersect_key($before, $changed)), $this->auditable($changed));
         });
     }
 
     /**
-     * Même nom et prénoms (casse, accents et espaces ignorés) ET même date de naissance, ou même téléphone normalisé.
-     * La collation utf8mb4_unicode_ci ignore déjà casse et accents ; les espaces sont réduits à l'écriture et ici.
-     * @param array<string,mixed> $data
-     * @return list<array<string,mixed>>
+     * Pièces d'identité et livret relèvent de members.documents.view : l'audit n'en garde que le nom des champs touchés.
+     * @param array<string,mixed> $values @return array<string,mixed>
      */
-    public function findDuplicates(array $data, ?int $exceptId = null): array
+    private function auditable(array $values): array
+    {
+        $hidden = array_values(array_intersect(array_keys($values), self::SENSITIVE));
+        return array_diff_key($values, array_flip(self::SENSITIVE)) + ($hidden === [] ? [] : ['sensitive_fields' => $hidden]);
+    }
+
+    /**
+     * Même nom et prénoms (casse, accents et espaces ignorés) ET même date de naissance, ou même téléphone (phone ou phone_alt
+     * contre l'un ou l'autre). La collation utf8mb4_unicode_ci ignore casse et accents ; les espaces sont réduits à l'écriture et ici.
+     * Seuls les adhérents du périmètre de $viewerUserId sont détaillés ; les autres ne sont que comptés (aucune fuite d'identité).
+     * Sans $viewerUserId, rien n'est détaillé.
+     * @param array<string,mixed> $data
+     * @return array{visible: list<array<string,mixed>>, hidden_count: int}
+     */
+    public function findDuplicates(array $data, ?int $exceptId = null, ?int $viewerUserId = null): array
     {
         $where = [];
         $params = [];
@@ -70,26 +83,30 @@ final class MemberService
         $first = self::squash($data['first_names'] ?? null);
         $birth = self::isoDate($data['birth_date'] ?? null);
         if ($last !== null && $first !== null && $birth !== null) {
-            $where[] = '(last_name = ? AND first_names = ? AND birth_date = ?)';
+            $where[] = '(m.last_name = ? AND m.first_names = ? AND m.birth_date = ?)';
             array_push($params, $last, $first, $birth);
         }
-        $phone = self::normalizePhone($data['phone'] ?? null);
-        if ($phone !== null) {
-            $where[] = 'phone = ?';
-            $params[] = $phone;
+        $phones = array_values(array_unique(array_filter([self::normalizePhone($data['phone'] ?? null), self::normalizePhone($data['phone_alt'] ?? null)])));
+        if ($phones !== []) {
+            $in = implode(', ', array_fill(0, count($phones), '?'));
+            $where[] = "(m.phone IN ($in) OR m.phone_alt IN ($in))";
+            array_push($params, ...$phones, ...$phones);
         }
         if ($where === []) {
-            return [];
+            return ['visible' => [], 'hidden_count' => 0];
         }
-        $sql = 'SELECT id, member_number, last_name, first_names, birth_date, phone, zone_id FROM members WHERE deleted_at IS NULL AND (' . implode(' OR ', $where) . ')';
+        $base = 'FROM members m WHERE m.deleted_at IS NULL AND (' . implode(' OR ', $where) . ')';
         if ($exceptId !== null) {
-            $sql .= ' AND id <> ?';
+            $base .= ' AND m.id <> ?';
             $params[] = $exceptId;
         }
-        return $this->db->fetchAll($sql . ' ORDER BY id', $params);
+        $total = (int) $this->db->fetchValue("SELECT COUNT(*) $base", $params);
+        [$scopeSql, $scopeParams] = $viewerUserId === null ? ['1 = 0', []] : $this->scope->where($viewerUserId);
+        $visible = $this->db->fetchAll("SELECT m.id, m.member_number, m.last_name, m.first_names, m.birth_date, m.phone, m.zone_id $base AND $scopeSql ORDER BY m.id", [...$params, ...$scopeParams]);
+        return ['visible' => $visible, 'hidden_count' => $total - count($visible)];
     }
 
-    /** Chiffres avec « + » initial facultatif ; +225 / 00225 suivi de 10 chiffres ramené aux 10 chiffres (comme les comptes). */
+    /** Chiffres avec « + » initial facultatif ; 225 / +225 / 00225 suivi de 10 chiffres ramené aux 10 chiffres. Ne valide pas : voir validate(). */
     public static function normalizePhone(mixed $raw): ?string
     {
         if (!is_string($raw) && !is_int($raw)) {
@@ -104,7 +121,7 @@ final class MemberService
         if (str_starts_with($s, '00')) {
             $digits = substr($digits, 2);
         }
-        if (preg_match('/^225(\d{10})$/', $digits, $m) && $plus) {
+        if (preg_match('/^225(\d{10})$/', $digits, $m)) {
             return $m[1];
         }
         return ($plus ? '+' : '') . $digits;
@@ -179,7 +196,7 @@ final class MemberService
         foreach (['phone', 'phone_alt'] as $k) {
             $raw = $data[$k] ?? null;
             $out[$k] = self::normalizePhone($raw);
-            if ($raw !== null && trim((string) $raw) !== '' && ($out[$k] === null || !preg_match('/^\+?\d{6,15}$/', $out[$k]))) {
+            if ($raw !== null && trim((string) $raw) !== '' && ($out[$k] === null || !preg_match('/^[\d\s.\-()+]+$/', (string) $raw) || !preg_match('/^\+?\d{6,15}$/', $out[$k]))) {
                 $errors[$k] = 'Téléphone invalide : saisissez des chiffres, avec « + » en tête pour un numéro international.';
             }
         }

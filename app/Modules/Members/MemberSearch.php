@@ -38,16 +38,17 @@ final class MemberSearch
             }
             $names = [];
             foreach (preg_split('/\s+/u', $q) ?: [] as $word) {
-                $names[] = '(m.last_name LIKE ? OR m.first_names LIKE ? OR m.first_names LIKE ?)';
-                array_push($params, $like($word), $like($word), '% ' . $like($word));
+                $names[] = '(m.last_name LIKE ? OR m.last_name LIKE ? OR m.first_names LIKE ? OR m.first_names LIKE ?)';
+                array_push($params, $like($word), '% ' . $like($word), $like($word), '% ' . $like($word));
             }
             $or[] = '(' . implode(' AND ', $names) . ')';
             $where[] = '(' . implode(' OR ', $or) . ')';
         }
         foreach (['status', 'category_id', 'zone_id', 'profession_id'] as $k) {
-            if (isset($criteria[$k]) && $criteria[$k] !== '') {
+            $v = $criteria[$k] ?? null;
+            if ($k === 'status' ? is_string($v) && preg_match('/^[a-z_]{1,30}$/', $v) : (is_int($v) || (is_string($v) && ctype_digit($v)))) {
                 $where[] = "m.$k = ?";
-                $params[] = $criteria[$k];
+                $params[] = $k === 'status' ? $v : (int) $v; // critère forgé (tableau, texte) : ignoré, jamais d'erreur SQL
             }
         }
         foreach (['joined_from' => '>=', 'joined_to' => '<='] as $k => $op) {

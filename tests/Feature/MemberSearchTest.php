@@ -80,4 +80,16 @@ final class MemberSearchTest extends DatabaseTestCase
         $this->assertCount(50, $r['rows']);
         $this->assertSame(40, $r['pages']);
     }
+
+    public function test_forged_criteria_never_error_and_compound_names_match_on_later_words(): void
+    {
+        $this->db->insert('members', ['member_number' => 'M1', 'last_name' => 'DE SOUZA', 'first_names' => 'Jean Paul', 'zone_id' => $this->zoneA]);
+        $admin = $this->user('gest_adherents', null);
+        $r = $this->search()->run($admin, ['q' => ['x'], 'status' => ['a'], 'category_id' => ['1'], 'zone_id' => 'abc', 'profession_id' => [[]],
+            'joined_from' => ['2020'], 'joined_to' => 5], 'name', 1);
+        $this->assertSame(1, $r['total']);
+        $this->assertSame(1, $this->search()->run($admin, ['q' => 'souza'], 'name', 1)['total']);
+        $this->assertSame(1, $this->search()->run($admin, ['q' => 'paul de'], 'name', 1)['total']);
+        $this->assertSame(1, $this->search()->run($admin, ['zone_id' => (string) $this->zoneA, 'status' => 'actif'], 'name', 1)['total']);
+    }
 }
