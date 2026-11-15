@@ -14,6 +14,8 @@ use App\Modules\Auth\LoginController;
 use App\Modules\Auth\LoginThrottle;
 use App\Modules\Auth\PasswordController;
 use App\Modules\Auth\PasswordReset;
+use App\Modules\Members\ApplicationController;
+use App\Modules\Members\ApplicationService;
 use App\Modules\Members\DocumentController;
 use App\Modules\Members\MemberController;
 use App\Modules\Members\MemberScope;
@@ -46,6 +48,8 @@ return static function (Router $r, array $deps): void {
         new MemberScope($db(), $gate()), new SensitiveAccess($db()),
         new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), $uploads(), $audit());
     $documents = static fn (): DocumentController => new DocumentController($db(), $session, new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit());
+    $applications = static fn (): ApplicationController => new ApplicationController($view, $csrf, $session, $db(), $gate(), new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit(),
+        new ApplicationService($db(), $audit(), new Sequence($db()), new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate()))));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -84,6 +88,15 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/adherents/referentiels/activation', static fn (Request $q): Response => $referentials()->activation($q), $manageSettings);
 
     $viewMembers = [$requireAuth, $permission('members.view')];
+    $r->get('/admin/adherents/demandes', static fn (Request $q): Response => $applications()->index($q), $viewMembers);
+    $r->get('/admin/adherents/demandes/{id:\d+}', static fn (Request $q): Response => $applications()->show($q), $viewMembers);
+    $r->get('/admin/adherents/demandes/nouvelle', static fn (Request $q): Response => $applications()->createForm($q), [$requireAuth, $permission('members.create')]);
+    $r->post('/admin/adherents/demandes/nouvelle', static fn (Request $q): Response => $applications()->store($q), [$requireAuth, $permission('members.create')]);
+    $validateMembers = [$requireAuth, $permission('members.validate')];
+    $r->post('/admin/adherents/demandes/{id:\d+}/prise-en-charge', static fn (Request $q): Response => $applications()->verify($q), $validateMembers);
+    $r->post('/admin/adherents/demandes/{id:\d+}/complements', static fn (Request $q): Response => $applications()->complements($q), $validateMembers);
+    $r->post('/admin/adherents/demandes/{id:\d+}/rejeter', static fn (Request $q): Response => $applications()->reject($q), $validateMembers);
+    $r->post('/admin/adherents/demandes/{id:\d+}/valider', static fn (Request $q): Response => $applications()->validate($q), $validateMembers);
     $r->get('/admin/adherents', static fn (Request $q): Response => $members()->index($q), $viewMembers);
     $r->get('/admin/adherents/{id:\d+}', static fn (Request $q): Response => $members()->show($q), $viewMembers);
     $r->get('/admin/adherents/{id:\d+}/photo', static fn (Request $q): Response => $documents()->photo($q), $viewMembers);
@@ -98,6 +111,8 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/adherents/{id:\d+}/ayants-droit/{bid:\d+}/supprimer', static fn (Request $q): Response => $members()->deleteBeneficiary($q), $updateMembers);
     $documentsView = [$requireAuth, $permission('members.documents.view')];
     $r->post('/admin/adherents/{id:\d+}/pieces', static fn (Request $q): Response => $documents()->upload($q), $documentsView);
+    $r->post('/admin/adherents/demandes/{id:\d+}/pieces', static fn (Request $q): Response => $applications()->upload($q), $documentsView);
+    $r->get('/admin/adherents/demandes/{id:\d+}/pieces/{fid:\d+}', static fn (Request $q): Response => $applications()->download($q), $documentsView);
     $r->get('/admin/adherents/{id:\d+}/pieces/{fid:\d+}', static fn (Request $q): Response => $documents()->download($q), $documentsView);
 
     // Lecture seule : aucune route ne modifie ni ne supprime une ligne du journal.

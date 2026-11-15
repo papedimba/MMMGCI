@@ -13,6 +13,7 @@ $filtered = $criteria !== [];
 $create = $can('members.create') ? ['label' => 'Nouvel adhérent', 'icon' => 'user-plus', 'href' => '/admin/adherents/nouveau'] : null;
 ?>
 <?= ui('page-header', ['title' => 'Adhérents', 'subtitle' => 'Fiches des adhérents de la Mutuelle.'], $create ? ui('button', $create) : '') ?>
+<?= ui('tabs', ['label' => 'Adhérents et demandes', 'items' => [['Adhérents', '/admin/adherents', true], ['Demandes d\'adhésion', '/admin/adherents/demandes', false]]]) ?>
 <form class="toolbar" method="get" action="/admin/adherents" role="search">
 <?= ui('field', ['name' => 'q', 'label' => 'Rechercher par nom, prénom, numéro ou téléphone', 'type' => 'search', 'value' => $criteria['q'] ?? '']) ?>
 <?= ui('button', ['label' => 'Rechercher', 'variant' => 'secondary', 'type' => 'submit', 'icon' => 'search']) ?>

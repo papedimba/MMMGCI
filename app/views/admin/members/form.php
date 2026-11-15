@@ -1,15 +1,19 @@
 <?php declare(strict_types=1);
 /** @var ?array $member @var array $values @var ?string $error @var array $errors @var bool $docs @var bool $scopeAll @var array $zones @var string $zoneName @var array $categories @var array $professions @var array $specialties @var array $idTypes @var string $csrfToken */
 $f = static fn (string $name, string $label, array $extra = []): string => ui('field', ['name' => $name, 'label' => $label, 'value' => $values[$name] ?? ''] + $extra);
-$back = $member === null ? '/admin/adherents' : '/admin/adherents/' . $member['id'];
+$app = $application ?? false; // formulaire réutilisé pour la saisie d'une demande d'adhésion (sans photo)
+$back = $app ? '/admin/adherents/demandes' : ($member === null ? '/admin/adherents' : '/admin/adherents/' . $member['id']);
 ?>
-<?= ui('page-header', ['title' => $member === null ? 'Nouvel adhérent' : $member['last_name'] . ' ' . $member['first_names'],
+<?= $app
+    ? ui('page-header', ['title' => 'Nouvelle demande d\'adhésion', 'subtitle' => 'La fiche adhérent sera créée à la validation de la demande.',
+        'breadcrumbs' => [['Adhérents', '/admin/adherents'], ['Demandes d\'adhésion', '/admin/adherents/demandes'], ['Nouvelle demande', null]]], '')
+    : ui('page-header', ['title' => $member === null ? 'Nouvel adhérent' : $member['last_name'] . ' ' . $member['first_names'],
     'subtitle' => $member === null ? 'Le numéro d\'adhérent est attribué à l\'enregistrement.' : 'N° ' . $member['member_number'],
     'breadcrumbs' => [['Adhérents', '/admin/adherents'], [$member === null ? 'Nouvel adhérent' : 'Modifier', null]]], '') ?>
 <?php if ($error !== null): ?>
 <?= ui('alert', ['kind' => 'danger', 'message' => $error]) ?>
 <?php endif; ?>
-<form method="post" enctype="multipart/form-data" action="<?= e($member === null ? '/admin/adherents/nouveau' : '/admin/adherents/' . $member['id'] . '/modifier') ?>">
+<form method="post" enctype="multipart/form-data" action="<?= e($app ? '/admin/adherents/demandes/nouvelle' : ($member === null ? '/admin/adherents/nouveau' : '/admin/adherents/' . $member['id'] . '/modifier')) ?>">
 <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
 <?= ui('panel', ['title' => 'Identité'], '<div class="form-grid">'
     . $f('last_name', 'Nom', ['required' => true, 'autocomplete' => 'family-name', 'attrs' => ['maxlength' => 100]])
@@ -43,10 +47,12 @@ $back = $member === null ? '/admin/adherents' : '/admin/adherents/' . $member['i
     . $f('seaman_book_expiry', 'Échéance du livret maritime', ['type' => 'date'])
     . '</div>') ?>
 <?php endif; ?>
+<?php if (!$app): ?>
 <?= ui('panel', ['title' => 'Photo'], ui('file-input', ['name' => 'photo', 'label' => $member !== null && $member['photo_file_id'] !== null ? 'Remplacer la photo (facultatif)' : 'Photo (facultatif)',
     'accept' => '.jpg,.jpeg,.png,.webp', 'hint' => 'JPG, PNG ou WebP.', 'max_mb' => 5, 'error' => $errors['photo'] ?? ''])) ?>
+<?php endif; ?>
 <div class="form-actions">
-<?= ui('button', ['label' => $member === null ? 'Enregistrer l\'adhérent' : 'Enregistrer', 'type' => 'submit']) ?>
+<?= ui('button', ['label' => $app ? 'Enregistrer la demande' : ($member === null ? 'Enregistrer l\'adhérent' : 'Enregistrer'), 'type' => 'submit']) ?>
 <?= ui('button', ['label' => 'Annuler', 'variant' => 'ghost', 'href' => $back]) ?>
 </div>
 </form>

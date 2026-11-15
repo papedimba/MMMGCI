@@ -168,8 +168,8 @@ final class MemberService
             && mb_strlen(str_replace(['{YYYY}', '{NNNNN}'], ['2026', '00000'], $f)) <= 24;
     }
 
-    /** @param array<string,mixed> $data @return array<string,mixed> */
-    private function validate(array $data, bool $creating): array
+    /** Règles de saisie communes (adhérent et demande d'adhésion) ; DomainException au premier lot d'erreurs. @param array<string,mixed> $data @return array<string,mixed> */
+    public function validate(array $data, bool $creating): array
     {
         foreach (['last_name', 'first_names'] as $k) {
             if (is_string($data[$k] ?? null)) {
