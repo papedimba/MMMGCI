@@ -30,7 +30,7 @@ final class MemberController
 
     public function __construct(private View $view, private Csrf $csrf, private Session $session, private Database $db,
         private Gate $gate, private MemberSearch $search, private MemberScope $scope, private SensitiveAccess $sensitive,
-        private MemberService $members, private Uploads $uploads, private Audit $audit)
+        private MemberService $members, private Uploads $uploads, private Audit $audit, private StatusService $statuses)
     {
     }
 
@@ -104,6 +104,42 @@ final class MemberController
             }
         }
         return $this->page($r, 'admin/members/show', $m['last_name'] . ' ' . $m['first_names'], $data, $status);
+    }
+
+    public function statusForm(Request $r): Response
+    {
+        return $this->statusPage($r, ['to' => '', 'reason' => '', 'decision_ref' => ''], []);
+    }
+
+    public function changeStatus(Request $r): Response
+    {
+        $id = (int) $r->attribute('id');
+        $values = [];
+        foreach (['to', 'reason', 'decision_ref'] as $k) {
+            $v = $r->post($k);
+            $values[$k] = is_string($v) ? $v : '';
+        }
+        try {
+            $this->statuses->change($id, $values['to'], $values['reason'], $values['decision_ref'], (int) $r->attribute('user')['id']);
+        } catch (StatusInvalid $e) {
+            return $this->statusPage($r, $values, $e->errors, 422);
+        }
+        $this->session->flash('status', 'Statut modifié.');
+        return Response::redirect("/admin/adherents/$id?onglet=historique");
+    }
+
+    /** @param array<string,string> $values @param array<string,string> $errors */
+    private function statusPage(Request $r, array $values, array $errors, int $status = 200): Response
+    {
+        $id = (int) $r->attribute('id');
+        $this->scope->assertMayAccess((int) $r->attribute('user')['id'], $id);
+        $m = $this->db->fetch('SELECT id, last_name, first_names, member_number, status FROM members WHERE id = ?', [$id]) ?? throw new \App\Core\NotFound("Adhérent $id introuvable.");
+        $labels = array_column($this->db->fetchAll('SELECT code, label FROM member_statuses WHERE is_active = 1 AND code <> ? ORDER BY label', [$m['status']]), 'label', 'code');
+        return $this->page($r, 'admin/members/status', 'Changer le statut', [
+            'm' => $m, 'values' => $values, 'errors' => $errors, 'options' => ['' => 'Choisir un statut'] + $labels,
+            'currentLabel' => (string) $this->db->fetchValue('SELECT label FROM member_statuses WHERE code = ?', [$m['status']]) ?: $m['status'],
+            'maxReason' => StatusService::REASON_MAX, 'maxRef' => StatusService::REF_MAX,
+        ], $status);
     }
 
     public function createForm(Request $r): Response

@@ -23,6 +23,7 @@ use App\Modules\Members\MemberSearch;
 use App\Modules\Members\MemberService;
 use App\Modules\Members\ReferentialController;
 use App\Modules\Members\Referentials;
+use App\Modules\Members\StatusService;
 use App\Modules\Roles\RoleController;
 use App\Modules\Roles\RoleService;
 use App\Core\Sequence;
@@ -46,7 +47,8 @@ return static function (Router $r, array $deps): void {
     $referentials = static fn (): ReferentialController => new ReferentialController($view, $csrf, $session, $db(), $gate(), new Referentials($db(), $audit()));
     $members = static fn (): MemberController => new MemberController($view, $csrf, $session, $db(), $gate(), new MemberSearch($db(), new MemberScope($db(), $gate())),
         new MemberScope($db(), $gate()), new SensitiveAccess($db()),
-        new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), $uploads(), $audit());
+        new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), $uploads(), $audit(),
+        new StatusService($db(), $audit(), new MemberScope($db(), $gate())));
     $documents = static fn (): DocumentController => new DocumentController($db(), $session, new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit());
     $applications = static fn (): ApplicationController => new ApplicationController($view, $csrf, $session, $db(), $gate(), new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit(),
         new ApplicationService($db(), $audit(), new Sequence($db()), new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate()))));
@@ -107,6 +109,9 @@ return static function (Router $r, array $deps): void {
     $updateMembers = [$requireAuth, $permission('members.update')];
     $r->get('/admin/adherents/{id:\d+}/modifier', static fn (Request $q): Response => $members()->editForm($q), $updateMembers);
     $r->post('/admin/adherents/{id:\d+}/modifier', static fn (Request $q): Response => $members()->update($q), $updateMembers);
+    $changeStatus = [$requireAuth, $permission('members.status')];
+    $r->get('/admin/adherents/{id:\d+}/statut', static fn (Request $q): Response => $members()->statusForm($q), $changeStatus);
+    $r->post('/admin/adherents/{id:\d+}/statut', static fn (Request $q): Response => $members()->changeStatus($q), $changeStatus);
     $r->post('/admin/adherents/{id:\d+}/ayants-droit', static fn (Request $q): Response => $members()->addBeneficiary($q), $updateMembers);
     $r->post('/admin/adherents/{id:\d+}/ayants-droit/{bid:\d+}/supprimer', static fn (Request $q): Response => $members()->deleteBeneficiary($q), $updateMembers);
     $documentsView = [$requireAuth, $permission('members.documents.view')];

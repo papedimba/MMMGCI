@@ -20,6 +20,7 @@ $dl = static function (array $pairs): string {
 <?= ui('page-header', ['title' => $m['last_name'] . ' ' . $m['first_names'], 'subtitle' => 'N° ' . $m['member_number'],
     'breadcrumbs' => [['Adhérents', '/admin/adherents'], [$m['last_name'] . ' ' . $m['first_names'], null]]],
     ui('badge', ['label' => $m['status_label'] ?? $m['status'], 'kind' => $kinds[$m['status']] ?? 'neutral'])
+    . ($can('members.status') ? ui('button', ['label' => 'Changer le statut', 'variant' => 'secondary', 'href' => $base . '/statut']) : '')
     . ($can('members.update') ? ui('button', ['label' => 'Modifier', 'variant' => 'secondary', 'href' => $base . '/modifier']) : '')) ?>
 <?= ui('tabs', ['label' => 'Sections de la fiche', 'items' => $items]) ?>
 <?php require __DIR__ . '/tabs/' . str_replace('-', '_', $tab) . '.php'; ?>
