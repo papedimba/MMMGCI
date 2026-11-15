@@ -65,8 +65,8 @@ final class MemberSearch
         $order = implode(', ', array_map(static fn (string $c): string => $c . $dir, explode(', ', $order))) . ', m.id' . $dir; // m.id : ordre stable
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min(max(1, $page), $pages);
-        $rows = $this->db->fetchAll("SELECT m.id, m.member_number, m.last_name, m.first_names, m.phone, m.status, m.joined_at, m.zone_id, z.name AS zone_name
-            FROM members m LEFT JOIN zones z ON z.id = m.zone_id WHERE $cond ORDER BY $order LIMIT " . self::PER_PAGE . ' OFFSET ' . (($page - 1) * self::PER_PAGE), $params);
+        $rows = $this->db->fetchAll("SELECT m.id, m.member_number, m.last_name, m.first_names, m.phone, m.status, m.joined_at, m.zone_id, z.name AS zone_name, c.name AS category_name
+            FROM members m LEFT JOIN zones z ON z.id = m.zone_id LEFT JOIN member_categories c ON c.id = m.category_id WHERE $cond ORDER BY $order LIMIT " . self::PER_PAGE . ' OFFSET ' . (($page - 1) * self::PER_PAGE), $params);
         return ['rows' => $rows, 'total' => $total, 'pages' => $pages];
     }
 }
