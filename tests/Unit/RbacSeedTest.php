@@ -9,12 +9,12 @@ final class RbacSeedTest extends DatabaseTestCase
 {
     /** Matrice A6 transcrite du brief de la tâche 1 (rôle => permissions triées). */
     private const MATRIX = [
-        'super_admin' => ['audit.view', 'cms.forms.manage', 'cms.media.manage', 'cms.pages.manage', 'cms.publish', 'cms.settings.manage', 'contributions.export', 'contributions.manage', 'contributions.view', 'delegates.manage', 'delegates.report', 'delegates.view', 'disbursement.initiate', 'discipline.manage', 'discipline.view', 'employment.manage', 'employment.view', 'finance.control', 'finance.view', 'governance.manage', 'governance.view', 'members.create', 'members.export', 'members.scope.all', 'members.status', 'members.update', 'members.validate', 'members.view', 'partners.manage', 'partners.view', 'reports.export', 'reports.view', 'roles.manage', 'settings.manage', 'social.manage', 'social.view', 'solidarity.manage', 'solidarity.view', 'users.manage'],
+        'super_admin' => ['audit.view', 'cms.forms.manage', 'cms.media.manage', 'cms.pages.manage', 'cms.publish', 'cms.settings.manage', 'contributions.export', 'contributions.manage', 'contributions.view', 'delegates.manage', 'delegates.report', 'delegates.view', 'disbursement.initiate', 'discipline.manage', 'discipline.view', 'employment.manage', 'employment.view', 'finance.control', 'finance.manage', 'finance.view', 'governance.manage', 'governance.view', 'members.create', 'members.export', 'members.scope.all', 'members.status', 'members.update', 'members.validate', 'members.view', 'partners.manage', 'partners.view', 'reports.export', 'reports.view', 'roles.manage', 'settings.manage', 'social.manage', 'social.view', 'solidarity.manage', 'solidarity.view', 'users.manage'],
         'admin_general' => ['audit.view', 'cms.forms.manage', 'cms.media.manage', 'cms.pages.manage', 'cms.publish', 'cms.settings.manage', 'contributions.view', 'delegates.manage', 'delegates.report', 'delegates.view', 'discipline.view', 'employment.manage', 'employment.view', 'finance.view', 'governance.manage', 'governance.view', 'members.create', 'members.export', 'members.scope.all', 'members.status', 'members.update', 'members.validate', 'members.view', 'partners.manage', 'partners.view', 'reports.export', 'reports.view', 'roles.manage', 'settings.manage', 'social.view', 'solidarity.view', 'users.manage'],
         'pca' => ['audit.view', 'contributions.view', 'delegates.view', 'discipline.decide', 'discipline.view', 'employment.view', 'finance.view', 'governance.view', 'members.scope.all', 'members.view', 'partners.view', 'reports.export', 'reports.view', 'settings.validate', 'social.decide', 'social.view', 'solidarity.view'],
         'vice_president' => ['contributions.view', 'delegates.manage', 'delegates.report', 'delegates.view', 'discipline.view', 'employment.view', 'finance.view', 'governance.manage', 'governance.view', 'members.scope.all', 'members.view', 'partners.view', 'reports.export', 'reports.view', 'social.view', 'solidarity.view'],
         'secretaire_general' => ['cms.pages.manage', 'contributions.view', 'delegates.manage', 'delegates.report', 'delegates.view', 'disbursement.initiate', 'discipline.manage', 'discipline.view', 'employment.view', 'finance.view', 'governance.manage', 'governance.view', 'members.create', 'members.export', 'members.scope.all', 'members.status', 'members.update', 'members.validate', 'members.view', 'partners.manage', 'partners.view', 'reports.export', 'reports.view', 'social.view', 'solidarity.view'],
-        'tresorier_general' => ['contributions.export', 'contributions.manage', 'contributions.view', 'disbursement.initiate', 'finance.view', 'governance.view', 'members.scope.all', 'members.view', 'partners.view', 'reports.export', 'reports.view', 'social.view', 'solidarity.manage', 'solidarity.view'],
+        'tresorier_general' => ['contributions.export', 'contributions.manage', 'contributions.view', 'disbursement.initiate', 'finance.manage', 'finance.view', 'governance.view', 'members.scope.all', 'members.view', 'partners.view', 'reports.export', 'reports.view', 'social.view', 'solidarity.manage', 'solidarity.view'],
         'resp_communication' => ['cms.forms.manage', 'cms.media.manage', 'cms.pages.manage', 'cms.publish', 'cms.settings.manage', 'employment.manage', 'employment.view', 'partners.view', 'reports.view'],
         'resp_commission' => ['governance.view', 'members.scope.all', 'members.view', 'reports.view'],
         'delegue' => ['delegates.report', 'members.create', 'members.view', 'social.view'],
@@ -79,10 +79,10 @@ final class RbacSeedTest extends DatabaseTestCase
         $this->assertSame($expected, $actual);
     }
 
-    public function test_permission_catalogue_has_forty_six_entries(): void
+    public function test_permission_catalogue_has_forty_seven_entries(): void
     {
-        $this->assertSame(46, (int) $this->db->fetchValue('SELECT COUNT(*) FROM permissions'));
-        // 46 permissions, dont deux (approbation et paiement des décaissements) qu'aucun rôle ne détient à l'installation.
+        $this->assertSame(47, (int) $this->db->fetchValue('SELECT COUNT(*) FROM permissions'));
+        // 47 permissions, dont deux (approbation et paiement des décaissements) qu'aucun rôle ne détient à l'installation.
         $granted = array_unique(array_merge(...array_values(self::MATRIX)));
         $this->assertSame(['disbursement.approve', 'disbursement.pay'], array_column($this->db->fetchAll('SELECT name FROM permissions WHERE name NOT IN (' . implode(',', array_fill(0, count($granted), '?')) . ') ORDER BY name', array_values($granted)), 'name'));
     }
