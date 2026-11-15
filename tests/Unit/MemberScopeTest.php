@@ -85,4 +85,15 @@ final class MemberScopeTest extends DatabaseTestCase
         $this->expectException(NotFound::class);
         $this->scope()->assertMayAccess($this->user('gest_adherents', null), 999999);
     }
+
+    public function test_soft_deleted_member_is_not_found_for_everyone(): void
+    {
+        $this->db->query('UPDATE members SET deleted_at = NOW() WHERE id = ?', [$this->inA]);
+        $all = $this->user('gest_adherents', null);
+        $zone = $this->user('delegue', $this->zoneA);
+        $this->assertSame([$this->inB], $this->visible($all));
+        $this->assertSame([], $this->visible($zone));
+        $this->expectException(NotFound::class);
+        $this->scope()->assertMayAccess($all, $this->inA);
+    }
 }

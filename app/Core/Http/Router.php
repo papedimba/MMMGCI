@@ -73,7 +73,11 @@ final class Router
                 })->handle($req, $next),
                 $core,
             );
-            $res = $next($r);
+            try {
+                $res = $next($r);
+            } catch (\App\Core\NotFound) { // ressource inconnue ou hors périmètre : page 404 standard, sans détail
+                $res = ($this->errorRenderer)(404, $r);
+            }
             return $head ? new Response('', $res->status(), $res->headers()) : $res;
         }
         if ($allowed) {

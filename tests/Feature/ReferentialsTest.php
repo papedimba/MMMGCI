@@ -3,6 +3,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\Core\Http\Request;
+use App\Core\Http\Response;
+use App\Core\NotFound;
 use Tests\Support\AdminTestCase;
 
 final class ReferentialsTest extends AdminTestCase
@@ -65,7 +68,45 @@ final class ReferentialsTest extends AdminTestCase
         $post = ['name' => 'Cible', 'email' => 'cible@x.test', 'phone' => ''];
         $this->assertSame(302, $this->request('POST', "/admin/utilisateurs/$u", $post + ['zone_id' => (string) $zone])->status());
         $this->assertSame($zone, (int) $this->db->fetchValue('SELECT zone_id FROM users WHERE id = ?', [$u]));
+        $svc = new \App\Modules\Users\UserService($this->db, $this->services['audit'](), $this->services['gate']());
+        $svc->update($u, ['name' => 'Cible 2', 'email' => 'cible@x.test'], null); // sans clé zone_id : zone conservée
+        $this->assertSame($zone, (int) $this->db->fetchValue('SELECT zone_id FROM users WHERE id = ?', [$u]));
+        $svc->update($u, ['name' => 'Cible 2', 'email' => 'cible@x.test', 'zone_id' => null], null); // clé présente et vide : zone retirée
+        $this->assertNull($this->db->fetchValue('SELECT zone_id FROM users WHERE id = ?', [$u]));
+        $this->request('POST', "/admin/utilisateurs/$u", $post + ['zone_id' => (string) $zone]);
         $this->assertSame(422, $this->request('POST', "/admin/utilisateurs/$u", $post + ['zone_id' => '999999'])->status());
         $this->assertStringContainsString('Sassandra', $this->request('GET', "/admin/utilisateurs/$u")->body());
+    }
+
+    public function test_all_referential_routes_forbidden_without_settings_manage(): void
+    {
+        $this->actingAs($this->createUser('lect2@x.test', ['lecture_seule']));
+        $this->assertSame(403, $this->request('POST', self::URL . '/activation', ['onglet' => 'zones', 'id' => '1', 'active' => '0'])->status());
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM zones'));
+    }
+
+    public function test_post_without_csrf_is_refused(): void
+    {
+        $this->app();
+        $res = $this->app()->handle(new Request('POST', self::URL, [], ['onglet' => 'zones', 'name' => 'Z', 'type' => 'port'], [], ['REMOTE_ADDR' => '127.0.0.1']));
+        $this->assertSame(419, $res->status());
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM zones'));
+    }
+
+    public function test_not_found_thrown_by_handler_is_a_standard_404_for_get_and_post(): void
+    {
+        $this->app();
+        $boom = static function (): Response {
+            throw new NotFound('Adhérent 42 introuvable : secret');
+        };
+        $this->services['router']->get('/admin/sonde-404', $boom, [new \App\Core\Http\RequireAuth($this->services['auth']())]);
+        $this->services['router']->post('/admin/sonde-404', $boom, [new \App\Core\Http\RequireAuth($this->services['auth']())]);
+        $expected = $this->request('GET', '/admin/page-inexistante');
+        foreach (['GET', 'POST'] as $m) {
+            $res = $this->request($m, '/admin/sonde-404');
+            $this->assertSame(404, $res->status(), $m);
+            $this->assertSame($expected->body(), $res->body(), $m);
+            $this->assertStringNotContainsString('secret', $res->body());
+        }
     }
 }

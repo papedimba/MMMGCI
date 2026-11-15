@@ -238,10 +238,12 @@ final class UserService
             throw new DomainException(implode(' ', $v->errors()));
         }
         ['name' => $name, 'email' => $email, 'phone' => $phone, 'zone_id' => $zone] = $v->validated();
-        if ($zone !== null && $this->db->fetchValue('SELECT 1 FROM zones WHERE id = ?', [(int) $zone]) === null) {
+        $hasZone = array_key_exists('zone_id', $data);
+        if ($hasZone && $zone !== null && $this->db->fetchValue('SELECT 1 FROM zones WHERE id = ?', [(int) $zone]) === null) {
             throw new DomainException('Zone de rattachement invalide : choisissez-la dans la liste proposée.');
         }
-        return ['name' => (string) $name, 'email' => (string) $email, 'phone' => $phone === null ? null : (string) $phone, 'zone_id' => $zone === null ? null : (int) $zone];
+        return ['name' => (string) $name, 'email' => (string) $email, 'phone' => $phone === null ? null : (string) $phone]
+            + ($hasZone ? ['zone_id' => $zone === null ? null : (int) $zone] : []); // clé absente : la zone n'est pas touchée
     }
 
     /** @param mixed $names @return list<string> */

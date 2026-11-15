@@ -33,10 +33,11 @@ final class MemberScope
             throw new \InvalidArgumentException("Alias SQL invalide : $alias.");
         }
         $zone = $this->forUser($userId);
+        $live = "$alias.deleted_at IS NULL"; // un adhérent supprimé (logiquement) est introuvable pour tous
         return match (true) {
-            $zone === null => ['1 = 1', []],
+            $zone === null => [$live, []],
             $zone === 0 => ['1 = 0', []],
-            default => ["$alias.zone_id = ?", [$zone]],
+            default => ["$live AND $alias.zone_id = ?", [$zone]],
         };
     }
 
