@@ -10,7 +10,10 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **Paramètres L5 à valider par les instances** : format du numéro de membre (V11), liste des statuts (V8), durée de validité de la carte (V5), conditions de délivrance, durée de conservation (`members.retention_months`), pièces exigées pour un dossier complet
 - [ ] **Reports de L5** : instruction des demandes en ligne → L4 ; Espace adhérent → L15 ; anonymisation après la durée de conservation validée ; droits de modification des délégués à décider par les instances ; suppression de pièce ou de photo et purge des fichiers orphelins ; sous-zones dans le périmètre ; impression CR80 à vérifier sur imprimante
 - [ ] **Délégués et création directe** : `delegue` et `point_focal` détiennent `members.create` et peuvent créer un adhérent actif et numéroté sans validation (`/admin/adherents/nouveau`) ; les instances doivent dire si c'est voulu (sinon ne leur laisser que la saisie de demandes)
-- [ ] **D3 Approbateurs des décaissements** - instances
+- [ ] **D3 Approbateurs des décaissements** - instances : désigner au moins deux approbateurs distincts (`disbursement.approve`) et un payeur tiers (`disbursement.pay`) avant toute utilisation (le module refuse de fonctionner sinon)
+- [ ] **Paramètres L6 à valider par les instances** : politique de solde insuffisant, payeur = initiateur, règle « à jour », génération automatique des appels, début d'exercice, tranches d'approbation (`approval_rules`), montants, périodicités et autorisations des types de cotisation, population des appels en lot
+- [ ] **Décisions L6 à trancher** : approbation d'un utilisateur désactivé ensuite ; rejet depuis `approuve_2` ; contre-passation pouvant rendre un solde négatif ; dépenses courantes hors décaissement
+- [ ] **Reports de L6** : budgets et engagements (T6.9) ; rapports financiers → L11 ; exports en flux ; purge des fichiers orphelins ; pagination du filtre « à approuver par moi »
 - [ ] **C38 Dépôt de demandes d'assistance en ligne par l'adhérent : oui/non** - commanditaire
 - [ ] **D4 Domaine, hébergeur cPanel, SMTP** - commanditaire (pas encore d'hébergement)
 - [ ] **Logo horizontal + version SVG/PNG transparente** - commanditaire
@@ -18,7 +21,6 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 ## Someday
 - [ ] **L3 CMS** (T3.1–T3.9)
 - [ ] **L4 Site public + adhésion en ligne** (T4.1–T4.6) → V0.2
-- [ ] **L6 Cotisations, finances, double validation, fonds** (T6.1–T6.10)
 - [ ] **L7 Demandes sociales** (T7.1–T7.5) → V0.3
 - [ ] **L9 Partenariats** (T9.1–T9.3)
 - [ ] **L8 Emploi, formation, anciens marins** (T8.1–T8.5)
@@ -30,6 +32,7 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **L14 Recette** (T14.1–T14.6) → V1.0
 
 ## Done
+- [x] ~~L6 Cotisations, finances, double validation, fonds (T6.1–T6.10 : schéma financier, grand livre, types et appels, encaissements et reçus, impayés, circuit de décaissement, écrans, fonds de solidarité, contrôle, parcours de bout en bout et documentation ; T6.9 budgets/engagements reportés)~~ (15/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-15-l6-decisions-et-reports.md
 - [x] ~~L5 Adhérents (T5.1–T5.9 : schéma et référentiels, service et doublons, liste et recherche, fiche, création/modification/ayants droit/pièces, instruction des demandes saisies, changements de statut, exports, carte et vérification publique, contrôle qualité)~~ (15/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-15-l5-decisions-et-reports.md
 - [x] ~~L2 Design system et gabarits (7 tâches : jetons, kit ui(), gabarit d'administration, écrans restylés, gabarit public, gabarit d'impression, contrôle qualité ; noms français des modules et rôles protégés en lecture seule inclus)~~ (15/11/2026) — documentation : docs/conception/05-design-system.md §8
 - [x] ~~L1 Authentification, rôles et permissions, administration des utilisateurs et des rôles, journal d'audit (9 tâches, revue d'ensemble faite, 334 tests)~~ (15/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-15-l1-decisions-et-reports.md

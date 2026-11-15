@@ -155,6 +155,43 @@ Le mot de passe est alors envoyé dans l'e-mail du Cron : **supprimer la tâche 
 
 **Limites connues** : la vérification publique `/verifier` est limitée à 30 requêtes par minute et par `REMOTE_ADDR` (limite partagée derrière un proxy ou un CDN) ; les exports et la liste imprimable sont construits en mémoire (ordre de grandeur validé : 2 000 lignes en moins de 0,1 s ; au-delà de ~100 000 lignes, prévoir de relever `memory_limit` ou de filtrer) ; la carte s'imprime sur une page A4 (le format physique CR80 sur imprimante de cartes, page nommée `cr80`, n'est pas utilisé ni vérifié) ; pas d'anonymisation après conservation, pas de suppression de pièce ni de photo, pas d'Espace adhérent ni d'adhésion en ligne (lots L15 et L4).
 
+## Finances (lot L6)
+
+Cotisations, grand livre, circuit de décaissement à double validation, fonds de solidarité et contrôle. Les écrans respectent partout la même règle : **aucune règle métier dans les vues**, les services décident (transaction + verrous `FOR UPDATE`) et chaque transition est auditée.
+
+| Écran | Adresse | Permission |
+|---|---|---|
+| Types de cotisation, appels (liste, individuel, en lot, annulation) | `/admin/cotisations/types`, `/appels`, `/appels/individuel`, `/appels/lot` | lecture `contributions.view` ; écriture `contributions.manage` |
+| Encaissement, fiche de paiement, reçu imprimable numéroté, annulation par contre-passation | `/admin/cotisations/appels/{id}/encaisser`, `/paiements/{id}`, `/recu`, `/annuler` | `contributions.view` (lecture), `contributions.manage` (écriture) |
+| Impayés et situation des cotisations, export CSV / XLSX | `/admin/cotisations/impayes` | `contributions.view` ; export `contributions.export` |
+| Comptes, catégories, écritures d'un compte, ressources hors cotisation, contre-passation d'une écriture manuelle | `/admin/finances`, `/comptes/{id}`, `/ressources`, `/ecritures/{id}/contre-passation` | lecture `finance.view` ; écriture `finance.manage` |
+| Décaissements : liste, demande, modification, soumission, approbation, rejet, annulation, paiement, pièces | `/admin/decaissements` | lecture : `finance.view`, `finance.control`, `disbursement.initiate` (ses demandes), `approve` ou `pay` ; `disbursement.initiate`, `disbursement.approve`, `disbursement.pay` pour agir |
+| Fonds de solidarité (lecture du grand livre, export) | `/admin/solidarite` | `solidarity.view` ; création du compte : `solidarity.manage` ou `finance.manage` ; export : `solidarity.view` ET `reports.export` |
+| Contrôle (écritures, décaissements, contre-passations, annulations, soldes et contrôles d'intégrité, exports) | `/admin/controle` | `finance.control` (lecture seule : aucune route d'écriture) |
+
+**Permissions** : `finance.view|manage|control`, `contributions.view|manage|export`, `disbursement.initiate|approve|pay`, `solidarity.view|manage`, et `reports.export` pour l'export du fonds. `finance.manage` est créée par la migration `0011`.
+
+**RAPPEL D'INSTALLATION — à faire AVANT toute utilisation du module de décaissement** : aucune permission d'approuver ni de payer n'est attribuée par défaut. Attribuer `disbursement.approve` à **au moins deux personnes distinctes** (l'initiateur n'approuve jamais sa propre demande) et `disbursement.pay` à **une troisième personne** (le payeur est distinct de l'initiateur par défaut). Tant que moins de deux approbateurs actifs distincts existent, le module **refuse de fonctionner** (page « Circuit de décaissement inopérant » : aucune soumission, approbation ni paiement). C'est volontaire (décision de conception A6) ; les rôles de test sont créés à la main dans les tests, jamais dans le seed.
+
+**Règles du circuit** : deux approbations distinctes au moins par révision (le seuil dépend du montant via `approval_rules`, jamais moins de 2) ; rejet définitif ; toute modification substantielle (montant, bénéficiaire, compte, objet) crée une nouvelle révision et rend les approbations caduques (l'historique est conservé) ; un seul paiement par demande, avec justificatif, qui inscrit la dépense au grand livre ; solde insuffisant : paiement bloqué par défaut ; **aucune dépense hors du circuit** (pas de saisie directe, pas de contre-passation d'une écriture issue d'un circuit depuis l'écran du grand livre). Les écritures, paiements et reçus sont immuables : on corrige par contre-passation.
+
+**Paramètres « non configuré »** — aucune valeur n'est inventée ; ils attendent la validation des instances. Valeur technique appliquée en attendant :
+
+| Paramètre | Effet tant qu'il n'est pas validé |
+|---|---|
+| `finance.insufficient_balance_policy` | **bloquer** : un paiement qui rendrait le solde négatif est refusé |
+| `finance.payer_may_be_initiator` | **non** : le payeur ne peut pas être l'initiateur (un trésorier unique qui initie ne peut pas payer) |
+| `contributions.up_to_date_rule` | le mot « à jour » n'est jamais affiché ; les impayés sont comptés sans qualification |
+| `contributions.auto_generate` | **désactivé** : aucun appel automatique, seulement des appels manuels (individuels ou en lot) ; valeur attendue `true` une fois validée |
+| `finance.fiscal_year_start` | aucun exercice défini |
+| `approval_rules` (tranches de montants) | une seule tranche : 2 approbations à partir de 0 |
+| Types de cotisation : montant, périodicité, référence de l'autorisation, compte crédité | un type sans montant validé ne génère aucun appel ; une cotisation exceptionnelle exige la référence de son autorisation |
+| Population d'un appel en lot | adhérents au statut `actif` (bandeau « à valider ») |
+
+**Bases de données** : les contraintes `CHECK` (montants > 0, sens des écritures…) exigent MariaDB ≥ 10.2.7 ou MySQL ≥ 8.0.16 ; le verrou nommé `GET_LOCK` sert à garantir un seul fonds de solidarité actif (nom préfixé par la base) ; la migration `0015` ajoute un filet : colonne générée `solidarity_active` + index `UNIQUE` (si la base contient déjà deux fonds actifs, la migration échoue : désactiver les fonds en trop, puis relancer `php bin/migrate.php`).
+
+**Limites connues** : exports construits en mémoire (mesure : 50 000 écritures, CSV 7 s et 46 Mo, XLSX 9 s et 116 Mo — relever `memory_limit` ou filtrer au-delà) ; aucun paiement sans appel (pas d'avances : non défini par les instances) ; l'annulation d'un paiement ou la contre-passation d'une ressource peut rendre un solde négatif (aucun contrôle de solde à la contre-passation) ; l'approbation d'un utilisateur ensuite désactivé compte toujours (à trancher) ; pas de rejet possible depuis l'état « approuvée deux fois » (`approuve_2`) (à trancher) ; le contrôle « moins d'approbateurs que requis » applique la règle d'approbation **actuelle**, pas celle en vigueur au paiement ; budgets et engagements (T6.9) reportés ; chaîne du journal d'audit de la base de développement rompue (lignes 78, 81, 83 supprimées à la main : ignorer, ne pas réparer) ; plusieurs tests de concurrence reposent sur des verrous tenus par une seconde connexion ou des processus enfants et peuvent, très rarement, être instables (relancer ; le témoin du test d'interblocage se signale « skipped » plutôt que vert par défaut).
+
 ## Rôles et permissions
 
 Matrice complète : [`docs/conception/03-architecture.md`](docs/conception/03-architecture.md#a6-matrice-rôles--permissions-base-de-conception-configurable), section A6. Un compte peut cumuler plusieurs rôles (ses permissions s'additionnent).

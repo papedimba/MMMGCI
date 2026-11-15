@@ -103,7 +103,7 @@ Le lot L2 a livré les jetons, le kit de composants et les trois gabarits (admin
 | Galerie de référence | `/admin/composants` et `/admin/composants/document` (introuvables en production) |
 | Contrôle des contrastes | `bin/check-contrast.php`, `app/Core/ContrastChecker.php`, `tests/Unit/ContrastCheckerTest.php` |
 
-Composants disponibles (`ui('nom', [...])`) : `button`, `field` (saisie, liste, zone de texte), `file-input`, `alert`, `badge`, `panel`, `page-header`, `breadcrumbs`, `tabs`, `table` (liste de cartes sur téléphone), `pagination`, `empty-state`, `confirm-dialog`, `validation-steps`, `document-header`. La galerie les montre dans tous leurs états.
+Composants disponibles (`ui('nom', [...])`) : `button`, `field` (saisie, liste, zone de texte), `file-input` (propriété `required` : attribut HTML, astérisque et mention « obligatoire » pour les lecteurs d'écran, comme `field`), `alert`, `badge`, `panel`, `page-header`, `breadcrumbs`, `tabs`, `table` (liste de cartes sur téléphone), `pagination`, `empty-state`, `confirm-dialog`, `validation-steps`, `document-header`. La galerie les montre dans tous leurs états.
 
 ### Règles de contribution
 
