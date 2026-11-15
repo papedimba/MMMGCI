@@ -149,8 +149,8 @@ final class UsersAdminTest extends AdminTestCase
         $page1 = $this->request('GET', '/admin/utilisateurs')->body();
         $page2 = $this->request('GET', '/admin/utilisateurs?page=2')->body();
 
-        $this->assertSame(50, substr_count($page1, '<tr data-user'));
-        $this->assertSame(6, substr_count($page2, '<tr data-user')); // 56 comptes avec l'administrateur
+        $this->assertSame(50, substr_count($page1, 'class="who" href="/admin/utilisateurs/'));
+        $this->assertSame(6, substr_count($page2, 'class="who" href="/admin/utilisateurs/')); // 56 comptes avec l'administrateur
         $this->assertStringContainsString('page=2', $page1);
     }
 

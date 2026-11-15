@@ -1,87 +1,59 @@
-<?php declare(strict_types=1); ?>
-<h1><?= e($title) ?></h1>
-<nav aria-label="Onglets du journal">
-<ul>
-<li><a href="/admin/journal"<?= $tab === 'journal' ? ' aria-current="page"' : '' ?>>Journal d'audit</a></li>
-<li><a href="/admin/journal?onglet=sensibles"<?= $tab === 'sensibles' ? ' aria-current="page"' : '' ?>>Consultations sensibles</a></li>
-</ul>
-</nav>
-<?php if ($tab === 'journal'): ?>
-<form method="post" action="/admin/journal/verification">
-<input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
-<button type="submit">Vérifier l'intégrité du journal</button>
-</form>
+<?php declare(strict_types=1);
+$sensitive = $tab === 'sensibles';
+$query = $filters + ($sensitive ? ['onglet' => 'sensibles'] : []);
+$err = static fn (string $k, string $prefix = ''): string => isset($errors[$k]) ? $prefix . $errors[$k] : '';
+$userOptions = ['' => 'Tous'];
+foreach ($users as $u) {
+    $userOptions[(string) $u['id']] = $u['name'];
+}
+$who = static fn (array $r): string => $r['user_id'] === null ? 'système' : ($r['user_name'] ?? 'utilisateur n° ' . $r['user_id']);
+$details = static function (array $r) use ($pretty): string {
+    $html = '<details><summary>Détails</summary><dl class="detail-list"><dt>N°</dt><dd>' . e((string) $r['id']) . '</dd><dt>IP</dt><dd>' . e($r['ip'] ?? '—') . '</dd></dl>';
+    foreach (['old_values' => 'Avant', 'new_values' => 'Après'] as $k => $label) {
+        if ($r[$k] !== null) {
+            $html .= '<p class="detail-label">' . $label . ' :</p><pre>' . e($pretty($r[$k])) . '</pre>';
+        }
+    }
+    return $html . '</details>';
+};
+$columns = $sensitive
+    ? [
+        ['created_at', 'Date', 'left', false, fn (array $r): string => '<span class="nowrap">' . e($when($r['created_at'])) . '</span>'],
+        ['user_name', 'Utilisateur', 'left', false, static fn (array $r): string => e($r['user_name'] ?? 'utilisateur n° ' . $r['user_id'])],
+        ['subject_type', 'Objet consulté', 'left', false, static fn (array $r): string => e($r['subject_type'] . ' n° ' . $r['subject_id'])],
+        ['field_group', 'Données'],
+        ['ip', 'IP', 'left', false, static fn (array $r): string => e($r['ip'] ?? '—')],
+    ]
+    : [
+        ['created_at', 'Date', 'left', false, fn (array $r): string => '<span class="nowrap">' . e($when($r['created_at'])) . '</span>'],
+        ['user_name', 'Utilisateur', 'left', false, static fn (array $r): string => e($who($r))],
+        ['action', 'Action', 'left', false, static fn (array $r): string => '<code>' . e($r['action']) . '</code>'],
+        ['auditable_type', 'Objet', 'left', false, static fn (array $r): string => e(trim(($r['auditable_type'] ?? '') . ($r['auditable_id'] === null ? '' : ' n° ' . $r['auditable_id'])) ?: '—')],
+        ['reference', 'Référence', 'left', false, static fn (array $r): string => e($r['reference'] ?? '')],
+        ['old_values', 'Détails', 'left', false, $details],
+    ];
+?>
+<?= ui('page-header', ['title' => $title, 'subtitle' => $sensitive ? 'Consultations de données sensibles par le personnel.' : 'Trace des actions effectuées dans l\'administration.'],
+    $sensitive ? '' : '<form method="post" action="/admin/journal/verification"><input type="hidden" name="_csrf" value="' . e($csrfToken) . '">' . ui('button', ['label' => 'Vérifier l\'intégrité', 'variant' => 'secondary', 'type' => 'submit', 'icon' => 'check']) . '</form>') ?>
+<?= ui('tabs', ['label' => 'Sections du journal', 'items' => [['Journal', '/admin/journal', !$sensitive], ['Consultations sensibles', '/admin/journal?onglet=sensibles', $sensitive]]]) ?>
+<details class="filters" open data-collapse-narrow="<?= $filters === [] && $errors === [] ? '1' : '0' ?>">
+<summary>Filtres</summary>
+<form class="filter-row" method="get" action="/admin/journal" role="search">
+<?php if ($sensitive): ?><input type="hidden" name="onglet" value="sensibles"><?php endif; ?>
+<?= ui('field', ['name' => 'du', 'label' => 'Du', 'type' => 'date', 'value' => $filters['du'] ?? '', 'error' => $err('du', 'Du : ')]) ?>
+<?= ui('field', ['name' => 'au', 'label' => 'Au', 'type' => 'date', 'value' => $filters['au'] ?? '', 'error' => $err('au', 'Au : ')]) ?>
+<?= ui('field', ['name' => 'utilisateur', 'label' => 'Utilisateur', 'type' => 'select', 'options' => $userOptions, 'value' => $filters['utilisateur'] ?? '', 'error' => $err('utilisateur')]) ?>
+<?php if (!$sensitive): ?>
+<?= ui('field', ['name' => 'action', 'label' => 'Action (début, ex. auth.)', 'value' => $filters['action'] ?? '', 'error' => $err('action')]) ?>
 <?php endif; ?>
-<form method="get" action="/admin/journal" role="search">
-<?php if ($tab === 'sensibles'): ?><input type="hidden" name="onglet" value="sensibles"><?php endif; ?>
-<p><label for="du">Du (AAAA-MM-JJ)</label><br>
-<input type="date" id="du" name="du" value="<?= e($filters['du'] ?? '') ?>"<?= isset($errors['du']) ? ' aria-invalid="true" aria-describedby="du-erreur"' : '' ?>>
-<?php if (isset($errors['du'])): ?><br><span id="du-erreur">Du : <?= e($errors['du']) ?></span><?php endif; ?></p>
-<p><label for="au">Au (AAAA-MM-JJ)</label><br>
-<input type="date" id="au" name="au" value="<?= e($filters['au'] ?? '') ?>"<?= isset($errors['au']) ? ' aria-invalid="true" aria-describedby="au-erreur"' : '' ?>>
-<?php if (isset($errors['au'])): ?><br><span id="au-erreur">Au : <?= e($errors['au']) ?></span><?php endif; ?></p>
-<p><label for="utilisateur">Utilisateur</label><br>
-<select id="utilisateur" name="utilisateur"<?= isset($errors['utilisateur']) ? ' aria-invalid="true" aria-describedby="utilisateur-erreur"' : '' ?>>
-<option value="">Tous</option>
-<?php foreach ($users as $u): ?>
-<option value="<?= e((string) $u['id']) ?>"<?= ($filters['utilisateur'] ?? '') === (string) $u['id'] ? ' selected' : '' ?>><?= e($u['name']) ?></option>
-<?php endforeach; ?>
-</select>
-<?php if (isset($errors['utilisateur'])): ?><br><span id="utilisateur-erreur"><?= e($errors['utilisateur']) ?></span><?php endif; ?></p>
-<?php if ($tab === 'journal'): ?>
-<p><label for="action">Action commençant par (ex. auth.)</label><br>
-<input type="text" id="action" name="action" value="<?= e($filters['action'] ?? '') ?>"<?= isset($errors['action']) ? ' aria-invalid="true" aria-describedby="action-erreur"' : '' ?>>
-<?php if (isset($errors['action'])): ?><br><span id="action-erreur"><?= e($errors['action']) ?></span><?php endif; ?></p>
-<?php endif; ?>
-<p><button type="submit">Filtrer</button></p>
+<?= ui('button', ['label' => 'Filtrer', 'type' => 'submit', 'icon' => 'search']) ?>
 </form>
+</details>
 <?php if ($errors !== []): ?>
-<p role="alert">Filtres invalides : corrigez les champs signalés puis relancez la recherche.</p>
-<?php elseif ($rows === []): ?>
-<p>Aucune entrée ne correspond à ces filtres.</p>
+<?= ui('alert', ['kind' => 'danger', 'message' => 'Filtres invalides : corrigez les champs signalés puis relancez la recherche.']) ?>
 <?php else: ?>
-<p><?= e((string) $total) ?> entrée(s).</p>
-<table>
-<?php if ($tab === 'journal'): ?>
-<thead><tr><th scope="col">N°</th><th scope="col">Date</th><th scope="col">Utilisateur</th><th scope="col">Action</th><th scope="col">Objet</th><th scope="col">Référence</th><th scope="col">IP</th><th scope="col">Valeurs</th></tr></thead>
-<tbody>
-<?php foreach ($rows as $row): ?>
-<tr>
-<td><?= e((string) $row['id']) ?></td>
-<td><?= e($when($row['created_at'])) ?></td>
-<td><?= e($row['user_id'] === null ? 'système' : ($row['user_name'] ?? 'utilisateur n° ' . $row['user_id'])) ?></td>
-<td><?= e($row['action']) ?></td>
-<td><?= e(trim(($row['auditable_type'] ?? '') . ($row['auditable_id'] === null ? '' : ' n° ' . $row['auditable_id'])) ?: '—') ?></td>
-<td><?= e($row['reference'] ?? '—') ?></td>
-<td><?= e($row['ip'] ?? '—') ?></td>
-<td><?php if ($row['old_values'] !== null || $row['new_values'] !== null): ?><details><summary>Afficher</summary>
-<?php if ($row['old_values'] !== null): ?><p>Avant :</p><pre><?= e($pretty($row['old_values'])) ?></pre><?php endif; ?>
-<?php if ($row['new_values'] !== null): ?><p>Après :</p><pre><?= e($pretty($row['new_values'])) ?></pre><?php endif; ?>
-</details><?php else: ?>—<?php endif; ?></td>
-</tr>
-<?php endforeach; ?>
-</tbody>
-<?php else: ?>
-<thead><tr><th scope="col">Date</th><th scope="col">Utilisateur</th><th scope="col">Objet consulté</th><th scope="col">Données</th><th scope="col">IP</th></tr></thead>
-<tbody>
-<?php foreach ($rows as $row): ?>
-<tr>
-<td><?= e($when($row['created_at'])) ?></td>
-<td><?= e($row['user_name'] ?? 'utilisateur n° ' . $row['user_id']) ?></td>
-<td><?= e($row['subject_type'] . ' n° ' . $row['subject_id']) ?></td>
-<td><?= e($row['field_group']) ?></td>
-<td><?= e($row['ip'] ?? '—') ?></td>
-</tr>
-<?php endforeach; ?>
-</tbody>
-<?php endif; ?>
-</table>
-<?php endif; ?>
-<?php if ($pages > 1): ?>
-<nav aria-label="Pagination">
-<p>Page <?= e((string) $page) ?> sur <?= e((string) $pages) ?>
-<?php if ($page > 1): ?> · <a href="/admin/journal?<?= e(http_build_query($filters + ($tab === 'sensibles' ? ['onglet' => 'sensibles'] : []) + ['page' => $page - 1])) ?>">Page précédente</a><?php endif; ?>
-<?php if ($page < $pages): ?> · <a href="/admin/journal?<?= e(http_build_query($filters + ($tab === 'sensibles' ? ['onglet' => 'sensibles'] : []) + ['page' => $page + 1])) ?>">Page suivante</a><?php endif; ?>
-</p>
-</nav>
+<?php if ($rows !== []): ?><p class="count-line"><?= e((string) $total) ?> entrée(s).</p><?php endif; ?>
+<?= ui('table', ['caption' => $sensitive ? 'Consultations sensibles' : 'Entrées du journal', 'columns' => $columns, 'rows' => $rows,
+    'empty' => ['title' => 'Aucune entrée ne correspond à ces filtres.']]) ?>
+<?= ui('pagination', ['page' => $page, 'pages' => $pages, 'base' => '/admin/journal', 'query' => $query]) ?>
 <?php endif; ?>

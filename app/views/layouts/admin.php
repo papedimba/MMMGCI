@@ -42,7 +42,7 @@ $initials = mb_strtoupper(implode('', array_map(static fn (string $w): string =>
 </header>
 <main class="sheet" id="contenu" tabindex="-1">
 <?php if (($flash ?? null) !== null): ?>
-<?= ui('alert', ['kind' => 'ok', 'message' => $flash]) ?>
+<?= ui('alert', ['kind' => $flashKind ?? 'ok', 'message' => $flash]) ?>
 <?php endif; ?>
 <?= $content ?>
 </main>

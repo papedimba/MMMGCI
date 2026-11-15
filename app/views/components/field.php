@@ -12,6 +12,12 @@ $attrs = ' id="' . $e($id) . '" name="' . $e($props['name'] ?? '') . '" class="c
     . ($required ? ' required' : '')
     . (isset($props['autocomplete']) ? ' autocomplete="' . $e($props['autocomplete']) . '"' : '')
     . (isset($props['inputmode']) ? ' inputmode="' . $e($props['inputmode']) . '"' : '');
+// Attributs HTML supplémentaires (minlength, maxlength, pattern, disabled, autofocus…) : nom en minuscules, valeur échappée ; true = attribut booléen.
+foreach ((array) ($props['attrs'] ?? []) as $k => $v) {
+    if (is_string($k) && preg_match('/^[a-z][a-z-]*$/', $k) === 1 && $v !== false) {
+        $attrs .= ' ' . $k . ($v === true ? '' : '="' . $e((string) $v) . '"');
+    }
+}
 $value = (string) ($props['value'] ?? '');
 ?>
 <div class="field<?= $error !== '' ? ' has-error' : '' ?>">

@@ -11,6 +11,8 @@ if ((string) ($props['csrf'] ?? '') === '') {
 <dialog class="dialog" id="<?= $e($id) ?>" aria-labelledby="<?= $e($id) ?>-title" aria-describedby="<?= $e($id) ?>-msg">
 <form method="post" action="<?= $e($props['form_action'] ?? '') ?>">
 <input type="hidden" name="_csrf" value="<?= $e($props['csrf']) ?>">
+<?php foreach ((array) ($props['fields'] ?? []) as $k => $v): ?><input type="hidden" name="<?= $e((string) $k) ?>" value="<?= $e((string) $v) ?>">
+<?php endforeach; ?>
 <h2 id="<?= $e($id) ?>-title"><?= $e($props['title'] ?? '') ?></h2>
 <p id="<?= $e($id) ?>-msg"><?= $e($props['message'] ?? '') ?></p>
 <div class="dialog-actions">

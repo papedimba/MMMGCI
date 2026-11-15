@@ -38,6 +38,7 @@
 }
 textarea.control { padding: 10px 12px; resize: vertical; }
 .control:focus-visible { outline: var(--focus-ring); outline-offset: 1px; }
+.control:disabled { background: var(--frame); color: var(--ink-2); cursor: not-allowed; }
 .has-error .control { border-color: var(--danger); border-width: 2px; }
 .field-error { display: flex; gap: 6px; align-items: flex-start; color: var(--danger); font-size: var(--text-sm); font-weight: 600; }
 .file-input input[type="file"] { padding: 6px 8px; }

@@ -135,6 +135,17 @@ final class RoleService
         });
     }
 
+    /** Pour la vue (lecture seule) : l'acteur peut-il modifier ce rôle ? Les règles appliquées à l'écriture restent celles de lockEditable(). */
+    public function mayEdit(int $id, int $actorId): bool
+    {
+        try {
+            $this->guard->assertMayHandle($actorId, [$id]);
+            return true;
+        } catch (DomainException) {
+            return false;
+        }
+    }
+
     /** @return ?list<string> voir ProtectedRoles::grantable() */
     public function grantable(int $actorId): ?array
     {

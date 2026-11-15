@@ -125,8 +125,11 @@ final class RoleController
             $modules[$p['module']][] = $p;
         }
         $grantable = $this->roles->grantable($this->actor($r));
+        // Affichage seul (la vue ne propose alors aucun enregistrement) ; l'écriture reste refusée côté serveur par RoleService.
+        $readOnly = $target !== null && ((int) $target['is_system'] === 1 || !$this->roles->mayEdit((int) $target['id'], $this->actor($r)));
         return $this->page($r, 'admin/roles/form', $target === null ? 'Nouveau rôle' : 'Rôle : ' . $target['label'], [
             'target' => $target,
+            'readOnly' => $readOnly,
             'values' => ['description' => (string) ($values['description'] ?? '')] + $values,
             'modules' => $modules,
             // Case grisée : droit non détenu par l'acteur et absent du rôle (un droit déjà présent reste décochable).

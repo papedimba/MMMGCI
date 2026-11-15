@@ -66,7 +66,8 @@ final class AuditLogController
             'user' => $user,
             'can' => fn (string $p): bool => $this->gate->allows((int) $user['id'], $p),
             'csrfToken' => $this->csrf->token(),
-            'flash' => $this->session->pullFlash('status'),
+            'flash' => $flash = $this->session->pullFlash('status'),
+            'flashKind' => str_starts_with((string) $flash, 'Anomalie') ? 'danger' : 'ok', // l'anomalie d'intégrité ne doit pas s'afficher comme un succès
             'tab' => $tab,
             'filters' => array_filter($raw, static fn ($x) => $x !== null && $x !== ''),
             'errors' => $errors,

@@ -50,7 +50,7 @@ final class LoginTest extends AdminTestCase
         $this->assertNotNull($this->db->fetchValue('SELECT last_login_at FROM users WHERE id = ?', [$id]));
         $dash = $this->request('GET', '/admin');
         $this->assertSame(200, $dash->status());
-        $this->assertStringContainsString('Bonjour Utilisateur valide', $dash->body());
+        $this->assertStringContainsString('Bonjour Utilisateur<', $dash->body());
         $this->assertStringContainsString('href="/admin/utilisateurs"', $dash->body());
     }
 

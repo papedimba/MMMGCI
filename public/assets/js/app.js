@@ -72,6 +72,10 @@
     }
   });
 
+  // Filtres du journal : ouverts partout sans JS ; repliés sur téléphone tant qu'aucun filtre n'est actif.
+  var filters = document.querySelector('details.filters[data-collapse-narrow="1"]');
+  if (filters && window.matchMedia && window.matchMedia('(max-width: 639.98px)').matches) { filters.removeAttribute('open'); }
+
   document.addEventListener('change', function (ev) {
     var input = ev.target;
     if (!input.hasAttribute || !input.hasAttribute('data-file-input')) { return; }

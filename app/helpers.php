@@ -21,3 +21,11 @@ function ui_icon(string $name, string $label = ''): string
 {
     return \App\Core\Ui::icon($name, $label);
 }
+
+/** Date UTC de la base → « JJ/MM/AAAA HH:MM » à l'heure configurée (Africa/Abidjan) ; $empty si absente. */
+function date_fr(?string $utc, string $empty = '—'): string
+{
+    return $utc === null || $utc === ''
+        ? $empty
+        : (new DateTimeImmutable($utc, new DateTimeZone('UTC')))->setTimezone(new DateTimeZone(date_default_timezone_get()))->format('d/m/Y H:i');
+}

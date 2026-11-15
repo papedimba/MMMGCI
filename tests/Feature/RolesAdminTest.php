@@ -202,10 +202,10 @@ final class RolesAdminTest extends AdminTestCase
 
         $form = $this->request('GET', "/admin/roles/$role")->body();
         $this->assertStringNotContainsString('<script>x</script>', $form);
-        $this->assertStringContainsString('<legend>finance</legend>', $form);
+        $this->assertStringContainsString('<legend>Finances</legend>', $form);
         $this->assertStringContainsString('Approuver un décaissement', $form);
         $this->assertSame(2, substr_count($form, e(self::DOUBLE)));
-        $this->assertSame(3, substr_count($form, 'name="_csrf"')); // déconnexion, rôle, suppression
+        $this->assertSame(4, substr_count($form, 'name="_csrf"')); // déconnexion, rôle, suppression, boîte de confirmation de la suppression
         $this->assertSame(404, $this->request('GET', '/admin/roles/999999')->status());
         $this->assertSame(404, $this->request('POST', '/admin/roles/999999/suppression')->status());
     }

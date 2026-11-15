@@ -86,6 +86,6 @@ final class ViewTest extends TestCase
         foreach (['404' => 'Page introuvable', '403' => 'Accès refusé', '419' => 'Votre session a expiré.'] as $c => $t) {
             $this->assertStringContainsString($t, $v->render("errors/$c"));
         }
-        $this->assertStringNotContainsString('<script', $v->render('errors/404'));
+        $this->assertDoesNotMatchRegularExpression('#<script(?![^>]*\ssrc=)#', $v->render('errors/404'), 'aucun script en ligne (CSP) : seuls les scripts externes sont permis');
     }
 }
