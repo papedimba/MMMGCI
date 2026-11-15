@@ -43,7 +43,7 @@ final class UiTest extends TestCase
                 $html = ui($name, $props);
                 $this->assertNotSame('', $html, $name);
                 $this->assertStringNotContainsString('<script>', $html, $name);
-                $this->assertDoesNotMatchRegularExpression('~<img(?! class="doc-logo")~', $html, $name); // le logo du document-header est le seul <img> légitime
+                $this->assertDoesNotMatchRegularExpression($name === 'document-header' ? '~<img(?! class="doc-logo")~' : '~<img~', $html, $name); // le logo du document-header est le seul <img> légitime
                 $this->assertStringNotContainsString('style=', $html, $name);
             }
         }

@@ -32,4 +32,24 @@ final class DesignGalleryTest extends AdminTestCase
         $this->actingAs($this->createUser('lecteur@example.test', ['lecture_seule']));
         $this->assertSame(403, $this->request('GET', '/admin/composants')->status());
     }
+
+    public function test_print_sample_is_gated_like_the_gallery(): void
+    {
+        $this->env = ['APP_ENV' => 'local'];
+        $this->assertSame(302, $this->request('GET', '/admin/composants/document')->status());
+        $this->actingAs($this->createUser('lecteur2@example.test', ['lecture_seule']));
+        $this->assertSame(403, $this->request('GET', '/admin/composants/document')->status());
+        $this->forgetApp();
+        $this->actingAs($this->createUser('admin3@example.test', ['super_admin']));
+        $ok = $this->request('GET', '/admin/composants/document');
+        $this->assertSame(200, $ok->status());
+        $this->assertStringContainsString('class="card-cr80"', $ok->body());
+        $this->assertStringNotContainsString('<nav', $ok->body());
+
+        $this->forgetApp();
+        $this->env = ['APP_ENV' => 'production'];
+        $this->actingAs($this->createUser('admin4@example.test', ['super_admin']));
+        $res = $this->app()->handle(new Request('GET', '/admin/composants/document', [], [], [], ['REMOTE_ADDR' => '127.0.0.1', 'HTTPS' => 'on', 'HTTP_HOST' => 'exemple.ci']));
+        $this->assertSame(404, $res->status());
+    }
 }

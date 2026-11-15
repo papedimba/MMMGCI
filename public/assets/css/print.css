@@ -28,11 +28,11 @@ body.print { background: var(--frame); color: #000; font-size: 11pt; line-height
 
 /* Carte de membre CR80 : squelette ; données, photo et QR viennent du lot L5. */
 .card-cr80 { box-sizing: border-box; position: relative; width: 85.6mm; height: 54mm; padding: 4mm; border: .75pt solid #000; border-radius: 3mm; background: #fff; color: #000; overflow: hidden; break-inside: avoid; display: grid; grid-template-columns: 22mm 1fr; grid-template-rows: auto 1fr; gap: 2mm 4mm; }
-.card-cr80 .card-logo { width: 17mm; height: auto; }
-.card-cr80 .card-head { font-size: 6.5pt; line-height: 1.2; font-weight: 600; }
-.card-cr80 .card-photo { grid-row: 2; width: 22mm; height: 24mm; border: .75pt dashed #000; }
-.card-cr80 .card-id { grid-row: 2; align-self: end; padding-right: 18mm; }
-.card-cr80 .card-name { margin: 0; font: 400 11pt/1.2 var(--font-display); }
+.card-cr80 .card-logo { width: 19mm; height: auto; }
+.card-cr80 .card-head { font-size: 7pt; line-height: 1.2; font-weight: 600; }
+.card-cr80 .card-photo { grid-row: 2; width: 22mm; height: 22mm; border: .75pt dashed #000; }
+.card-cr80 .card-id { grid-row: 2; align-self: end; padding-right: 16mm; }
+.card-cr80 .card-name { margin: 0; font: 400 10pt/1.2 var(--font-display); }
 .card-cr80 .card-number { margin: 1mm 0 0; font-size: 8.5pt; font-weight: 600; }
 .card-cr80 .card-qr { position: absolute; right: 4mm; bottom: 4mm; width: 14mm; height: 14mm; border: .75pt dashed #000; }
 .card-cr80-page { page: cr80; }
