@@ -69,6 +69,18 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/journal', static fn (Request $q): Response => $journal()->index($q), $viewAudit);
     $r->post('/admin/journal/verification', static fn (Request $q): Response => $journal()->verify($q), $viewAudit);
 
+    // Galerie du kit de composants : outil de développement, introuvable en production.
+    $r->get('/admin/composants', static function (Request $q) use ($view, $csrf, $session, $gate, $config): Response {
+        if ($config->get('APP_ENV', 'production') === 'production') {
+            return new Response($view->render('errors/404', ['title' => 'Page introuvable']), 404);
+        }
+        $user = $q->attribute('user');
+        return new Response($view->render('admin/design/index', [
+            'title' => 'Composants', 'user' => $user, 'csrfToken' => $csrf->token(), 'flash' => $session->pullFlash('status'),
+            'can' => static fn (string $p): bool => $gate()->allows((int) $user['id'], $p),
+        ], 'layouts/admin'));
+    }, [$requireAuth, $permission('users.manage')]);
+
     $r->get('/admin', static function (Request $q) use ($view, $csrf, $session, $gate): Response {
         $user = $q->attribute('user');
         $can = static fn (string $p): bool => $gate()->allows((int) $user['id'], $p); // Gate met en cache : une requête par page

@@ -6,6 +6,10 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title><?= e($title ?? 'Administration') ?> — MMMGCI</title>
 <meta name="csrf-token" content="<?= e($csrfToken) ?>">
+<link rel="stylesheet" href="/assets/css/tokens.css">
+<link rel="stylesheet" href="/assets/css/base.css">
+<link rel="stylesheet" href="/assets/css/components.css">
+<script src="/assets/js/app.js" defer></script>
 </head>
 <body>
 <header>

@@ -24,5 +24,6 @@
   --r-sm: 6px; --r-md: 10px; --r-lg: 16px;
   --control-h: 44px;
   --focus-ring: 2px solid var(--ocean-600);
+  --focus-ring-on-dark: 2px solid var(--gold-400); /* sur fond marine : le bleu océan n'y est pas visible */
   --dur-fast: 120ms; --dur-base: 200ms; --ease: cubic-bezier(.2, .7, .2, 1);
 }
