@@ -14,19 +14,23 @@ use App\Modules\Auth\LoginController;
 use App\Modules\Auth\LoginThrottle;
 use App\Modules\Auth\PasswordController;
 use App\Modules\Auth\PasswordReset;
+use App\Modules\Members\DocumentController;
 use App\Modules\Members\MemberController;
 use App\Modules\Members\MemberScope;
 use App\Modules\Members\MemberSearch;
+use App\Modules\Members\MemberService;
 use App\Modules\Members\ReferentialController;
 use App\Modules\Members\Referentials;
 use App\Modules\Roles\RoleController;
 use App\Modules\Roles\RoleService;
+use App\Core\Sequence;
+use App\Core\Settings;
 use App\Modules\Users\UserController;
 use App\Modules\Users\UserService;
 
 /** @param array<string,mixed> $deps services de app/kernel.php ; db, gate, auth et audit sont des fabriques paresseuses */
 return static function (Router $r, array $deps): void {
-    ['view' => $view, 'csrf' => $csrf, 'session' => $session, 'db' => $db, 'gate' => $gate, 'auth' => $auth, 'audit' => $audit, 'mailer' => $mailer, 'defer' => $defer, 'clock' => $clock, 'config' => $config] = $deps;
+    ['view' => $view, 'csrf' => $csrf, 'session' => $session, 'db' => $db, 'gate' => $gate, 'auth' => $auth, 'audit' => $audit, 'mailer' => $mailer, 'defer' => $defer, 'clock' => $clock, 'config' => $config, 'uploads' => $uploads] = $deps;
     $login = static fn (): LoginController => new LoginController($view, $csrf, $db(), $auth(), $audit(), new LoginThrottle($db()), Closure::fromCallable($clock), $session);
     $links = static fn (): LinkMailer => new LinkMailer($mailer, (string) $config->get('APP_URL', ''),
         !in_array($config->get('APP_ENV', 'production'), ['local', 'testing'], true));
@@ -39,7 +43,9 @@ return static function (Router $r, array $deps): void {
         new AuditQuery($db()), new SensitiveAccess($db()));
     $referentials = static fn (): ReferentialController => new ReferentialController($view, $csrf, $session, $db(), $gate(), new Referentials($db(), $audit()));
     $members = static fn (): MemberController => new MemberController($view, $csrf, $session, $db(), $gate(), new MemberSearch($db(), new MemberScope($db(), $gate())),
-        new MemberScope($db(), $gate()), new SensitiveAccess($db()));
+        new MemberScope($db(), $gate()), new SensitiveAccess($db()),
+        new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), $uploads(), $audit());
+    $documents = static fn (): DocumentController => new DocumentController($db(), $session, new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit());
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -80,6 +86,19 @@ return static function (Router $r, array $deps): void {
     $viewMembers = [$requireAuth, $permission('members.view')];
     $r->get('/admin/adherents', static fn (Request $q): Response => $members()->index($q), $viewMembers);
     $r->get('/admin/adherents/{id:\d+}', static fn (Request $q): Response => $members()->show($q), $viewMembers);
+    $r->get('/admin/adherents/{id:\d+}/photo', static fn (Request $q): Response => $documents()->photo($q), $viewMembers);
+
+    $createMembers = [$requireAuth, $permission('members.create')];
+    $r->get('/admin/adherents/nouveau', static fn (Request $q): Response => $members()->createForm($q), $createMembers);
+    $r->post('/admin/adherents/nouveau', static fn (Request $q): Response => $members()->store($q), $createMembers);
+    $updateMembers = [$requireAuth, $permission('members.update')];
+    $r->get('/admin/adherents/{id:\d+}/modifier', static fn (Request $q): Response => $members()->editForm($q), $updateMembers);
+    $r->post('/admin/adherents/{id:\d+}/modifier', static fn (Request $q): Response => $members()->update($q), $updateMembers);
+    $r->post('/admin/adherents/{id:\d+}/ayants-droit', static fn (Request $q): Response => $members()->addBeneficiary($q), $updateMembers);
+    $r->post('/admin/adherents/{id:\d+}/ayants-droit/{bid:\d+}/supprimer', static fn (Request $q): Response => $members()->deleteBeneficiary($q), $updateMembers);
+    $documentsView = [$requireAuth, $permission('members.documents.view')];
+    $r->post('/admin/adherents/{id:\d+}/pieces', static fn (Request $q): Response => $documents()->upload($q), $documentsView);
+    $r->get('/admin/adherents/{id:\d+}/pieces/{fid:\d+}', static fn (Request $q): Response => $documents()->download($q), $documentsView);
 
     // Lecture seule : aucune route ne modifie ni ne supprime une ligne du journal.
     $viewAudit = [$requireAuth, $permission('audit.view')];

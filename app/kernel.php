@@ -17,6 +17,7 @@ use App\Core\Http\StartSession;
 use App\Core\Http\VerifyCsrf;
 use App\Core\Mailer;
 use App\Core\Session;
+use App\Core\Uploads;
 use App\Core\View;
 use App\Modules\Auth\Auth;
 
@@ -49,6 +50,9 @@ return static function (Config $config, bool $httpSession, array $overrides = []
     $auth = $once(static fn (): Auth => new Auth($session, $db(), $gate()));
     $audit = $once(static fn (): Audit => new Audit($db(), (string) $config->get('APP_KEY')));
     $mailer = $once(static fn (): Mailer => $overrides['mailer'] ?? Mailer::fromConfig($config)); // paresseux : MAIL_FROM vide ne casse que l'envoi
+    // Pièces et photos : disque privé (hors racine web) ; 'uploads' est surchargeable pour les tests.
+    $uploads = $once(static fn (): Uploads => $overrides['uploads'] ?? new Uploads($db(), __DIR__ . '/../storage/uploads/private',
+        __DIR__ . '/../public/media', max(1, (int) $config->get('UPLOAD_MAX_MB', 5)) * 1048576));
     $clock = $overrides['clock'] ?? time(...);
     // shortcut: aucun gain sous mod_php ou php -S (le travail s'exécute avant que le client soit libéré) ; efficace sous PHP-FPM/LiteSpeed.
     $defer = $overrides['defer'] ?? static function (callable $job): void {
@@ -71,7 +75,7 @@ return static function (Config $config, bool $httpSession, array $overrides = []
             }
         });
     };
-    $services = compact('config', 'session', 'csrf', 'db', 'gate', 'auth', 'audit', 'mailer', 'defer', 'clock', 'view');
+    $services = compact('config', 'session', 'csrf', 'db', 'gate', 'auth', 'audit', 'mailer', 'defer', 'clock', 'view', 'uploads');
 
     $titles = [400 => 'Requête invalide', 403 => 'Accès refusé', 404 => 'Page introuvable', 405 => 'Méthode non autorisée', 419 => 'Session expirée'];
     $errors = static function (int $status, Request $r) use ($view, $titles): Response {

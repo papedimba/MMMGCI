@@ -130,3 +130,5 @@
   .table .who { min-height: var(--control-h); align-content: center; }
   .table details summary { min-height: var(--control-h); min-width: var(--control-h); }
 }
+
+.member-photo { display: block; width: 120px; height: 120px; object-fit: cover; border-radius: var(--r-md); border: 1px solid var(--line); margin-bottom: var(--s3); }

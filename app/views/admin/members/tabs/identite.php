@@ -6,7 +6,7 @@ if ($canDocuments) {
     $pairs['Pièce d\'identité'] = $val($m['id_document_type']);
     $pairs['Numéro de pièce'] = isset($revealed['id_document_number']) ? (string) $m['id_document_number'] : '—';
 }
-echo ui('panel', ['title' => 'Identité'], $dl($pairs));
+echo ui('panel', ['title' => 'Identité'], ($m['photo_file_id'] !== null ? '<img class="member-photo" src="/admin/adherents/' . e((string) $m['id']) . '/photo" alt="Photo de ' . e($m['first_names'] . ' ' . $m['last_name']) . '" width="120" height="120">' : '') . $dl($pairs));
 if ($canDocuments && isset($revealed['id_document_number'])) {
     echo '<p class="count-line">La consultation de ce numéro est journalisée.</p>';
 }

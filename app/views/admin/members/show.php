@@ -1,5 +1,5 @@
 <?php declare(strict_types=1);
-/** @var array $m @var string $tab @var array $tabs @var bool $canDocuments @var array $revealed @var array $rows */
+/** @var Closure $can @var array $m @var string $tab @var array $tabs @var bool $canDocuments @var array $revealed @var array $rows */
 $base = '/admin/adherents/' . $m['id'];
 $items = [];
 foreach ($tabs as $key => $label) {
@@ -19,6 +19,7 @@ $dl = static function (array $pairs): string {
 ?>
 <?= ui('page-header', ['title' => $m['last_name'] . ' ' . $m['first_names'], 'subtitle' => 'N° ' . $m['member_number'],
     'breadcrumbs' => [['Adhérents', '/admin/adherents'], [$m['last_name'] . ' ' . $m['first_names'], null]]],
-    ui('badge', ['label' => $m['status_label'] ?? $m['status'], 'kind' => $kinds[$m['status']] ?? 'neutral'])) ?>
+    ui('badge', ['label' => $m['status_label'] ?? $m['status'], 'kind' => $kinds[$m['status']] ?? 'neutral'])
+    . ($can('members.update') ? ui('button', ['label' => 'Modifier', 'variant' => 'secondary', 'href' => $base . '/modifier']) : '')) ?>
 <?= ui('tabs', ['label' => 'Sections de la fiche', 'items' => $items]) ?>
 <?php require __DIR__ . '/tabs/' . str_replace('-', '_', $tab) . '.php'; ?>

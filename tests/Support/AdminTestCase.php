@@ -67,8 +67,8 @@ abstract class AdminTestCase extends DatabaseTestCase
         $this->services['session']->set('auth.session_version', (int) $this->db->fetchValue('SELECT session_version FROM users WHERE id = ?', [$userId]));
     }
 
-    /** @param array<string,mixed> $post */
-    protected function request(string $method, string $path, array $post = []): Response
+    /** @param array<string,mixed> $post @param array<string,mixed> $files entrées de $_FILES */
+    protected function request(string $method, string $path, array $post = [], array $files = []): Response
     {
         $app = $this->app();
         [$p, $qs] = explode('?', $path, 2) + [1 => ''];
@@ -76,6 +76,6 @@ abstract class AdminTestCase extends DatabaseTestCase
         if (strtoupper($method) !== 'GET') {
             $post += ['_csrf' => $this->services['csrf']->token()];
         }
-        return $app->handle(new Request($method, $p, $query, $post, [], ['REMOTE_ADDR' => '127.0.0.1', 'HTTP_USER_AGENT' => 'PHPUnit', 'QUERY_STRING' => $qs]));
+        return $app->handle(new Request($method, $p, $query, $post, $files, ['REMOTE_ADDR' => '127.0.0.1', 'HTTP_USER_AGENT' => 'PHPUnit', 'QUERY_STRING' => $qs]));
     }
 }
