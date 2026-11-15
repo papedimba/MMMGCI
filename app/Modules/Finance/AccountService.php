@@ -17,8 +17,33 @@ final class AccountService
 {
     public const TYPES = ['general' => 'Compte général', 'solidarity_fund' => 'Fonds de solidarité', 'bank' => 'Compte bancaire', 'cash' => 'Caisse', 'mobile_money' => 'Mobile money'];
 
-    public function __construct(private Database $db, private Audit $audit)
+    private const FUND_LOCK = 'mmmgci.solidarity-fund';
+
+    public function __construct(private Database $db, private Audit $audit, private int $lockWaitSeconds = 5)
     {
+    }
+
+    /**
+     * Un seul fonds de solidarité actif. Verrou nommé (GET_LOCK, comme FirstAdmin) pris AVANT la transaction : le contrôle et l'écriture
+     * sont ainsi sérialisés entre connexions, et l'instantané de la transaction est postérieur au dernier commit d'un concurrent.
+     */
+    private function withFundLock(callable $fn): mixed
+    {
+        if ((int) $this->db->fetchValue('SELECT GET_LOCK(?, ?)', [self::FUND_LOCK, $this->lockWaitSeconds]) !== 1) {
+            throw new DomainException('Le fonds de solidarité est en cours de modification par un autre utilisateur : réessayez dans un instant.');
+        }
+        try {
+            return $fn();
+        } finally {
+            $this->db->query('SELECT RELEASE_LOCK(?)', [self::FUND_LOCK]);
+        }
+    }
+
+    private function assertNoActiveFund(): void
+    {
+        if ($this->db->fetchValue("SELECT 1 FROM financial_accounts WHERE type = 'solidarity_fund' AND is_active = 1 LIMIT 1") !== null) {
+            throw new DomainException('Un compte de fonds de solidarité actif existe déjà : il ne peut y en avoir qu\'un seul.');
+        }
     }
 
     public function create(string $name, string $type, string $openingInput, int $actor): int
@@ -35,7 +60,10 @@ final class AccountService
         } catch (\InvalidArgumentException $e) {
             throw new DomainException('Solde d\'ouverture : ' . $e->getMessage());
         }
-        return $this->db->atomic(function () use ($name, $type, $opening, $actor): int {
+        $run = fn (): int => $this->db->atomic(function () use ($name, $type, $opening, $actor): int {
+            if ($type === 'solidarity_fund') {
+                $this->assertNoActiveFund();
+            }
             try {
                 $id = $this->db->insert('financial_accounts', ['name' => $name, 'type' => $type, 'opening_balance' => Money::toDecimal($opening)]);
             } catch (PDOException $e) {
@@ -44,17 +72,23 @@ final class AccountService
             $this->audit->log($actor, 'finance.account_created', 'financial_account', $id, null, ['name' => $name, 'type' => $type, 'opening_balance' => Money::toDecimal($opening)]);
             return $id;
         });
+        return $type === 'solidarity_fund' ? $this->withFundLock($run) : $run();
     }
 
     public function setActive(int $id, bool $active, int $actor): void
     {
-        $this->db->atomic(function () use ($id, $active, $actor): void {
-            $row = $this->db->fetch('SELECT is_active FROM financial_accounts WHERE id = ? FOR UPDATE', [$id]) ?? throw new DomainException('Compte inconnu.');
+        $run = fn () => $this->db->atomic(function () use ($id, $active, $actor): void {
+            $row = $this->db->fetch('SELECT type, is_active FROM financial_accounts WHERE id = ? FOR UPDATE', [$id]) ?? throw new DomainException('Compte inconnu.');
             if ((int) $row['is_active'] === (int) $active) {
                 return;
+            }
+            if ($active && $row['type'] === 'solidarity_fund') {
+                $this->assertNoActiveFund();
             }
             $this->db->update('financial_accounts', ['is_active' => (int) $active], ['id' => $id]);
             $this->audit->log($actor, $active ? 'finance.account_activated' : 'finance.account_deactivated', 'financial_account', $id, ['is_active' => (int) !$active], ['is_active' => (int) $active]);
         });
+        $type = $this->db->fetchValue('SELECT type FROM financial_accounts WHERE id = ?', [$id]);
+        $type === 'solidarity_fund' && $active ? $this->withFundLock($run) : $run();
     }
 }

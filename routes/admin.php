@@ -14,6 +14,8 @@ use App\Modules\Auth\LoginController;
 use App\Modules\Auth\LoginThrottle;
 use App\Modules\Auth\PasswordController;
 use App\Modules\Auth\PasswordReset;
+use App\Modules\Solidarity\SolidarityController;
+use App\Modules\Solidarity\SolidarityService;
 use App\Modules\Contributions\ArrearsController;
 use App\Modules\Contributions\ArrearsService;
 use App\Modules\Contributions\CallService;
@@ -84,6 +86,7 @@ return static function (Router $r, array $deps): void {
         new DisbursementService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db())), new Sequence($db()), new Settings($db()), $gate()),
         new DisbursementGate($db()), $uploads(), new SensitiveAccess($db()));
     $arrears = static fn (): ArrearsController => new ArrearsController($view, $csrf, $session, $db(), $gate(), $arrearsService());
+    $solidarity = static fn (): SolidarityController => new SolidarityController($view, $csrf, $session, $gate(), new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))), new AccountService($db(), $audit()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -231,6 +234,12 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/decaissements/{id:\d+}/rejeter', static fn (Request $q): Response => $disbursements()->reject($q), $approveDisb);
     $r->get('/admin/decaissements/{id:\d+}/payer', static fn (Request $q): Response => $disbursements()->payForm($q), $payDisb);
     $r->post('/admin/decaissements/{id:\d+}/payer', static fn (Request $q): Response => $disbursements()->pay($q), $payDisb);
+
+    // Fonds de solidarité (L6) : lecture seule du grand livre ; aucune écriture de dépense ici. Export : reports.export (aucune permission dédiée au seed).
+    $r->get('/admin/solidarite', static fn (Request $q): Response => $solidarity()->index($q), [$requireAuth, $permission('solidarity.view')]);
+    $r->get('/admin/solidarite/export.csv', static fn (Request $q): Response => $solidarity()->export($q), [$requireAuth, $permission('solidarity.view'), $permission('reports.export')]);
+    $r->get('/admin/solidarite/export.xlsx', static fn (Request $q): Response => $solidarity()->export($q), [$requireAuth, $permission('solidarity.view'), $permission('reports.export')]);
+    $r->post('/admin/solidarite/compte', static fn (Request $q): Response => $solidarity()->create($q), [$requireAuth, $permission('solidarity.manage', 'finance.manage')]);
 
     // Galerie du kit et page d'exemple d'impression : outils de développement, routes non enregistrées en production (404).
     if ($config->get('APP_ENV', 'production') !== 'production') {
