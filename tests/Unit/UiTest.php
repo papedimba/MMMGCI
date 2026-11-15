@@ -29,6 +29,7 @@ final class UiTest extends TestCase
             'confirm-dialog' => ['id' => $x, 'title' => $x, 'message' => $x, 'confirm_label' => $x, 'form_action' => $x, 'csrf' => $x],
             'validation-steps' => ['steps' => [['label' => $x, 'who' => $x, 'when' => $x, 'state' => $x]]],
             'file-input' => ['name' => $x, 'label' => $x, 'accept' => $x, 'hint' => $x, 'error' => $x, 'max_mb' => 5],
+            'document-header' => ['title' => $x, 'reference' => $x, 'date' => $x],
             'breadcrumbs' => ['items' => [[$x, $x], [$x]]],
         ];
     }
