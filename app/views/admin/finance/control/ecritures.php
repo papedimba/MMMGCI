@@ -8,7 +8,13 @@ $columns = [
     ['direction', 'Sens', 'left', false, static fn (array $t): string => ui('badge', ['label' => $t['direction'] === 'recette' ? 'Entrée' : 'Sortie', 'kind' => $t['direction'] === 'recette' ? 'ok' : 'info']), 'status'],
     ['amount', 'Montant', 'right', true, static fn (array $t): string => '<span class="nowrap">' . ($t['direction'] === 'recette' ? '+ ' : '− ') . e(Money::format(Money::fromDecimal((string) $t['amount']))) . '</span>'],
     ['occurred_at', 'Date', 'left', false, static fn (array $t): string => '<span class="nowrap">' . e(date('d/m/Y', strtotime((string) $t['occurred_at']))) . '</span>'],
-    ['category_name', 'Catégorie', 'left', false, static fn (array $t): string => e($t['category_name'])],
+    ['category_name', 'Catégorie', 'left', false, static function (array $t): string {
+        $h = e($t['category_name']);
+        foreach ($t['files'] ?? [] as $f) {
+            $h .= '<br><a class="cell-link" href="/admin/finances/ecritures/' . e((string) $t['id']) . '/justificatif/' . e((string) $f['file_id']) . '">Justificatif : ' . e($f['original_name']) . '</a>';
+        }
+        return $h;
+    }],
     ['source_type', 'Origine', 'left', false, static fn (array $t): string => e($sources[$t['source_type']] ?? (string) $t['source_type'])],
     ['description', 'Contre-passation', 'left', false, static fn (array $t): string => ($t['reversal_of_id'] !== null ? ui('badge', ['label' => 'Contre-passation de ' . $t['reversal_of_reference'], 'kind' => 'warn']) : '')
         . ($t['reversed_by_id'] !== null ? ui('badge', ['label' => 'Contre-passée par ' . $t['reversed_by_reference'], 'kind' => 'neutral']) : '')],

@@ -158,7 +158,7 @@ final class FinanceControlTest extends AdminTestCase
         $z->close();
         unlink($zip);
         $this->assertStringContainsString('&apos;=HYPERLINK', $sheet);
-        $this->assertStringContainsString('t="n"><v>25000.5</v>', $sheet); // vraie cellule numérique
+        $this->assertStringContainsString('t="n"><v>25000.50</v>', $sheet); // vraie cellule numérique
 
         $tx = $this->request('GET', '/admin/controle/export/ecritures.csv?compte=' . $this->account . '&sens=recette');
         $this->assertStringContainsString('1234,50', $tx->body());
@@ -284,6 +284,92 @@ final class FinanceControlTest extends AdminTestCase
         // Fichier d'une autre demande : refusé (404), rien de journalisé ; la consultation de la liste n'est pas journalisée.
         $this->assertSame(404, $this->request('GET', "/admin/decaissements/$other/pieces/$proof")->status());
         $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM sensitive_access_logs'));
+    }
+
+    private function realFile(): int
+    {
+        $name = bin2hex(random_bytes(4)) . '.pdf';
+        file_put_contents($this->root . '/private/' . $name, "%PDF-1.4\n%%EOF");
+        return $this->db->insert('files', ['path' => $name, 'original_name' => 'justif.pdf', 'mime' => 'application/pdf', 'size' => 14, 'sha256' => str_repeat('e', 64), 'uploaded_by' => $this->initiator]);
+    }
+
+    public function test_transaction_attachments_are_linked_logged_and_bound(): void
+    {
+        $t1 = $this->tx('recette', '10.00');
+        $t2 = $this->tx('recette', '20.00');
+        $f1 = $this->realFile();
+        $f2 = $this->realFile();
+        $this->db->insert('financial_attachments', ['attachable_type' => 'financial_transaction', 'attachable_id' => $t1, 'file_id' => $f1]);
+        $this->db->insert('financial_attachments', ['attachable_type' => 'financial_transaction', 'attachable_id' => $t2, 'file_id' => $f2]);
+        $this->db->query('DELETE FROM sensitive_access_logs');
+        $this->as($this->controller); // rôle contrôleur : finance.view + finance.control
+        $this->assertStringContainsString("/admin/finances/ecritures/$t1/justificatif/$f1", $this->request('GET', '/admin/controle?compte=' . $this->account)->body());
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM sensitive_access_logs'));
+        $dl = $this->request('GET', "/admin/finances/ecritures/$t1/justificatif/$f1");
+        $this->assertSame(200, $dl->status());
+        $this->assertStringStartsWith('%PDF-', $dl->body());
+        $this->assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM sensitive_access_logs WHERE user_id = ? AND subject_type = 'financial_transaction' AND subject_id = ? AND field_group = 'justificatif'", [$this->controller, $t1]));
+        $this->assertSame(404, $this->request('GET', "/admin/finances/ecritures/$t1/justificatif/$f2")->status()); // fichier d'une autre écriture
+        $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM sensitive_access_logs'));
+        // finance.control seul (sans finance.view) suffit ; sans l'une ni l'autre : 403.
+        $this->db->query('INSERT IGNORE INTO roles (name, label) VALUES (?, ?)', ['ctl_only', 'x']);
+        $this->db->query('INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = ? AND p.name = ?', ['ctl_only', 'finance.control']);
+        $this->as($this->createUser('co' . bin2hex(random_bytes(3)) . '@ctl.test', ['ctl_only']));
+        $this->assertSame(200, $this->request('GET', "/admin/finances/ecritures/$t2/justificatif/$f2")->status());
+        $this->as($this->createUser('no' . bin2hex(random_bytes(3)) . '@ctl.test', ['dec_init']));
+        $this->assertSame(403, $this->request('GET', "/admin/finances/ecritures/$t2/justificatif/$f2")->status());
+    }
+
+    public function test_extra_integrity_checks_and_real_total_count(): void
+    {
+        $member = (int) $this->db->fetchValue('SELECT id FROM members LIMIT 1') ?: $this->db->insert('members', ['member_number' => 'M-ANO-2', 'last_name' => 'Ano', 'first_names' => 'Ly']);
+        $txA = $this->tx('recette', '100.00');
+        $pay = fn (?int $tx, string $amt, bool $cancelled = false) => $this->db->insert('payments', ['reference' => 'PAY-X-' . bin2hex(random_bytes(3)), 'member_id' => $member, 'amount' => $amt, 'method' => 'especes',
+            'paid_at' => date('Y-m-d H:i:s'), 'financial_transaction_id' => $tx, 'idempotency_key' => bin2hex(random_bytes(8)), 'cancelled_at' => $cancelled ? date('Y-m-d H:i:s') : null]);
+        $noReceipt = $pay($txA, '100.00');                       // actif, sans reçu
+        $txB = $this->tx('recette', '50.00');
+        $diff = $pay($txB, '60.00');                              // écriture 50 / paiement 60 (et sans reçu)
+        $txC = $this->tx('recette', '70.00');
+        $cancelled = $pay($txC, '70.00', true);                   // annulé, sans contre-passation
+        $d = $this->approved();
+        $this->payNow($d);
+        $this->db->query("UPDATE financial_transactions SET amount = amount + 1 WHERE source_type = 'disbursement' AND source_id = ?", [$d]);
+        $a = $this->anomalies();
+        $this->assertContains($noReceipt, $a['payment_no_receipt']);
+        $this->assertContains($diff, $a['payment_amount']);
+        $this->assertNotContains($noReceipt, $a['payment_amount']);
+        $this->assertSame([$cancelled], $a['cancelled_no_reversal']);
+        $this->assertSame([$d], $a['disbursement_amount']);
+        // Règle exigeant 3 approbations : la demande payée avec 2 est signalée (la règle code en dur 2 ne le voyait pas).
+        $this->assertSame([], $a['paid_few_approvers']);
+        $this->db->query('DELETE FROM approval_rules');
+        $this->db->query('INSERT INTO approval_rules (min_amount, max_amount, approvals_required) VALUES (0, NULL, 3)');
+        $this->assertSame([$d], $this->anomalies()['paid_few_approvers']);
+        // Décompte réel au-delà de la liste affichée (50) et de l'ancien plafond (200).
+        $this->db->query('SET FOREIGN_KEY_CHECKS = 0');
+        for ($i = 0; $i < 260; $i++) {
+            $this->tx('recette', '1.00', null, null, 900000 + $i);
+        }
+        $this->db->query('SET FOREIGN_KEY_CHECKS = 1');
+        $row = array_values(array_filter((new ControlService($this->db, $this->audit(), $this->ledger()))->anomalies(), fn (array $x): bool => $x['key'] === 'reversal_orphan'))[0];
+        $this->assertSame(260, $row['count']);
+        $this->assertCount(50, $row['ids']);
+    }
+
+    public function test_xlsx_amount_is_written_as_exact_decimal(): void
+    {
+        $this->tx('recette', '9999999999999.99');
+        $this->as($this->controller);
+        $xlsx = $this->request('GET', '/admin/controle/export/ecritures.xlsx?compte=' . $this->account)->body();
+        $zip = tempnam(sys_get_temp_dir(), 'x');
+        file_put_contents($zip, $xlsx);
+        $z = new \ZipArchive();
+        $z->open($zip);
+        $sheet = (string) $z->getFromName('xl/worksheets/sheet1.xml');
+        $z->close();
+        unlink($zip);
+        $this->assertStringContainsString('t="n"><v>9999999999999.99</v>', $sheet);
+        $this->assertStringNotContainsString('E+', $sheet);
     }
 
     public function test_hostile_text_is_escaped(): void

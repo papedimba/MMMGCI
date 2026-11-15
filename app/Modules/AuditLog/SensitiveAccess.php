@@ -20,6 +20,12 @@ final class SensitiveAccess
             'field_group' => $fieldGroup, 'ip' => $ip === null ? null : mb_substr($ip, 0, 45), 'created_at' => gmdate('Y-m-d H:i:s')]);
     }
 
+    /** Consultation d'une pièce par $userId (même journal que record()). */
+    public function consulted(int $userId, string $subjectType, int $subjectId, string $fieldGroup, ?string $ip): void
+    {
+        $this->record($userId, $subjectType, $subjectId, $fieldGroup, $ip);
+    }
+
     /**
      * @param array{from?: string, to?: string, user_id?: int} $filters bornes UTC « AAAA-MM-JJ HH:MM:SS » incluses
      * @return array{rows: list<array<string,mixed>>, page: int, pages: int, total: int}

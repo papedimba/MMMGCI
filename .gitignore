@@ -9,3 +9,4 @@
 /public/media/*
 !/public/media/.htaccess
 /docs/conception/captures-l2/
+server.log

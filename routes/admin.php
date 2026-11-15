@@ -78,7 +78,7 @@ return static function (Router $r, array $deps): void {
     $applications = static fn (): ApplicationController => new ApplicationController($view, $csrf, $session, $db(), $gate(), new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit(),
         new ApplicationService($db(), $audit(), new Sequence($db()), new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate()))));
     $finance = static fn (): FinanceController => new FinanceController($view, $csrf, $session, $db(), $gate(),
-        new Ledger($db(), $audit(), new Sequence($db())), new AccountService($db(), $audit()), new CategoryService($db(), $audit()), new AttachmentService($db(), $audit()), $uploads());
+        new Ledger($db(), $audit(), new Sequence($db())), new AccountService($db(), $audit()), new CategoryService($db(), $audit()), new AttachmentService($db(), $audit()), $uploads(), new SensitiveAccess($db()));
     $contributions = static fn (): ContributionController => new ContributionController($view, $csrf, $session, $db(), $gate(), new ContributionTypeService($db(), $audit()),
         new CallService($db(), $audit(), new MemberScope($db(), $gate())), new MemberScope($db(), $gate()));
     $payments = static fn (): PaymentController => new PaymentController($view, $csrf, $session, $db(), $gate(),
@@ -204,7 +204,7 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/finances', static fn (Request $q): Response => $finance()->index($q), $viewFinance);
     $r->get('/admin/finances/categories', static fn (Request $q): Response => $finance()->categoriesPage($q), $viewFinance);
     $r->get('/admin/finances/comptes/{id:\d+}', static fn (Request $q): Response => $finance()->account($q), $viewFinance);
-    $r->get('/admin/finances/ecritures/{id:\d+}/justificatif/{fid:\d+}', static fn (Request $q): Response => $finance()->attachment($q), $viewFinance);
+    $r->get('/admin/finances/ecritures/{id:\d+}/justificatif/{fid:\d+}', static fn (Request $q): Response => $finance()->attachment($q), [$requireAuth, $permission('finance.view', 'finance.control')]);
     $r->get('/admin/finances/comptes/nouveau', static fn (Request $q): Response => $finance()->accountForm($q), $manageFinance);
     $r->post('/admin/finances/comptes/nouveau', static fn (Request $q): Response => $finance()->createAccount($q), $manageFinance);
     $r->post('/admin/finances/comptes/{id:\d+}/activation', static fn (Request $q): Response => $finance()->accountActivation($q), $manageFinance);

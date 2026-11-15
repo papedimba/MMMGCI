@@ -27,6 +27,10 @@ final class Xlsx
             $i = 0;
             foreach ($row as $v) {
                 $ref = self::col($i++) . $n;
+                if ($v instanceof Decimal) {
+                    $sheet .= '<c r="' . $ref . '" t="n"><v>' . $v->value . '</v></c>';
+                    continue;
+                }
                 if (is_array($v) || is_object($v)) {
                     throw new InvalidArgumentException('Valeur d\'export non prise en charge : un texte, un nombre, un booléen ou null est attendu.');
                 }

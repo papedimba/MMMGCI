@@ -14,6 +14,7 @@ use App\Core\Session;
 use App\Core\UploadError;
 use App\Core\Uploads;
 use App\Core\View;
+use App\Modules\AuditLog\SensitiveAccess;
 use DateTimeImmutable;
 use DateTimeZone;
 use DomainException;
@@ -24,7 +25,7 @@ final class FinanceController
     private const PER_PAGE = 25;
 
     public function __construct(private View $view, private Csrf $csrf, private Session $session, private Database $db, private Gate $gate,
-        private Ledger $ledger, private AccountService $accounts, private CategoryService $categories, private AttachmentService $attachments, private Uploads $uploads)
+        private Ledger $ledger, private AccountService $accounts, private CategoryService $categories, private AttachmentService $attachments, private Uploads $uploads, private SensitiveAccess $sensitive)
     {
     }
 
@@ -207,6 +208,7 @@ final class FinanceController
         } catch (\InvalidArgumentException) {
             throw new NotFound('Fichier introuvable.');
         }
+        $this->sensitive->consulted((int) $r->attribute('user')['id'], 'financial_transaction', (int) $r->attribute('id'), 'justificatif', $r->ip());
         $name = preg_replace('/[^A-Za-z0-9._-]+/', '_', (string) $file['original_name']) ?: 'justificatif';
         return new Response($body, 200, ['Content-Type' => (string) $file['mime'], 'Content-Length' => (string) strlen($body),
             'Content-Disposition' => 'attachment; filename="' . $name . '"', 'Cache-Control' => 'private, no-store']);

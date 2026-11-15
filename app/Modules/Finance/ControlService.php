@@ -6,8 +6,10 @@ namespace App\Modules\Finance;
 use App\Core\Audit;
 use App\Core\Database;
 use App\Core\Export\Csv;
+use App\Core\Export\Decimal;
 use App\Core\Export\Xlsx;
 use App\Core\Money;
+use App\Modules\Disbursements\ApprovalRules;
 use Generator;
 
 /** Lecture seule du grand livre et du circuit de décaissement pour l'organe de contrôle : aucune écriture ici, hormis le journal d'audit des exports. */
@@ -59,6 +61,18 @@ final class ControlService
         $pages = max(1, (int) ceil($total / self::PER_PAGE));
         $page = min(max(1, $page), $pages);
         $rows = $this->db->fetchAll('SELECT ' . self::TX_COLS . ' ' . self::TX_FROM . " $where ORDER BY t.occurred_at DESC, t.id DESC LIMIT " . self::PER_PAGE . ' OFFSET ' . (($page - 1) * self::PER_PAGE), $p);
+        if ($rows !== []) { // justificatifs des écritures : consultés par la route existante (liée, journalisée)
+            $in = implode(',', array_fill(0, count($rows), '?'));
+            $files = [];
+            foreach ($this->db->fetchAll("SELECT a.attachable_id, a.file_id, f.original_name FROM financial_attachments a JOIN files f ON f.id = a.file_id
+                WHERE a.attachable_type = 'financial_transaction' AND a.attachable_id IN ($in) ORDER BY a.id", array_column($rows, 'id')) as $f) {
+                $files[(int) $f['attachable_id']][] = $f;
+            }
+            foreach ($rows as &$row) {
+                $row['files'] = $files[(int) $row['id']] ?? [];
+            }
+            unset($row);
+        }
         return ['rows' => $rows, 'total' => $total, 'page' => $page, 'pages' => $pages];
     }
 
@@ -183,25 +197,44 @@ final class ControlService
             ['receipt_no_payment', 'Reçu sans paiement', 'receipt', 'SELECT r.id FROM receipts r LEFT JOIN payments p ON p.id = r.payment_id WHERE p.id IS NULL'],
             ['approval_by_initiator', 'Approbation valide donnée par l\'initiateur', 'disbursement', "SELECT DISTINCT d.id FROM disbursement_approvals a JOIN disbursement_requests d ON d.id = a.disbursement_request_id
                 WHERE a.decision = 'approve' AND a.invalidated_at IS NULL AND a.approver_id = d.initiated_by"],
-            ['paid_few_approvers', 'Décaissement payé avec moins de deux approbateurs distincts valides', 'disbursement', "SELECT d.id FROM disbursement_requests d WHERE d.status = 'paye' AND
-                (SELECT COUNT(DISTINCT a.approver_id) FROM disbursement_approvals a WHERE a.disbursement_request_id = d.id AND a.revision = d.revision AND a.decision = 'approve' AND a.invalidated_at IS NULL) < 2"],
+            ['payment_no_receipt', 'Paiement actif sans reçu', 'payment', 'SELECT p.id FROM payments p LEFT JOIN receipts r ON r.payment_id = p.id WHERE p.cancelled_at IS NULL AND r.id IS NULL'],
+            ['payment_amount', 'Montant de l\'écriture différent de celui du paiement', 'payment', 'SELECT p.id FROM payments p JOIN financial_transactions t ON t.id = p.financial_transaction_id WHERE t.amount <> p.amount'],
+            ['disbursement_amount', 'Montant de l\'écriture différent de celui de la demande payée', 'disbursement', 'SELECT d.id FROM disbursement_requests d JOIN disbursement_payments p ON p.disbursement_request_id = d.id
+                JOIN financial_transactions t ON t.id = p.financial_transaction_id WHERE t.amount <> d.amount'],
+            ['cancelled_no_reversal', 'Paiement annulé sans contre-passation', 'payment', 'SELECT p.id FROM payments p LEFT JOIN financial_transactions r ON r.reversal_of_id = p.financial_transaction_id WHERE p.cancelled_at IS NOT NULL AND r.id IS NULL'],
             ['reversal_orphan', 'Contre-passation dont l\'écriture d\'origine est absente', 'transaction', 'SELECT r.id FROM financial_transactions r LEFT JOIN financial_transactions o ON o.id = r.reversal_of_id WHERE r.reversal_of_id IS NOT NULL AND o.id IS NULL'],
             ['reversal_mismatch', 'Contre-passation incohérente avec son origine (compte, montant ou sens)', 'transaction', 'SELECT r.id FROM financial_transactions r JOIN financial_transactions o ON o.id = r.reversal_of_id
                 WHERE r.account_id <> o.account_id OR r.amount <> o.amount OR r.direction = o.direction'],
         ];
         $out = [];
         foreach ($checks as [$key, $label, $table, $sql]) {
-            $ids = array_map('intval', array_column($this->db->fetchAll($sql . ' ORDER BY 1 LIMIT 200'), 'id'));
-            $out[] = ['key' => $key, 'label' => $label, 'table' => $table, 'count' => count($ids), 'ids' => array_slice($ids, 0, 50)];
+            $ids = array_map('intval', array_column($this->db->fetchAll($sql . ' ORDER BY 1 LIMIT 50'), 'id'));
+            $count = (int) $this->db->fetchValue("SELECT COUNT(*) FROM ($sql) x"); // total réel, indépendant de la liste affichée
+            $out[] = ['key' => $key, 'label' => $label, 'table' => $table, 'count' => $count, 'ids' => $ids];
         }
+        $out[] = $this->fewApprovers();
         return $out;
+    }
+
+    /** Payé avec moins d'approbateurs distincts valides que n'en exige la règle applicable à son montant (ApprovalRules, jamais moins de 2). @return array{key:string,label:string,table:string,count:int,ids:list<int>} */
+    private function fewApprovers(): array
+    {
+        $rules = new ApprovalRules($this->db);
+        $ids = [];
+        foreach ($this->db->fetchAll("SELECT d.id, d.amount, (SELECT COUNT(DISTINCT a.approver_id) FROM disbursement_approvals a WHERE a.disbursement_request_id = d.id AND a.revision = d.revision
+                AND a.decision = 'approve' AND a.invalidated_at IS NULL) AS valid FROM disbursement_requests d WHERE d.status = 'paye' ORDER BY d.id") as $d) {
+            if ((int) $d['valid'] < $rules->requiredFor(Money::fromDecimal((string) $d['amount']))) {
+                $ids[] = (int) $d['id'];
+            }
+        }
+        return ['key' => 'paid_few_approvers', 'label' => 'Décaissement payé avec moins d\'approbateurs distincts valides que la règle applicable', 'table' => 'disbursement', 'count' => count($ids), 'ids' => array_slice($ids, 0, 50)];
     }
 
     /** Export audité d'un jeu (« ecritures » ou « decaissements »). @param array<string,string> $f @return array{body: string, rows: int} */
     public function export(string $dataset, string $format, array $f, int $userId, ?string $ip, ?string $ua): array
     {
         $rows = [];
-        $amount = static fn (string $dec): string|float => $format === 'xlsx' ? (float) $dec : str_replace('.', ',', $dec); // XLSX : vraie cellule numérique ; CSV : virgule décimale comme les autres exports
+        $amount = static fn (string $dec): string|Decimal => $format === 'xlsx' ? new Decimal($dec) : str_replace('.', ',', $dec); // XLSX : vraie cellule numérique ; CSV : virgule décimale comme les autres exports
         $day = static fn (?string $v): string => $v === null ? '' : date('d/m/Y', strtotime($v));
         if ($dataset === 'ecritures') {
             [$where, $p] = self::txWhere($f);
