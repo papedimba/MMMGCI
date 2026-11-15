@@ -42,6 +42,7 @@ abstract class DatabaseTestCase extends TestCase
 
     protected function setUp(): void
     {
+        set_time_limit(0); // AuditLogController::verify() pose set_time_limit(60) en cours de processus : on le lève avant chaque test
         $this->db = Database::connect(self::config(), test: true);
     }
 }

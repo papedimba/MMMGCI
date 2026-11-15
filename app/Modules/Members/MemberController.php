@@ -131,7 +131,8 @@ final class MemberController
              LEFT JOIN maritime_professions p ON p.id = m.profession_id LEFT JOIN maritime_specialties s ON s.id = m.specialty_id
              LEFT JOIN member_statuses st ON st.code = m.status WHERE m.id = ?', [$id]);
         $docs = $this->gate->allows($userId, 'members.documents.view');
-        $tabs = array_filter(self::TABS, static fn (string $k): bool => $k !== 'pieces' || $docs, ARRAY_FILTER_USE_KEY);
+        $contrib = $this->gate->allows($userId, 'contributions.view');
+        $tabs = array_filter(self::TABS, static fn (string $k): bool => ($k !== 'pieces' || $docs) && ($k !== 'cotisations' || $contrib), ARRAY_FILTER_USE_KEY);
         $tab = $forceTab ?? $r->input('onglet');
         $tab = is_string($tab) && isset($tabs[$tab]) ? $tab : 'identite';
         $data = ['m' => $m, 'tab' => $tab, 'tabs' => $tabs, 'canDocuments' => $docs, 'revealed' => []] + $extra;
@@ -141,6 +142,11 @@ final class MemberController
             $data['rows'] = $this->db->fetchAll('SELECT d.file_id, d.created_at, t.label AS type_label, f.original_name, f.size
                 FROM member_documents d JOIN member_document_types t ON t.code = d.type JOIN files f ON f.id = d.file_id WHERE d.member_id = ? ORDER BY d.id DESC', [$id]);
             $data['docTypes'] = array_column($this->db->fetchAll('SELECT code, label FROM member_document_types ORDER BY label'), 'label', 'code');
+        } elseif ($tab === 'cotisations') {
+            $data['calls'] = $this->db->fetchAll('SELECT c.id, c.period_label, c.amount_due, c.due_date, c.status, t.name AS type_name,
+                COALESCE((SELECT SUM(p.amount) FROM payments p WHERE p.contribution_call_id = c.id AND p.cancelled_at IS NULL), 0) AS paid
+                FROM contribution_calls c JOIN contribution_types t ON t.id = c.contribution_type_id WHERE c.member_id = ? ORDER BY c.period_start DESC, c.id DESC', [$id]);
+            $data['payments'] = $this->db->fetchAll('SELECT reference, paid_at, amount, cancelled_at FROM payments WHERE member_id = ? ORDER BY paid_at DESC, id DESC', [$id]);
         } elseif ($tab === 'historique') {
             $data['rows'] = $this->db->fetchAll(
                 'SELECT h.from_status, h.to_status, h.reason, h.decision_ref, h.created_at, u.name AS author, f.label AS from_label, t.label AS to_label

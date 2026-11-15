@@ -7,6 +7,7 @@ $db = App\Core\Database::connect($config);
 $scheduler = new App\Core\Scheduler($db);
 // Les lots suivants enregistrent ici leurs tâches : $scheduler->register('nom', 60, fn () => ...);
 App\Modules\Auth\AuthMaintenance::register($scheduler, $db);
+App\Modules\Contributions\CallService::register($scheduler, $db, new App\Core\Audit($db, (string) $config->get('APP_KEY')));
 
 $results = $scheduler->run(time());
 foreach ($results as $task => $status) {

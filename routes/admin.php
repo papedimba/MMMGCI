@@ -14,6 +14,9 @@ use App\Modules\Auth\LoginController;
 use App\Modules\Auth\LoginThrottle;
 use App\Modules\Auth\PasswordController;
 use App\Modules\Auth\PasswordReset;
+use App\Modules\Contributions\CallService;
+use App\Modules\Contributions\ContributionController;
+use App\Modules\Contributions\ContributionTypeService;
 use App\Modules\Finance\AccountService;
 use App\Modules\Finance\AttachmentService;
 use App\Modules\Finance\CategoryService;
@@ -63,6 +66,8 @@ return static function (Router $r, array $deps): void {
         new ApplicationService($db(), $audit(), new Sequence($db()), new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate()))));
     $finance = static fn (): FinanceController => new FinanceController($view, $csrf, $session, $db(), $gate(),
         new Ledger($db(), $audit(), new Sequence($db())), new AccountService($db(), $audit()), new CategoryService($db(), $audit()), new AttachmentService($db(), $audit()), $uploads());
+    $contributions = static fn (): ContributionController => new ContributionController($view, $csrf, $session, $db(), $gate(), new ContributionTypeService($db(), $audit()),
+        new CallService($db(), $audit(), new MemberScope($db(), $gate())), new MemberScope($db(), $gate()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -144,6 +149,23 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/journal', static fn (Request $q): Response => $journal()->index($q), $viewAudit);
     $r->post('/admin/journal/verification', static fn (Request $q): Response => $journal()->verify($q), $viewAudit);
 
+    // Cotisations (L6) : types et appels ; aucune route de suppression (désactiver / annuler seulement).
+    $viewContrib = [$requireAuth, $permission('contributions.view')];
+    $manageContrib = [$requireAuth, $permission('contributions.manage')];
+    $r->get('/admin/cotisations', static fn (Request $q): Response => Response::redirect('/admin/cotisations/types'), $viewContrib);
+    $r->get('/admin/cotisations/types', static fn (Request $q): Response => $contributions()->types($q), $viewContrib);
+    $r->get('/admin/cotisations/appels', static fn (Request $q): Response => $contributions()->calls($q), $viewContrib);
+    $r->get('/admin/cotisations/types/nouveau', static fn (Request $q): Response => $contributions()->typeForm($q), $manageContrib);
+    $r->post('/admin/cotisations/types/nouveau', static fn (Request $q): Response => $contributions()->saveType($q), $manageContrib);
+    $r->get('/admin/cotisations/types/{id:\d+}/modifier', static fn (Request $q): Response => $contributions()->typeForm($q), $manageContrib);
+    $r->post('/admin/cotisations/types/{id:\d+}/modifier', static fn (Request $q): Response => $contributions()->saveType($q), $manageContrib);
+    $r->get('/admin/cotisations/appels/individuel', static fn (Request $q): Response => $contributions()->individualForm($q), $manageContrib);
+    $r->post('/admin/cotisations/appels/individuel', static fn (Request $q): Response => $contributions()->createIndividual($q), $manageContrib);
+    $r->get('/admin/cotisations/appels/lot', static fn (Request $q): Response => $contributions()->batchForm($q), $manageContrib);
+    $r->post('/admin/cotisations/appels/lot/confirmation', static fn (Request $q): Response => $contributions()->batchConfirm($q), $manageContrib);
+    $r->post('/admin/cotisations/appels/lot', static fn (Request $q): Response => $contributions()->batchRun($q), $manageContrib);
+    $r->get('/admin/cotisations/appels/{id:\d+}/annuler', static fn (Request $q): Response => $contributions()->cancelForm($q), $manageContrib);
+    $r->post('/admin/cotisations/appels/{id:\d+}/annuler', static fn (Request $q): Response => $contributions()->cancel($q), $manageContrib);
     // Finances (L6) : aucune route n'enregistre de dépense ; seule DisbursementService (Task 6) peut en écrire.
     $viewFinance = [$requireAuth, $permission('finance.view')];
     $manageFinance = [$requireAuth, $permission('finance.manage')];

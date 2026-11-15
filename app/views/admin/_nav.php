@@ -7,6 +7,8 @@ return [
     ['', 'Tableau de bord', '/admin', null, 'home'],
     ['Adhérents', 'Adhérents', '/admin/adherents', 'members.view', 'users'],
     ['Adhérents', 'Référentiels', '/admin/adherents/referentiels', 'settings.manage', 'anchor'],
+    ['Cotisations', 'Types', '/admin/cotisations/types', 'contributions.view', 'coins'],
+    ['Cotisations', 'Appels', '/admin/cotisations/appels', 'contributions.view', 'file'],
     ['Finances', 'Comptes', '/admin/finances', 'finance.view', 'coins'],
     ['Administration', 'Utilisateurs', '/admin/utilisateurs', 'users.manage', 'users'],
     ['Administration', 'Rôles', '/admin/roles', 'roles.manage', 'shield'],
