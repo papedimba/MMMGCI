@@ -27,6 +27,8 @@ use App\Modules\Contributions\ReceiptService;
 use App\Modules\Disbursements\DisbursementController;
 use App\Modules\Disbursements\DisbursementGate;
 use App\Modules\Disbursements\DisbursementService;
+use App\Modules\Cms\MediaController;
+use App\Modules\Cms\MediaService;
 use App\Modules\Finance\AccountService;
 use App\Modules\Finance\ControlController;
 use App\Modules\Finance\ControlService;
@@ -90,6 +92,7 @@ return static function (Router $r, array $deps): void {
     $control = static fn (): ControlController => new ControlController($view, $csrf, $session, $db(), $gate(), new ControlService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))));
     $arrears = static fn (): ArrearsController => new ArrearsController($view, $csrf, $session, $db(), $gate(), $arrearsService());
     $solidarity = static fn (): SolidarityController => new SolidarityController($view, $csrf, $session, $gate(), new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))), new AccountService($db(), $audit()));
+    $media = static fn (): MediaController => new MediaController($view, $csrf, $session, $gate(), new MediaService($db(), $audit(), $uploads()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -257,6 +260,16 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/solidarite/export.csv', static fn (Request $q): Response => $solidarity()->export($q), [$requireAuth, $permission('solidarity.view'), $permission('reports.export')]);
     $r->get('/admin/solidarite/export.xlsx', static fn (Request $q): Response => $solidarity()->export($q), [$requireAuth, $permission('solidarity.view'), $permission('reports.export')]);
     $r->post('/admin/solidarite/compte', static fn (Request $q): Response => $solidarity()->create($q), [$requireAuth, $permission('solidarity.manage', 'finance.manage')]);
+
+    $readMedia = [$requireAuth, $permission('cms.media.manage', 'cms.pages.manage')];
+    $manageMedia = [$requireAuth, $permission('cms.media.manage')];
+    $r->get('/admin/site/medias', static fn (Request $q): Response => $media()->index($q), $readMedia);
+    $r->get('/admin/site/medias/selecteur', static fn (Request $q): Response => $media()->picker($q), $readMedia);
+    $r->get('/admin/site/medias/nouveau', static fn (Request $q): Response => $media()->createForm($q), $manageMedia);
+    $r->post('/admin/site/medias/nouveau', static fn (Request $q): Response => $media()->create($q), $manageMedia);
+    $r->get('/admin/site/medias/{id:\d+}', static fn (Request $q): Response => $media()->editForm($q), $manageMedia);
+    $r->post('/admin/site/medias/{id:\d+}', static fn (Request $q): Response => $media()->update($q), $manageMedia);
+    $r->post('/admin/site/medias/{id:\d+}/suppression', static fn (Request $q): Response => $media()->delete($q), $manageMedia);
 
     // Galerie du kit et page d'exemple d'impression : outils de développement, routes non enregistrées en production (404).
     if ($config->get('APP_ENV', 'production') !== 'production') {
