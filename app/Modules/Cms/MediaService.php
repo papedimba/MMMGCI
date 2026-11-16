@@ -73,22 +73,32 @@ final class MediaService
 
     public function delete(int $id, int $actor): void
     {
-        $m = $this->get($id);
-        $usages = $this->usages($id);
-        if ($usages !== []) {
-            throw new DomainException('Ce média est utilisé et ne peut pas être supprimé. Retirez-le d\'abord de : '
-                . implode(' ; ', array_map(static fn (array $u): string => (self::TYPE_LABELS[$u['type']] ?? $u['type']) . ' « ' . $u['label'] . ' »', $usages)) . '.');
-        }
+        $path = null;
         try {
-            $this->db->atomic(function () use ($id, $m, $actor): void {
+            $this->db->atomic(function () use ($id, $actor, &$path): void {
+                // Verrou sur la ligne, puis contrôle des usages dans la même transaction.
+                if ($this->db->fetchValue('SELECT id FROM cms_media WHERE id = ? FOR UPDATE', [$id]) === null) {
+                    throw new \App\Core\NotFound('Média introuvable.');
+                }
+                $m = $this->get($id);
+                $usages = $this->usages($id);
+                if ($usages !== []) {
+                    throw new DomainException('Ce média est utilisé et ne peut pas être supprimé. Retirez-le d\'abord de : '
+                        . implode(' ; ', array_map(static fn (array $u): string => (self::TYPE_LABELS[$u['type']] ?? $u['type']) . ' « ' . $u['label'] . ' »', $usages)) . '.');
+                }
+                $path = $this->uploads->path((int) $m['file_id']);
                 $this->db->query('DELETE FROM cms_media WHERE id = ?', [$id]);
                 $this->audit->log($actor, 'cms.media_deleted', 'cms_media', $id, ['title' => $m['title'], 'file_id' => (int) $m['file_id']], null);
-                $path = $this->uploads->path((int) $m['file_id']);
                 $this->db->query('DELETE FROM files WHERE id = ?', [(int) $m['file_id']]);
-                @unlink($path); // après les écritures : un échec de base annule la transaction avant d'arriver ici ; au pire un fichier orphelin
             });
-        } catch (\PDOException) {
-            throw new DomainException('Ce média est encore référencé ailleurs : suppression impossible.'); // filet : contrainte FK
+        } catch (\PDOException $e) {
+            $code = (int) ($e->errorInfo[1] ?? 0);
+            throw new DomainException(in_array($code, [1205, 1213], true)
+                ? 'Le serveur est occupé : réessayez dans quelques instants.'
+                : 'Ce média est encore référencé ailleurs : suppression impossible.'); // filet : contrainte FK
+        }
+        if ($path !== null) {
+            @unlink($path); // après le COMMIT : au pire un fichier orphelin, jamais une ligne sans fichier
         }
     }
 
@@ -160,7 +170,7 @@ final class MediaService
     /** @param array<string,mixed> $meta @return array{title:string,alt:?string,caption:?string,credit:?string,folder:?string} */
     private function clean(array $meta, bool $altRequired): array
     {
-        $str = static fn (string $k, int $max): ?string => ($v = mb_substr(trim(mb_scrub((string) ($meta[$k] ?? ''))), 0, $max)) === '' ? null : $v;
+        $str = static fn (string $k, int $max): ?string => ($v = mb_substr(trim(preg_replace('/[\p{Cc}\p{Cf}]/u', '', mb_scrub((string) ($meta[$k] ?? ''))) ?? ''), 0, $max)) === '' ? null : $v;
         $title = $str('title', 160);
         if ($title === null) {
             throw new DomainException('Le titre est obligatoire.');
@@ -224,20 +234,54 @@ final class MediaService
             return $ref === null ? [] : array_map(static fn (array $r): array => ['type' => 'menu', 'id' => (int) $r['id'], 'label' => (string) $r['label']],
                 $this->db->fetchAll('SELECT id, label FROM cms_menu_items WHERE url LIKE ?', ['%/media/' . addcslashes($ref['path'], '\\%_') . '%']));
         });
-        // shortcut: les blocs et le HTML riche référencent un média par "media_id" ou par /media/<chemin> ; on cherche dans le texte JSON
-        // (blocks et published_blocks). Tâche 4 : remplacer par une table de références normalisée écrite à l'enregistrement.
+        // Colonnes de texte (HTML riche, liens) : on cherche le chemin public brut et sous forme JSON (« / » échappés).
+        foreach ([['article', 'cms_articles', ['body', 'excerpt']], ['evenement', 'cms_events', ['description']], ['galerie', 'cms_galleries', ['description']],
+            ['page', 'cms_pages', ['excerpt']], ['banniere', 'cms_banners', ['link_url', 'body']]] as [$type, $table, $cols]) {
+            $this->registerUsageProvider($type . '_texte', function (int $id) use ($type, $table, $cols): array {
+                $ref = $this->ref($id);
+                if ($ref === null) {
+                    return [];
+                }
+                [$a, $b] = $this->pathLikes($ref['path']);
+                $where = implode(' OR ', array_map(static fn (string $c): string => "`$c` LIKE ? OR `$c` LIKE ?", $cols)); // noms de colonnes fixes ci-dessus
+                $args = [];
+                foreach ($cols as $_) {
+                    array_push($args, $a, $b);
+                }
+                return array_map(static fn (array $r): array => ['type' => $type, 'id' => (int) $r['id'], 'label' => (string) $r['label']],
+                    $this->db->fetchAll("SELECT id, title AS label FROM `$table` WHERE $where", $args));
+            });
+        }
+        // shortcut: les blocs référencent un média par "media_id" (un seul) ou "media_ids" (liste), un fichier par "file_id", ou par /media/<chemin> ;
+        // on cherche dans le texte JSON (blocks et published_blocks). Contrat tâche 4 : stocker les références sous ces clés. À remplacer par une table normalisée.
         $this->registerUsageProvider('page_blocs', function (int $id): array {
             $ref = $this->ref($id);
             if ($ref === null) {
                 return [];
             }
-            $re = '"media_id"[[:space:]]*:[[:space:]]*"?' . $id . '([^0-9]|$)';
-            // Le JSON encodé par PHP échappe les « / » : on cherche les deux écritures.
-            $plain = '/media/' . $ref['path'];
-            $like = '%' . addcslashes($plain, '\\%_') . '%';
-            $likeEscaped = '%' . addcslashes(str_replace('/', '\\/', $plain), '\\%_') . '%';
+            $reMedia = '"media_id"[[:space:]]*:[[:space:]]*"?' . $id . '([^0-9]|$)';
+            $reList = '"media_ids"[[:space:]]*:[[:space:]]*\\[([^]]*[^0-9])?' . $id . '([^0-9]|$)';
+            $reFile = '"file_id"[[:space:]]*:[[:space:]]*"?' . $ref['file_id'] . '([^0-9]|$)';
+            [$a, $b] = $this->pathLikes($ref['path']);
+            $conds = [];
+            $args = [];
+            foreach (['blocks', 'published_blocks'] as $col) {
+                foreach ([$reMedia, $reList, $reFile] as $re) {
+                    $conds[] = "$col REGEXP ?";
+                    $args[] = $re;
+                }
+                $conds[] = "$col LIKE ? OR $col LIKE ?";
+                array_push($args, $a, $b);
+            }
             return array_map(static fn (array $r): array => ['type' => 'page', 'id' => (int) $r['id'], 'label' => (string) $r['label']],
-                $this->db->fetchAll('SELECT id, title AS label FROM cms_pages WHERE blocks REGEXP ? OR published_blocks REGEXP ? OR blocks LIKE ? OR published_blocks LIKE ? OR blocks LIKE ? OR published_blocks LIKE ?', [$re, $re, $like, $like, $likeEscaped, $likeEscaped]));
+                $this->db->fetchAll('SELECT id, title AS label FROM cms_pages WHERE ' . implode(' OR ', $conds), $args));
         });
+    }
+
+    /** @return array{0:string,1:string} motifs LIKE du chemin public : brut et JSON (« / » échappés) */
+    private function pathLikes(string $path): array
+    {
+        $plain = '/media/' . $path;
+        return ['%' . addcslashes($plain, '\\%_') . '%', '%' . addcslashes(str_replace('/', '\\/', $plain), '\\%_') . '%'];
     }
 }

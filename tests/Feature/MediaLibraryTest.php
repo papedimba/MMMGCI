@@ -343,4 +343,58 @@ final class MediaLibraryTest extends AdminTestCase
         $this->assertStringContainsString('Choisir', $html);
         $this->assertSame(1, substr_count($html, 'data-media-id='), 'les documents ne sont pas proposés');
     }
+
+    public function test_text_references_block_deletion(): void
+    {
+        $id = $this->add($this->png());
+        $fileId = (int) $this->db->fetchValue('SELECT file_id FROM cms_media WHERE id = ?', [$id]);
+        $path = (string) $this->db->fetchValue('SELECT path FROM files WHERE id = ?', [$fileId]);
+        $img = '<img src="/media/' . $path . '" alt="x">';
+        $esc = json_encode($img);
+        $cases = [
+            'article' => fn () => $this->db->insert('cms_articles', ['title' => 'A', 'slug' => 'a-b', 'body' => $img]),
+            'article excerpt' => fn () => $this->db->insert('cms_articles', ['title' => 'A2', 'slug' => 'a-c', 'excerpt' => $img]),
+            'evenement' => fn () => $this->db->insert('cms_events', ['title' => 'E', 'slug' => 'e-b', 'starts_at' => '2027-01-01 10:00:00', 'description' => $img]),
+            'galerie' => fn () => $this->db->insert('cms_galleries', ['title' => 'G', 'slug' => 'g-b', 'description' => $img]),
+            'page excerpt' => fn () => $this->db->insert('cms_pages', ['title' => 'P', 'slug' => 'p-b', 'excerpt' => $img]),
+            'banniere link' => fn () => $this->db->insert('cms_banners', ['title' => 'B', 'link_url' => '/media/' . $path]),
+            'banniere body' => fn () => $this->db->insert('cms_banners', ['title' => 'B2', 'body' => $img]),
+            'page media_ids' => fn () => $this->db->insert('cms_pages', ['title' => 'P2', 'slug' => 'p-c', 'blocks' => json_encode([['type' => 'galerie', 'media_ids' => [3, $id, 99]]])]),
+            'page media_ids first' => fn () => $this->db->insert('cms_pages', ['title' => 'P3', 'slug' => 'p-d', 'published_blocks' => '{"media_ids": [' . $id . ']}']),
+            'page file_id' => fn () => $this->db->insert('cms_pages', ['title' => 'P4', 'slug' => 'p-e', 'blocks' => '{"file_id": "' . $fileId . '"}']),
+            'page json path' => fn () => $this->db->insert('cms_pages', ['title' => 'P5', 'slug' => 'p-f', 'blocks' => '[{"html":' . $esc . '}]']),
+        ];
+        $svc = $this->service();
+        foreach ($cases as $label => $make) {
+            $make();
+            $this->assertNotSame([], $svc->usages($id), $label);
+            try {
+                $svc->delete($id, $this->admin);
+                $this->fail("Suppression acceptée : $label");
+            } catch (DomainException) {
+                $this->addToAssertionCount(1);
+            }
+            foreach (['cms_articles', 'cms_events', 'cms_galleries', 'cms_pages', 'cms_banners'] as $t) {
+                $this->db->query("DELETE FROM $t");
+            }
+            $this->assertSame([], $svc->usages($id), "nettoyé : $label");
+        }
+        // Ids voisins : pas de faux positif.
+        $this->db->insert('cms_pages', ['title' => 'N', 'slug' => 'n-b', 'blocks' => json_encode([['media_ids' => [$id * 10 + 1, 100 + $id], 'media_id' => $id * 10]])]);
+        $this->assertSame([], $svc->usages($id));
+        $svc->delete($id, $this->admin);
+        $this->assertFileDoesNotExist($this->root . '/public/' . $path);
+    }
+
+    public function test_control_and_direction_characters_are_stripped(): void
+    {
+        $id = $this->add($this->png(), ['title' => "Qu\u{202E}ai\0 de\u{200B} Vridi", 'alt' => "Pir\u{202E}ogue\x01", 'caption' => "a\u{2066}b", 'credit' => "c\0d"]);
+        $row = $this->db->fetch('SELECT title, alt, caption, credit FROM cms_media WHERE id = ?', [$id]);
+        $this->assertSame(['Quai de Vridi', 'Pirogue', 'ab', 'cd'], array_values($row));
+    }
+
+    public function test_htaccess_forbids_listing_and_cgi(): void
+    {
+        $this->assertStringContainsString('Options -Indexes -ExecCGI', (string) file_get_contents(dirname(__DIR__, 2) . '/public/media/.htaccess'));
+    }
 }

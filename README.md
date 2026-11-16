@@ -59,6 +59,8 @@ php -S 127.0.0.1:8080 -t public
 
 ### Si l'hébergeur impose la racine du site sur le dossier du projet
 
+Sous nginx, les `.htaccess` (dont `public/media/.htaccess`) sont ignorés : le serveur doit interdire l'exécution de PHP sous `/media`.
+
 La racine web doit pointer sur `public/`. Si l'hébergeur ne le permet pas, le `.htaccess` placé à la racine du projet sert de repli (Apache 2.4) :
 il refuse les fichiers cachés (`.env`, `.git`…) et les dossiers `app/`, `bin/`, `config/`, `database/`, `storage/`, `tests/`, `vendor/`, `docs/`, `routes/`,
 puis réécrit toutes les autres adresses vers `public/` (nécessite `mod_rewrite`). Après déploiement, vérifier que `https://votre-domaine/.env`

@@ -1,3 +1,5 @@
+# Sous nginx ce fichier est ignoré : le déploiement doit interdire l'exécution de PHP sous /media.
+Options -Indexes -ExecCGI
 <IfModule mod_php.c>
     php_flag engine off
 </IfModule>
