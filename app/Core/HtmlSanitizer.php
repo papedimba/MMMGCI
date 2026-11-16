@@ -28,10 +28,30 @@ final class HtmlSanitizer
         'textarea', 'select', 'button', 'input', 'link', 'meta', 'base',
     ];
 
-    public static function clean(string $html): string
+    /** @param array<string,string> $rename éléments renommés avant la liste blanche (ex. h1 => h2) */
+    public static function clean(string $html, array $rename = []): string
+    {
+        $body = self::parse($html);
+        if ($body === null) {
+            return '';
+        }
+        $out = new DOMDocument('1.0', 'UTF-8');
+        $root = $out->createElement('div');
+        $out->appendChild($root);
+        self::copyChildren($body, $root, $out, $rename);
+
+        $result = '';
+        foreach ($root->childNodes as $child) {
+            $result .= $out->saveHTML($child);
+        }
+        return $result;
+    }
+
+    /** Analyse en UTF-8 imposé ; renvoie le <body> (null si vide). */
+    public static function parse(string $html): ?DOMElement
     {
         if (trim($html) === '') {
-            return '';
+            return null;
         }
         // UTF-8 imposé : tout octet non ASCII devient une entité numérique, donc ni <meta charset> ni octet invalide ne change l'encodage
         $html = mb_encode_numericentity(mb_scrub($html, 'UTF-8'), [0x80, 0x10FFFF, 0, 0x1FFFFF], 'UTF-8');
@@ -46,22 +66,11 @@ final class HtmlSanitizer
         libxml_use_internal_errors($previous);
 
         $body = $in->getElementsByTagName('body')->item(0);
-        if ($body === null) {
-            return '';
-        }
-        $out = new DOMDocument('1.0', 'UTF-8');
-        $root = $out->createElement('div');
-        $out->appendChild($root);
-        self::copyChildren($body, $root, $out);
-
-        $result = '';
-        foreach ($root->childNodes as $child) {
-            $result .= $out->saveHTML($child);
-        }
-        return $result;
+        return $body instanceof DOMElement ? $body : null;
     }
 
-    private static function copyChildren(DOMNode $from, DOMNode $to, DOMDocument $out): void
+    /** @param array<string,string> $rename */
+    private static function copyChildren(DOMNode $from, DOMNode $to, DOMDocument $out, array $rename): void
     {
         foreach (iterator_to_array($from->childNodes) as $node) {
             if ($node->nodeType === XML_TEXT_NODE) {
@@ -72,18 +81,19 @@ final class HtmlSanitizer
                 continue;
             }
             $name = strtolower($node->nodeName);
+            $name = $rename[$name] ?? $name;
             if (in_array($name, self::DROP_WITH_CONTENT, true)) {
                 continue;
             }
             if (!isset(self::ALLOWED[$name])) { // élément inconnu : on garde le contenu
-                self::copyChildren($node, $to, $out);
+                self::copyChildren($node, $to, $out, $rename);
                 continue;
             }
             $copy = $out->createElement($name);
             if (!self::copyAttributes($node, $copy, $name)) {
                 continue;
             }
-            self::copyChildren($node, $copy, $out);
+            self::copyChildren($node, $copy, $out, $rename);
             $to->appendChild($copy);
         }
     }

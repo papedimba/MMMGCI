@@ -15,6 +15,7 @@ $initials = mb_strtoupper(implode('', array_map(static fn (string $w): string =>
 <link rel="stylesheet" href="/assets/css/admin.css">
 <script src="/assets/js/js-flag.js"></script>
 <script src="/assets/js/app.js" defer></script>
+<script src="/assets/js/editor.js" defer></script>
 </head>
 <body class="admin">
 <a class="skip-link" href="#contenu">Aller au contenu</a>

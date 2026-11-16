@@ -31,6 +31,7 @@ final class UiTest extends TestCase
             'file-input' => ['name' => $x, 'label' => $x, 'accept' => $x, 'hint' => $x, 'error' => $x, 'max_mb' => 5],
             'document-header' => ['title' => $x, 'reference' => $x, 'date' => $x],
             'breadcrumbs' => ['items' => [[$x, $x], [$x]]],
+            'rich-editor' => ['name' => $x, 'label' => $x, 'value' => $x, 'hint' => $x, 'error' => $x, 'required' => true],
         ];
     }
 

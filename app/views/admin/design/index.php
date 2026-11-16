@@ -28,6 +28,7 @@ $h = static fn (string $t): string => '<h2>' . e($t) . '</h2>';
 <?= ui('field', ['name' => 'email2', 'label' => 'E-mail (erreur)', 'type' => 'email', 'value' => 'pas-un-email', 'error' => 'Cette adresse e-mail n\'est pas valide.']) ?>
 <?= ui('field', ['name' => 'role', 'label' => 'Rôle', 'type' => 'select', 'options' => ['sg' => 'Secrétaire général', 'tg' => 'Trésorier général'], 'value' => 'tg']) ?>
 <?= ui('field', ['name' => 'note', 'label' => 'Observation', 'type' => 'textarea']) ?>
+<?= ui('rich-editor', ['name' => 'contenu', 'label' => 'Éditeur riche', 'hint' => 'Contenu nettoyé à l\'enregistrement.', 'value' => '<h2>Titre de section</h2><p>Un paragraphe avec <strong>du gras</strong>, <em>de l\'italique</em> et <a href="/adhesion-en-ligne">un lien</a>.</p><ul><li>Premier point</li><li>Second point</li></ul>']) ?>
 <?= ui('file-input', ['name' => 'piece', 'label' => 'Pièce justificative', 'accept' => '.pdf,.jpg,.png', 'hint' => 'PDF, JPG ou PNG.', 'max_mb' => 5]) ?>
 <?= ui('file-input', ['name' => 'piece2', 'label' => 'Pièce (erreur)', 'error' => 'Le fichier dépasse 5 Mo.']) ?>
 </div></section>
