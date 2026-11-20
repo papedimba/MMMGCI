@@ -28,6 +28,8 @@ use App\Modules\Disbursements\DisbursementController;
 use App\Modules\Disbursements\DisbursementGate;
 use App\Modules\Disbursements\DisbursementService;
 use App\Modules\Cms\MediaController;
+use App\Modules\Cms\MenuController;
+use App\Modules\Cms\MenuService;
 use App\Modules\Cms\MediaService;
 use App\Modules\Cms\PageController;
 use App\Modules\Cms\PageService;
@@ -96,6 +98,7 @@ return static function (Router $r, array $deps): void {
     $solidarity = static fn (): SolidarityController => new SolidarityController($view, $csrf, $session, $gate(), new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))), new AccountService($db(), $audit()));
     $media = static fn (): MediaController => new MediaController($view, $csrf, $session, $gate(), new MediaService($db(), $audit(), $uploads()));
     $pages = static fn (): PageController => new PageController($view, $csrf, $session, $gate(), new PageService($db(), $audit(), $gate()));
+    $menus = static fn (): MenuController => new MenuController($view, $csrf, $session, $gate(), new MenuService($db(), $audit(), $gate(), new PageService($db(), $audit(), $gate())), new PageService($db(), $audit(), $gate()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -285,6 +288,12 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/site/pages/{id:\d+}/etat', static fn (Request $q): Response => $pages()->transition($q), $editPages);
     $r->post('/admin/site/pages/{id:\d+}/ordre', static fn (Request $q): Response => $pages()->reorder($q), $editPages);
     $r->post('/admin/site/pages/{id:\d+}/suppression', static fn (Request $q): Response => $pages()->delete($q), $editPages);
+
+    // Menus : enregistrement publié immédiatement ; le service exige cms.pages.manage ET cms.publish.
+    $manageMenus = [$requireAuth, $permission('cms.publish')];
+    $r->get('/admin/site/menus', static fn (Request $q): Response => Response::redirect('/admin/site/menus/header'), $manageMenus);
+    $r->get('/admin/site/menus/{location:\w+}', static fn (Request $q): Response => $menus()->show($q), $manageMenus);
+    $r->post('/admin/site/menus/{location:\w+}', static fn (Request $q): Response => $menus()->save($q), $manageMenus);
 
     // Galerie du kit et page d'exemple d'impression : outils de développement, routes non enregistrées en production (404).
     if ($config->get('APP_ENV', 'production') !== 'production') {

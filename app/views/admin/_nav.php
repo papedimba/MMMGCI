@@ -16,6 +16,7 @@ return [
     ['Finances', 'Fonds de solidarité', '/admin/solidarite', 'solidarity.view', 'heart'],
     ['Site web', 'Pages', '/admin/site/pages', ['cms.pages.manage', 'cms.publish'], 'file'],
     ['Site web', 'Médias', '/admin/site/medias', ['cms.media.manage', 'cms.pages.manage'], 'file'],
+    ['Site web', 'Menus', '/admin/site/menus', 'cms.publish', 'file'],
     ['Administration', 'Utilisateurs', '/admin/utilisateurs', 'users.manage', 'users'],
     ['Administration', 'Rôles', '/admin/roles', 'roles.manage', 'shield'],
     ['Administration', "Journal d'audit", '/admin/journal', 'audit.view', 'file'],
