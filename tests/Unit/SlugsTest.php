@@ -51,6 +51,22 @@ final class SlugsTest extends DatabaseTestCase
         $this->assertSame('ca-et-la-ete', Slugs::fromTitle('  Ça  et là — été '));
     }
 
+    public function test_from_title_strips_combining_marks(): void
+    {
+        $this->assertSame('ete-ca', Slugs::fromTitle("e\u{0301}te\u{0301} C\u{0327}a"));
+        $this->assertSame('e', Slugs::fromTitle("e\u{0301}"));
+    }
+
+    public function test_old_slug_of_another_page_is_refused(): void
+    {
+        $a = $this->db->insert('cms_pages', ['title' => 'A', 'slug' => 'nouvelle-a']);
+        $b = $this->db->insert('cms_pages', ['title' => 'B', 'slug' => 'b-actuelle']);
+        $this->db->insert('cms_page_redirects', ['old_slug' => 'ancienne-a', 'page_id' => $a]);
+        $this->assertSame('ancienne-a', $this->slugs()->validate('ancienne-a', $a, 'cms_pages'), 'la page peut reprendre sa propre ancienne adresse');
+        $this->expectException(DomainException::class);
+        $this->slugs()->validate('ancienne-a', $b, 'cms_pages');
+    }
+
     public function test_uniqueness_ignores_current_row(): void
     {
         $this->db->query("INSERT INTO cms_pages (title, slug) VALUES ('T', 'unique-test')");

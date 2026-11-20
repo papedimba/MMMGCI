@@ -29,6 +29,8 @@ use App\Modules\Disbursements\DisbursementGate;
 use App\Modules\Disbursements\DisbursementService;
 use App\Modules\Cms\MediaController;
 use App\Modules\Cms\MediaService;
+use App\Modules\Cms\PageController;
+use App\Modules\Cms\PageService;
 use App\Modules\Finance\AccountService;
 use App\Modules\Finance\ControlController;
 use App\Modules\Finance\ControlService;
@@ -93,6 +95,7 @@ return static function (Router $r, array $deps): void {
     $arrears = static fn (): ArrearsController => new ArrearsController($view, $csrf, $session, $db(), $gate(), $arrearsService());
     $solidarity = static fn (): SolidarityController => new SolidarityController($view, $csrf, $session, $gate(), new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))), new AccountService($db(), $audit()));
     $media = static fn (): MediaController => new MediaController($view, $csrf, $session, $gate(), new MediaService($db(), $audit(), $uploads()));
+    $pages = static fn (): PageController => new PageController($view, $csrf, $session, $gate(), new PageService($db(), $audit(), $gate()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -270,6 +273,18 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/site/medias/{id:\d+}', static fn (Request $q): Response => $media()->editForm($q), $manageMedia);
     $r->post('/admin/site/medias/{id:\d+}', static fn (Request $q): Response => $media()->update($q), $manageMedia);
     $r->post('/admin/site/medias/{id:\d+}/suppression', static fn (Request $q): Response => $media()->delete($q), $manageMedia);
+
+    // Pages : rédaction (cms.pages.manage) ou publication (cms.publish) ; publier exige cms.publish, contrôlé par PageService::transition.
+    $editPages = [$requireAuth, $permission('cms.pages.manage', 'cms.publish')];
+    $r->get('/admin/site/pages', static fn (Request $q): Response => $pages()->index($q), $editPages);
+    $r->get('/admin/site/pages/nouvelle', static fn (Request $q): Response => $pages()->createForm($q), $editPages);
+    $r->post('/admin/site/pages/nouvelle', static fn (Request $q): Response => $pages()->create($q), $editPages);
+    $r->get('/admin/site/pages/{id:\d+}', static fn (Request $q): Response => $pages()->editForm($q), $editPages);
+    $r->post('/admin/site/pages/{id:\d+}', static fn (Request $q): Response => $pages()->update($q), $editPages);
+    $r->get('/admin/site/pages/{id:\d+}/apercu', static fn (Request $q): Response => $pages()->preview($q), $editPages);
+    $r->post('/admin/site/pages/{id:\d+}/etat', static fn (Request $q): Response => $pages()->transition($q), $editPages);
+    $r->post('/admin/site/pages/{id:\d+}/ordre', static fn (Request $q): Response => $pages()->reorder($q), $editPages);
+    $r->post('/admin/site/pages/{id:\d+}/suppression', static fn (Request $q): Response => $pages()->delete($q), $editPages);
 
     // Galerie du kit et page d'exemple d'impression : outils de développement, routes non enregistrées en production (404).
     if ($config->get('APP_ENV', 'production') !== 'production') {

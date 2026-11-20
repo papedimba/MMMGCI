@@ -14,6 +14,7 @@ return [
     ['Finances', 'Décaissements', '/admin/decaissements', ['finance.view', 'finance.control', 'disbursement.initiate', 'disbursement.approve', 'disbursement.pay'], 'file'],
     ['Finances', 'Contrôle', '/admin/controle', 'finance.control', 'shield'],
     ['Finances', 'Fonds de solidarité', '/admin/solidarite', 'solidarity.view', 'heart'],
+    ['Site web', 'Pages', '/admin/site/pages', ['cms.pages.manage', 'cms.publish'], 'file'],
     ['Site web', 'Médias', '/admin/site/medias', ['cms.media.manage', 'cms.pages.manage'], 'file'],
     ['Administration', 'Utilisateurs', '/admin/utilisateurs', 'users.manage', 'users'],
     ['Administration', 'Rôles', '/admin/roles', 'roles.manage', 'shield'],

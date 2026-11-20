@@ -1,6 +1,6 @@
 <?php declare(strict_types=1);
 /** @var array<string,mixed> $props @var Closure $e */
-$type = in_array($props['type'] ?? '', ['email', 'password', 'tel', 'number', 'date', 'search', 'url', 'textarea', 'select'], true) ? $props['type'] : 'text';
+$type = in_array($props['type'] ?? '', ['email', 'password', 'tel', 'number', 'date', 'datetime-local', 'search', 'url', 'textarea', 'select'], true) ? $props['type'] : 'text';
 $id = 'f-' . ($props['name'] ?? '');
 $error = (string) ($props['error'] ?? '');
 $hint = (string) ($props['hint'] ?? '');

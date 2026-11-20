@@ -38,6 +38,10 @@ final class Slugs
         if ((int) $taken > 0) {
             throw new DomainException("L'adresse « $slug » est déjà utilisée.");
         }
+        // Ancienne adresse d'une autre page : elle redirige déjà vers celle-ci.
+        if ($table === 'cms_pages' && (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_page_redirects WHERE old_slug = ? AND page_id <> ?', [$slug, $exceptId ?? 0]) > 0) {
+            throw new DomainException("L'adresse « $slug » est l'ancienne adresse d'une autre page (elle y redirige).");
+        }
         return $slug;
     }
 
@@ -48,7 +52,9 @@ final class Slugs
      */
     public static function fromTitle(string $title): string
     {
-        $s = strtr(mb_strtolower($title, 'UTF-8'), self::MAP);
+        // Décomposition (NFD) puis retrait des diacritiques combinants ; sans intl, au moins le bloc U+0300–U+036F.
+        $s = class_exists(\Normalizer::class) ? (\Normalizer::normalize($title, \Normalizer::FORM_D) ?: $title) : $title;
+        $s = strtr(mb_strtolower((string) preg_replace('/\p{Mn}|[\x{0300}-\x{036F}]/u', '', $s), 'UTF-8'), self::MAP);
         $s = trim((string) preg_replace('/[^a-z0-9]+/', '-', $s), '-');
         if (strlen($s) > 80) {
             $cut = substr($s, 0, 80);

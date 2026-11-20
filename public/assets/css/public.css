@@ -58,3 +58,17 @@ main:focus { outline: none; }
 .verify-list { display: grid; grid-template-columns: auto 1fr; gap: var(--s2) var(--s4); margin: 0; }
 .verify-list dt { color: var(--ink-3); }
 .verify-list dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+
+/* Aperçu d'une page (admin) : bandeau et rendu générique des blocs, en attendant les gabarits publics (L4). */
+.preview-banner { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; justify-content: center; padding: var(--s3) var(--s4); background: var(--warn-bg); color: var(--warn); border-bottom: 2px solid var(--warn); }
+.preview-banner a { color: inherit; font-weight: 600; display: inline-flex; align-items: center; min-height: var(--control-h); }
+.preview-page { width: 100%; max-width: 760px; margin: 0 auto; padding: var(--s6) var(--s4) var(--s8); }
+.preview-page h1 { margin-bottom: var(--s5); }
+.preview-page h2 { margin: var(--s6) 0 var(--s3); }
+.preview-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--s3); }
+.preview-facts div { padding: var(--s3); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }
+.preview-facts dd { margin: 0; font-size: var(--text-xl); color: var(--navy-900); }
+.preview-figure { margin: var(--s5) 0; }
+.preview-figure img { max-width: 100%; height: auto; border-radius: var(--r-md); }
+.preview-placeholder { padding: var(--s4); border: 1px dashed var(--line-strong); border-radius: var(--r-md); color: var(--ink-2); background: var(--sheet); }
+.preview-cta { margin: var(--s6) 0; padding: var(--s5); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }
