@@ -14,6 +14,9 @@ final class Blocks
 {
     public const MAX_BLOCKS = 60;
     public const MAX_ITEMS = 50;
+    /** Champs de blocs par envoi : avec la vingtaine de champs de la page, reste sous max_input_vars = 1000 (défaut PHP / cPanel). */
+    public const MAX_FIELDS = 800;
+    public const TOO_LONG = 'Le formulaire est trop long : enregistrez moins de blocs ou de lignes à la fois.';
 
     public const TYPES = [
         'texte' => 'Texte', 'titre' => 'Titre de section', 'intro' => 'Introduction', 'faits' => 'Chiffres clés',
@@ -45,37 +48,71 @@ final class Blocks
         'formulaire' => ['form_key' => ['enum', 'Formulaire', true, self::FORMS]],
     ];
 
-    /** @return list<array<string,mixed>> blocs normalisés @throws BlockInvalid */
+    /**
+     * @return list<array<string,mixed>> blocs normalisés
+     * @throws BlockInvalid toutes les erreurs dans ->errors (chemin => message), la première en path/message
+     */
     public static function validate(array $blocks): array
     {
         if (count($blocks) > self::MAX_BLOCKS) {
             throw new BlockInvalid('blocs', 'Une page compte ' . self::MAX_BLOCKS . ' blocs au maximum.');
         }
+        if (self::fieldCount($blocks) > self::MAX_FIELDS) {
+            throw new BlockInvalid('blocs', self::TOO_LONG);
+        }
         $out = [];
+        $errors = [];
         foreach (array_values($blocks) as $i => $block) {
             $path = "blocs[$i]";
             $type = is_array($block) && is_string($block['type'] ?? null) ? $block['type'] : '';
             if (!isset(self::FIELDS[$type])) {
-                throw new BlockInvalid("$path.type", 'Type de bloc inconnu.');
+                $errors["$path.type"] = 'Type de bloc inconnu.';
+                continue;
             }
             $clean = ['type' => $type];
             foreach (self::FIELDS[$type] as $name => $spec) {
-                $clean[$name] = self::field($spec, $block[$name] ?? null, "$path.$name");
-            }
-            if ($type === 'appel') {
-                if (($clean['page_id'] === null) === ($clean['url'] === null)) {
-                    throw new BlockInvalid("$path.url", 'Choisissez une page du site ou saisissez une adresse (l\'une ou l\'autre).');
+                try {
+                    $clean[$name] = self::field($spec, $block[$name] ?? null, "$path.$name", $errors);
+                } catch (BlockInvalid $e) {
+                    $errors[$e->path] = $e->getMessage();
+                    $clean[$name] = null;
                 }
             }
+            if ($type === 'appel' && !isset($errors["$path.url"]) && !isset($errors["$path.page_id"]) && ($clean['page_id'] === null) === ($clean['url'] === null)) {
+                $errors["$path.url"] = 'Choisissez une page du site ou saisissez une adresse (l\'une ou l\'autre).';
+            }
             $out[] = $clean;
+        }
+        if ($errors !== []) {
+            throw new BlockInvalid((string) array_key_first($errors), (string) reset($errors), $errors);
         }
         return $out;
     }
 
-    /** @param array{0:string,1:string,2:bool,3:mixed} $spec */
-    private static function field(array $spec, mixed $raw, string $path): mixed
+    /**
+     * Nombre de champs que le formulaire envoie pour ces blocs (type + champs + lignes × sous-champs), pour rester sous max_input_vars.
+     * @param array<mixed> $blocks
+     */
+    public static function fieldCount(array $blocks): int
     {
-        [$kind, $label, $required, $param] = $spec;
+        $n = 0;
+        foreach ($blocks as $b) {
+            $n++;
+            $type = is_array($b) && is_string($b['type'] ?? null) ? $b['type'] : '';
+            foreach (self::FIELDS[$type] ?? [] as $name => [$kind, , , $param]) {
+                $n += $kind === 'items' ? (is_array($b[$name] ?? null) ? count($b[$name]) : 0) * count($param) : 1;
+            }
+        }
+        return $n;
+    }
+
+    /**
+     * Champ normalisé ; une valeur simple invalide lève BlockInvalid, les erreurs des lignes d'une liste vont dans $errors.
+     * @param array{0:string,1:string,2:bool,3:mixed} $spec @param array<string,string> $errors
+     */
+    private static function field(array $spec, mixed $raw, string $path, array &$errors = []): mixed
+    {
+        [$kind, , $required, $param] = $spec;
         if ($kind === 'items') {
             $rows = [];
             foreach (is_array($raw) ? array_values($raw) : [] as $j => $row) {
@@ -85,31 +122,36 @@ final class Blocks
                     continue; // ligne laissée vide : ignorée
                 }
                 if (count($rows) >= self::MAX_ITEMS) {
-                    throw new BlockInvalid("{$path}[$j]", self::MAX_ITEMS . ' éléments au maximum par bloc.');
+                    $errors["{$path}[$j]"] = self::MAX_ITEMS . ' éléments au maximum par bloc.';
+                    break;
                 }
                 $clean = [];
                 foreach ($param as $name => $sub) {
-                    $clean[$name] = self::field($sub, $row[$name] ?? null, "{$path}[$j].$name"); // indice saisi : l'erreur se place sur la bonne ligne du formulaire
+                    try {
+                        $clean[$name] = self::field($sub, $row[$name] ?? null, "{$path}[$j].$name"); // indice saisi : l'erreur se place sur la bonne ligne du formulaire
+                    } catch (BlockInvalid $e) {
+                        $errors[$e->path] = $e->getMessage();
+                    }
                 }
                 $rows[] = $clean;
             }
             if ($required && $rows === []) {
-                throw new BlockInvalid("{$path}[0]", "$label : ajoutez au moins un élément.");
+                throw new BlockInvalid("{$path}[0]", 'Ajoutez au moins un élément.');
             }
             return $rows;
         }
         if ($raw !== null && !is_scalar($raw)) {
-            throw new BlockInvalid($path, "$label : valeur invalide.");
+            throw new BlockInvalid($path, 'Valeur invalide.');
         }
         $s = trim((string) $raw);
         if ($kind === 'html') {
             try {
                 $html = RichText::fromRequestField($s);
             } catch (DomainException $e) {
-                throw new BlockInvalid($path, "$label : " . $e->getMessage());
+                throw new BlockInvalid($path, $e->getMessage());
             }
             if ($required && RichText::toText($html, 1) === '' && !str_contains($html, '<img')) {
-                throw new BlockInvalid($path, "$label : obligatoire.");
+                throw new BlockInvalid($path, 'Obligatoire.');
             }
             return $html;
         }
@@ -118,20 +160,20 @@ final class Blocks
         }
         if ($s === '') {
             if ($required) {
-                throw new BlockInvalid($path, "$label : obligatoire.");
+                throw new BlockInvalid($path, 'Obligatoire.');
             }
             return $kind === 'line' || $kind === 'text' ? '' : null;
         }
         if (in_array($kind, ['line', 'text', 'url'], true) && mb_strlen($s) > $param) {
-            throw new BlockInvalid($path, "$label : $param caractères au maximum.");
+            throw new BlockInvalid($path, "$param caractères au maximum.");
         }
         return match ($kind) {
             'line', 'text' => $s,
-            'url' => self::isSafeUrl($s) ? $s : throw new BlockInvalid($path, "$label : adresse refusée (https://…, mailto:, tel: ou chemin du site commençant par /)."),
-            'media', 'page' => ctype_digit($s) && (int) $s > 0 && strlen($s) < 19 ? (int) $s : throw new BlockInvalid($path, "$label : choix invalide."),
+            'url' => self::isSafeUrl($s) ? $s : throw new BlockInvalid($path, 'Adresse refusée (https://…, mailto:, tel: ou chemin du site commençant par /).'),
+            'media', 'page' => ctype_digit($s) && (int) $s > 0 && strlen($s) < 19 ? (int) $s : throw new BlockInvalid($path, 'Choix invalide.'),
             'int' => ctype_digit($s) && (int) $s >= $param[0] && (int) $s <= $param[1] ? (int) $s
-                : throw new BlockInvalid($path, "$label : entre {$param[0]} et {$param[1]}."),
-            'enum' => self::option($param, $s) ?? throw new BlockInvalid($path, "$label : choix invalide."),
+                : throw new BlockInvalid($path, "Entre {$param[0]} et {$param[1]}."),
+            'enum' => self::option($param, $s) ?? throw new BlockInvalid($path, 'Choix invalide.'),
         };
     }
 
@@ -231,6 +273,9 @@ final class Blocks
                 if ($n >= self::MAX_BLOCKS) {
                     return [$blocks, 'Une page compte ' . self::MAX_BLOCKS . ' blocs au maximum.'];
                 }
+                if (self::fieldCount([...$blocks, self::blank($addType)]) > self::MAX_FIELDS) {
+                    return [$blocks, self::TOO_LONG];
+                }
                 $blocks[] = self::blank($addType);
                 return [$blocks, null];
             case 'up':
@@ -254,9 +299,11 @@ final class Blocks
                     return [$blocks, null];
                 }
                 if ($parts[0] === 'item-add') {
-                    if (count($blocks[$i][$field]) < self::MAX_ITEMS) {
-                        $blocks[$i][$field][] = array_fill_keys(array_keys(self::FIELDS[$blocks[$i]['type']][$field][3]), '');
+                    $row = array_fill_keys(array_keys(self::FIELDS[$blocks[$i]['type']][$field][3]), '');
+                    if (count($blocks[$i][$field]) >= self::MAX_ITEMS || self::fieldCount($blocks) + count($row) > self::MAX_FIELDS) {
+                        return [$blocks, count($blocks[$i][$field]) >= self::MAX_ITEMS ? self::MAX_ITEMS . ' éléments au maximum par bloc.' : self::TOO_LONG];
                     }
+                    $blocks[$i][$field][] = $row;
                 } elseif (isset($parts[2]) && ctype_digit($parts[2]) && isset($blocks[$i][$field][(int) $parts[2]])) {
                     array_splice($blocks[$i][$field], (int) $parts[2], 1);
                 }

@@ -13,6 +13,7 @@ Plateforme institutionnelle et de gestion de la **Mutuelle des Marins Marchands 
 - PHP ≥ 8.2 avec les extensions `pdo_mysql`, `mbstring`, `fileinfo`, `gd`, `zip`, `intl`, `dom` (pas de `bcmath`).
 - MariaDB ≥ 10.2.7 ou MySQL ≥ 8.0.16 (les contraintes `CHECK` ne sont appliquées qu'à partir de ces versions ; le type `JSON` des migrations, utilisé depuis `0001`, demande MariaDB 10.2.7). En dessous, une migration échoue en laissant des tables partielles.
 - Hébergement cible : mutualisé cPanel ; seul `public/` est exposé au web.
+- `max_input_vars` ≥ 1000 (valeur par défaut de PHP et de cPanel). Le formulaire d'une page du site envoie au plus 800 champs de blocs plus une vingtaine d'autres (plafond `Blocks::MAX_FIELDS`) ; au-delà de `max_input_vars`, PHP tronquerait l'envoi sans erreur : un champ sentinelle final le détecte et l'enregistrement est refusé. Ne pas abaisser cette valeur.
 
 Aucune dépendance PHP tierce en production : `vendor/` (PHPUnit) ne sert qu'aux tests et n'est jamais déployé.
 

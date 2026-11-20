@@ -26,10 +26,14 @@ use PDOException;
  * - programme (date future, publicateur) : rien ne change pour le public avant l'échéance (version conservée s'il y en a une) ;
  *   à l'échéance la copie de travail est en ligne (liveVersion) et le cron (tâche 8) passe la page en publie. Modifier une page
  *   programmée annule la programmation (retour en brouillon, version conservée gardée).
- * - publie/programme -> brouillon (dépublier) : plus rien en ligne ; programme -> brouillon garde la version conservée.
- *   unpublish() d'un brouillon qui a une version conservée la retire. archive : plus rien en ligne, version conservée vidée.
+ * - publie/programme -> brouillon (transition) : publie -> plus rien en ligne ; programme -> brouillon (« annuler la programmation »)
+ *   garde la version conservée. archive : plus rien en ligne, version conservée vidée.
  * - Adresse, parent, gabarit et ordre ne sont pas versionnés : ils s'appliquent tout de suite. « A été en ligne » = published_by NOT NULL
- *   (publiée ou programmée au moins une fois) : suppression refusée, ancien slug conservé en redirection.
+ *   (publiée ou programmée au moins une fois) : suppression refusée, ancien slug conservé en redirection, et changer ces quatre champs
+ *   exige cms.publish (sinon le rédacteur modifierait le site public sans publication).
+ * - Toute modification enregistrée incrémente content_version et repasse une page en_relecture (ou programme) en brouillon : à resoumettre.
+ *   Publier/programmer transmet la version affichée au publicateur ; si elle a changé, refus « relisez-la ».
+ * - unpublish() retire tout du site en une action : transition vers brouillon ET suppression de la version conservée.
  * Lecture publique (tâche 8) : liveVersion() uniquement.
  */
 final class PageService
@@ -66,6 +70,19 @@ final class PageService
             if (json_decode((string) ($old['blocks'] ?? '[]'), true) != json_decode($row['blocks'], true)) {
                 $changed[] = 'blocks';
             }
+            $structural = [];
+            if ($row['parent_id'] !== ($old['parent_id'] === null ? null : (int) $old['parent_id'])) {
+                $structural[] = 'parent_id';
+            }
+            if ($row['slug'] !== $old['slug']) {
+                $structural[] = 'slug';
+            }
+            if ($row['template'] !== $old['template']) {
+                $structural[] = 'template';
+            }
+            if ($structural !== []) {
+                $this->assertMayRestructure($old, $actor, $structural);
+            }
             $status = $old['status'];
             if ($changed !== [] && $status === 'publie') {
                 // Reprise d'une page en ligne : la version actuelle reste servie au public.
@@ -74,25 +91,22 @@ final class PageService
                     'published_featured_file_id' => $old['featured_file_id'], 'published_og_file_id' => $old['og_file_id'],
                     'published_canonical_url' => $old['canonical_url'], 'published_version_at' => $old['published_at']];
                 $status = 'brouillon';
-            } elseif ($changed !== [] && $status === 'programme') {
-                $status = 'brouillon'; // contenu modifié après relecture : la programmation est annulée
+            } elseif ([...$changed, ...$structural] !== [] && in_array($status, ['en_relecture', 'programme'], true)) {
+                $status = 'brouillon'; // modifiée après soumission ou relecture : à resoumettre ; une programmation est annulée
             }
             if ($status !== $old['status']) {
                 $row += ['status' => $status, 'published_at' => null];
             }
-            if ($row['parent_id'] !== ($old['parent_id'] === null ? null : (int) $old['parent_id'])) {
+            if (in_array('parent_id', $structural, true)) {
                 $row['sort_order'] = $this->nextOrder($row['parent_id']);
-                $changed[] = 'parent_id';
             }
-            if ($row['slug'] !== $old['slug']) {
-                $changed[] = 'slug';
-                if ($old['published_by'] !== null) {
-                    $this->db->query('DELETE FROM cms_page_redirects WHERE old_slug = ? AND page_id = ?', [$row['slug'], $id]);
-                    $this->db->insert('cms_page_redirects', ['old_slug' => $old['slug'], 'page_id' => $id]);
-                }
+            if (in_array('slug', $structural, true) && $old['published_by'] !== null) {
+                $this->db->query('DELETE FROM cms_page_redirects WHERE old_slug = ? AND page_id = ?', [$row['slug'], $id]);
+                $this->db->insert('cms_page_redirects', ['old_slug' => $old['slug'], 'page_id' => $id]);
             }
-            if ($row['template'] !== $old['template']) {
-                $changed[] = 'template';
+            $changed = [...$changed, ...$structural];
+            if ($changed !== []) {
+                $row['content_version'] = (int) $old['content_version'] + 1; // la version relue par un publicateur n'est plus celle-ci
             }
             $this->db->update('cms_pages', $row, ['id' => $id]);
             // Jamais de contenu dans le journal : noms des champs modifiés, statut et adresse seulement.
@@ -101,13 +115,19 @@ final class PageService
         }));
     }
 
-    /** Point d'entrée unique des transitions de ContentWorkflow ; $at : date de publication programmée (heure d'Abidjan). */
-    public function transition(int $id, string $to, int $actor, ?DateTimeImmutable $at = null): void
+    /**
+     * Point d'entrée unique des transitions de ContentWorkflow ; $at : date de publication programmée (heure d'Abidjan) ;
+     * $seenVersion : content_version relue par le publicateur (écran) — publier ou programmer une autre version est refusé.
+     */
+    public function transition(int $id, string $to, int $actor, ?DateTimeImmutable $at = null, ?int $seenVersion = null): void
     {
-        $this->db->atomic(function () use ($id, $to, $actor, $at): void {
+        $this->db->atomic(function () use ($id, $to, $actor, $at, $seenVersion): void {
             $p = $this->lock($id);
             $from = (string) $p['status'];
             ContentWorkflow::assertCan($from, $to, $this->gate->allows($actor, 'cms.publish'));
+            if (in_array($to, ['publie', 'programme'], true) && $seenVersion !== null && $seenVersion !== (int) $p['content_version']) {
+                throw new ContentTransitionInvalid('La page a été modifiée depuis votre lecture, relisez-la.');
+            }
             $set = ['status' => $to];
             $snapshotCleared = ['published_blocks' => null, 'published_title' => null, 'published_excerpt' => null, 'published_seo_title' => null,
                 'published_seo_description' => null, 'published_featured_file_id' => null, 'published_og_file_id' => null,
@@ -151,9 +171,9 @@ final class PageService
     }
 
     /** Sans $at : publication immédiate ; avec : programmation. */
-    public function publish(int $id, int $actor, ?DateTimeImmutable $at = null): void
+    public function publish(int $id, int $actor, ?DateTimeImmutable $at = null, ?int $seenVersion = null): void
     {
-        $this->transition($id, $at === null ? 'publie' : 'programme', $actor, $at);
+        $this->transition($id, $at === null ? 'publie' : 'programme', $actor, $at, $seenVersion);
     }
 
     public function archive(int $id, int $actor): void
@@ -166,34 +186,44 @@ final class PageService
         $this->transition($id, 'brouillon', $actor);
     }
 
-    /** Retire du site : page publiée/programmée -> brouillon ; brouillon en reprise -> sa version conservée est retirée. */
+    /** Retire du site en une action : page publiée/programmée -> brouillon, et toute version conservée est retirée. */
     public function unpublish(int $id, int $actor): void
     {
         $this->db->atomic(function () use ($id, $actor): void {
             $p = $this->lock($id);
-            if (in_array($p['status'], ['publie', 'programme'], true)) {
+            $scheduled = in_array($p['status'], ['publie', 'programme'], true);
+            if ($scheduled) {
                 $this->transition($id, 'brouillon', $actor);
-                return;
-            }
-            if (!$this->gate->allows($actor, 'cms.publish')) {
+            } elseif (!$this->gate->allows($actor, 'cms.publish')) {
                 throw new ContentTransitionInvalid('Retirer une page du site exige le droit de publication.');
-            }
-            if ($p['published_blocks'] === null) {
+            } elseif ($p['published_blocks'] === null) {
                 throw new ContentTransitionInvalid('Cette page n\'a pas de version en ligne.');
             }
-            $this->db->update('cms_pages', ['published_blocks' => null, 'published_title' => null, 'published_excerpt' => null, 'published_seo_title' => null,
-                'published_seo_description' => null, 'published_featured_file_id' => null, 'published_og_file_id' => null,
-                'published_canonical_url' => null, 'published_version_at' => null], ['id' => $id]);
-            $this->audit->log($actor, 'cms.page_unpublished', 'cms_pages', $id, ['status' => $p['status'], 'live' => true], ['status' => $p['status'], 'slug' => $p['slug'], 'live' => false]);
+            if ($p['published_blocks'] !== null) {
+                $this->db->update('cms_pages', ['published_blocks' => null, 'published_title' => null, 'published_excerpt' => null, 'published_seo_title' => null,
+                    'published_seo_description' => null, 'published_featured_file_id' => null, 'published_og_file_id' => null,
+                    'published_canonical_url' => null, 'published_version_at' => null], ['id' => $id]);
+                if (!$scheduled) { // sinon la transition vient d'être journalisée
+                    $this->audit->log($actor, 'cms.page_unpublished', 'cms_pages', $id, ['status' => $p['status'], 'live' => true], ['status' => $p['status'], 'slug' => $p['slug'], 'live' => false]);
+                }
+            }
         });
     }
 
     /** Déplace la page d'un rang parmi ses sœurs ($delta -1 = monter, +1 = descendre). */
     public function reorder(int $id, int $delta, int $actor): void
     {
-        $this->db->atomic(function () use ($id, $delta, $actor): void {
-            $p = $this->lock($id);
-            $ids = array_map('intval', array_column($this->db->fetchAll('SELECT id FROM cms_pages WHERE parent_id <=> ? ORDER BY sort_order, title, id FOR UPDATE', [$p['parent_id']]), 'id'));
+        $this->busyAsRetry(fn () => $this->db->atomic(function () use ($id, $delta, $actor): void {
+            $parent = $this->db->fetch('SELECT parent_id FROM cms_pages WHERE id = ?', [$id]) ?? throw new NotFound('Page introuvable.');
+            // Toutes les sœurs verrouillées d'un coup, dans l'ordre des id : deux réordonnancements ne s'interbloquent pas.
+            $rows = $this->db->fetchAll('SELECT id, parent_id, sort_order, title, published_by FROM cms_pages WHERE parent_id <=> ? ORDER BY id FOR UPDATE', [$parent['parent_id']]);
+            $mine = array_values(array_filter($rows, static fn (array $r): bool => (int) $r['id'] === $id))[0] ?? null;
+            if ($mine === null) {
+                throw new DomainException('La page vient d\'être déplacée : réessayez.');
+            }
+            $this->assertMayRestructure($mine, $actor, ['sort_order']);
+            usort($rows, static fn (array $a, array $b): int => [(int) $a['sort_order'], $a['title'], (int) $a['id']] <=> [(int) $b['sort_order'], $b['title'], (int) $b['id']]);
+            $ids = array_map(static fn (array $r): int => (int) $r['id'], $rows);
             $i = (int) array_search($id, $ids, true);
             $j = $i + ($delta < 0 ? -1 : 1);
             if ($j < 0 || $j >= count($ids)) {
@@ -203,21 +233,52 @@ final class PageService
             foreach ($ids as $order => $pid) {
                 $this->db->update('cms_pages', ['sort_order' => $order], ['id' => $pid]);
             }
-            $this->audit->log($actor, 'cms.page_reordered', 'cms_pages', $id, null, ['parent_id' => $p['parent_id'], 'order' => $ids]);
-        });
+            $this->audit->log($actor, 'cms.page_reordered', 'cms_pages', $id, null, ['parent_id' => $parent['parent_id'], 'order' => $ids]);
+        }));
     }
 
     public function move(int $id, ?int $newParentId, int $actor): void
     {
         $this->db->atomic(function () use ($id, $newParentId, $actor): void {
             $p = $this->lock($id);
+            $this->assertMayRestructure($p, $actor, ['parent_id']);
             $error = $this->parentError($newParentId, $id);
             if ($error !== null) {
                 throw new PageInvalid(['parent_id' => $error]);
             }
-            $this->db->update('cms_pages', ['parent_id' => $newParentId, 'sort_order' => $this->nextOrder($newParentId)], ['id' => $id]);
+            $this->db->update('cms_pages', ['parent_id' => $newParentId, 'sort_order' => $this->nextOrder($newParentId), 'content_version' => (int) $p['content_version'] + 1], ['id' => $id]);
             $this->audit->log($actor, 'cms.page_moved', 'cms_pages', $id, ['parent_id' => $p['parent_id']], ['parent_id' => $newParentId]);
         });
+    }
+
+    /**
+     * Adresse, gabarit, parent et ordre ne sont pas versionnés : sur une page qui a été en ligne, les changer modifie
+     * immédiatement le site public, donc exige cms.publish. @param array<string,mixed> $p @param list<string> $fields
+     */
+    private function assertMayRestructure(array $p, int $actor, array $fields): void
+    {
+        if ($p['published_by'] === null || $this->gate->allows($actor, 'cms.publish')) {
+            return;
+        }
+        $labels = ['slug' => 'son adresse', 'template' => 'son gabarit', 'parent_id' => 'sa page parente', 'sort_order' => 'sa place dans le menu'];
+        $errors = [];
+        foreach ($fields as $f) {
+            $errors[$f] = 'Cette page a déjà été en ligne : seul un publicateur peut changer ' . $labels[$f] . '.';
+        }
+        throw new PageInvalid($errors);
+    }
+
+    /** Interblocage ou attente de verrou trop longue : message clair plutôt qu'une erreur 500. */
+    private function busyAsRetry(callable $fn): mixed
+    {
+        try {
+            return $fn();
+        } catch (PDOException $e) {
+            if (in_array((int) ($e->errorInfo[1] ?? 0), [1205, 1213], true)) {
+                throw new DomainException('Le serveur est occupé : réessayez dans quelques instants.');
+            }
+            throw $e;
+        }
     }
 
     /** Seul un brouillon jamais publié ni programmé, sans sous-page, peut être supprimé ; sinon : archiver. */
@@ -403,7 +464,7 @@ final class PageService
         try {
             $blocks = Blocks::validate(is_array($rawBlocks) ? $rawBlocks : throw new BlockInvalid('blocs', 'Blocs invalides.'));
         } catch (BlockInvalid $e) {
-            $errors[$e->path] = $e->getMessage();
+            $errors += $e->errors;
         }
         // Médias : blocs + image à la une + image Open Graph ; tous verrouillés en partage.
         $refs = Blocks::references($blocks);

@@ -51,7 +51,9 @@ foreach ($errors as $key => $msg) {
     $isBlock = str_starts_with($key, 'blocs[');
     $target = $isBlock && preg_match('/^blocs\[(\d+)\]/', $key, $m) === 1 ? '#bloc-' . $m[1] : ($key === 'blocs' ? '#blocs' : ($key === 'form' ? '' : '#f-' . $key));
     $where = $isBlock ? Blocks::describePath($key, $blocks) : ($fieldLabels[$key] ?? $key);
-    $errorList .= '<li>' . ($target !== '' ? '<a href="' . e($target) . '">' . e($where) . '</a>' : e($where)) . ' : ' . e($msg) . '</li>';
+    // Blocs : chemin lisible puis message court ; champs de la page : le message nomme déjà le champ.
+    $text = $isBlock ? $where . ' : ' . $msg : $msg;
+    $errorList .= '<li>' . ($target !== '' ? '<a href="' . e($target) . '">' . e($text) . '</a>' : e($text)) . '</li>';
 }
 ?>
 <?= ui('page-header', ['title' => $edit ? 'Modifier la page' : 'Nouvelle page', 'subtitle' => $edit ? (string) $page['title'] : '',
@@ -70,13 +72,23 @@ foreach ($errors as $key => $msg) {
 <form method="post" action="<?= e($action) ?>" class="page-form">
 <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
 <button type="submit" name="op" value="save" class="visually-hidden" tabindex="-1" aria-hidden="true">Enregistrer</button>
+<?php
+// Page déjà en ligne : adresse, gabarit et parent changent le site public sans publication, donc réservés aux publicateurs.
+$locked = $edit && $page['published_by'] !== null && !$mayPublish;
+$lock = static fn (string $name): array => $locked ? ['hint' => 'Page déjà en ligne : modifiable par un publicateur seulement.', 'attrs' => ['disabled' => true]] : [];
+if ($locked) {
+    foreach (['slug', 'template', 'parent_id'] as $k) {
+        echo '<input type="hidden" name="' . $k . '" value="' . e($values[$k] ?? '') . '">';
+    }
+}
+?>
 <?= ui('panel', ['title' => 'Page'], '<div class="form-grid">'
     . ui('field', ['name' => 'title', 'label' => 'Titre', 'value' => $values['title'] ?? '', 'required' => true, 'error' => $errors['title'] ?? '', 'attrs' => ['maxlength' => 200]])
-    . ui('field', ['name' => 'slug', 'label' => 'Adresse', 'value' => $values['slug'] ?? '', 'error' => $errors['slug'] ?? '',
+    . ui('field', array_replace_recursive(['name' => 'slug', 'label' => 'Adresse', 'value' => $values['slug'] ?? '', 'error' => $errors['slug'] ?? '',
         'hint' => 'Minuscules, chiffres et tirets. Laissée vide, elle est proposée à partir du titre' . (($values['title'] ?? '') !== '' ? ' (« ' . \App\Modules\Cms\Slugs::fromTitle($values['title']) . ' »)' : '') . '.',
-        'attrs' => ['maxlength' => 80, 'autocapitalize' => 'none', 'spellcheck' => 'false']])
-    . ui('field', ['name' => 'template', 'label' => 'Gabarit', 'type' => 'select', 'value' => $values['template'] ?? 'standard', 'options' => PageService::TEMPLATES, 'error' => $errors['template'] ?? ''])
-    . ui('field', ['name' => 'parent_id', 'label' => 'Page parente', 'type' => 'select', 'value' => $values['parent_id'] ?? '', 'options' => $parents, 'error' => $errors['parent_id'] ?? ''])
+        'attrs' => ['maxlength' => 80, 'autocapitalize' => 'none', 'spellcheck' => 'false']], $lock('slug')))
+    . ui('field', array_replace_recursive(['name' => 'template', 'label' => 'Gabarit', 'type' => 'select', 'value' => $values['template'] ?? 'standard', 'options' => PageService::TEMPLATES, 'error' => $errors['template'] ?? ''], $lock('template')))
+    . ui('field', array_replace_recursive(['name' => 'parent_id', 'label' => 'Page parente', 'type' => 'select', 'value' => $values['parent_id'] ?? '', 'options' => $parents, 'error' => $errors['parent_id'] ?? ''], $lock('parent_id')))
     . '</div>') ?>
 <section class="panel" id="blocs"><header class="panel-head"><h2>Contenu</h2></header><div class="panel-body">
 <?php if ($blocks === []): ?><p class="field-hint">Aucun bloc : ajoutez-en un ci-dessous.</p>
@@ -140,6 +152,7 @@ foreach ($errors as $key => $msg) {
 <button class="btn btn-primary" type="submit" name="op" value="save"><span>Enregistrer</span></button>
 <?= ui('button', ['label' => 'Annuler', 'variant' => 'ghost', 'href' => $base]) ?>
 </div>
+<input type="hidden" name="_form_complete" value="1"><?php /* DOIT rester le dernier champ : son absence révèle un envoi tronqué par max_input_vars */ ?>
 </form>
 <?php if ($edit): ?>
 <?php
@@ -148,7 +161,7 @@ $transitionLabels = ['en_relecture' => 'Soumettre pour relecture', 'publie' => $
 $forms = '';
 foreach ($transitions as $to) {
     $form = '<form method="post" action="' . e($base . '/' . $page['id'] . '/etat') . '" class="transition-form"><input type="hidden" name="_csrf" value="' . e($csrfToken) . '">'
-        . '<input type="hidden" name="to" value="' . e($to) . '">';
+        . '<input type="hidden" name="to" value="' . e($to) . '"><input type="hidden" name="version" value="' . (int) $page['content_version'] . '">';
     if ($to === 'programme') {
         $form .= ui('field', ['name' => 'at', 'label' => 'Date et heure de publication (heure d\'Abidjan)', 'type' => 'datetime-local', 'required' => true]) . ui('button', ['label' => 'Programmer', 'type' => 'submit', 'variant' => 'secondary']);
     } else {

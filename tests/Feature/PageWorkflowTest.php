@@ -32,6 +32,25 @@ final class PageWorkflowTest extends AdminTestCase
         $this->publisher = $this->createUser('editeur@x.test', ['editeur']);
     }
 
+    /** Les envois du formulaire de page portent le champ sentinelle final, sauf '_form_complete' => null (envoi tronqué simulé). */
+    protected function request(string $method, string $path, array $post = [], array $files = []): \App\Core\Http\Response
+    {
+        if (strtoupper($method) === 'POST' && preg_match('~^/admin/site/pages/(nouvelle|\d+)$~', $path) === 1) {
+            $post += ['_form_complete' => '1'];
+            if ($post['_form_complete'] === null) {
+                unset($post['_form_complete']);
+            }
+        }
+        return parent::request($method, $path, $post, $files);
+    }
+
+    /** Version de la page affichée dans le formulaire (champ caché des boutons de publication). */
+    private function seenVersion(int $id): string
+    {
+        preg_match('/name="version" value="(\d+)"/', $this->request('GET', "/admin/site/pages/$id")->body(), $m);
+        return $m[1] ?? '';
+    }
+
     private function service(): PageService
     {
         $this->app();
@@ -114,7 +133,7 @@ final class PageWorkflowTest extends AdminTestCase
         $this->actingAs($this->publisher);
         $html = $this->request('GET', "/admin/site/pages/$id")->body();
         $this->assertStringContainsString('Republier', $html);
-        $this->assertSame(302, $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'publie'])->status());
+        $this->assertSame(302, $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'publie', 'version' => $this->seenVersion($id)])->status());
         $this->assertSame('publie', $this->stateOf($id));
         $this->assertSame('Version 2', $s->liveVersion($id)['blocks'][0]['title']);
         $this->assertSame('Nos missions (v2)', $s->liveVersion($id)['title']);
@@ -189,9 +208,11 @@ final class PageWorkflowTest extends AdminTestCase
         }
         $this->assertSame('brouillon', $this->stateOf($id));
         $this->actingAs($this->publisher);
-        $this->assertSame(422, $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'programme', 'at' => 'demain'])->status());
+        $res = $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'programme', 'at' => 'demain', 'version' => $this->seenVersion($id)]);
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString('futures', $res->body());
         $at = $this->future('+3 days')->format('Y-m-d\TH:i');
-        $this->assertSame(302, $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'programme', 'at' => $at])->status());
+        $this->assertSame(302, $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'programme', 'at' => $at, 'version' => $this->seenVersion($id)])->status());
         $this->assertSame('programme', $this->stateOf($id));
         $this->assertSame(str_replace('T', ' ', $at) . ':00', $this->db->fetchValue('SELECT published_at FROM cms_pages WHERE id = ?', [$id]));
         $this->assertSame($this->publisher, (int) $this->db->fetchValue('SELECT published_by FROM cms_pages WHERE id = ?', [$id]));
@@ -260,7 +281,7 @@ final class PageWorkflowTest extends AdminTestCase
 
         $id = $this->page('Adhésion', ['slug' => 'adhesion']);
         $s->publish($id, $this->publisher);
-        $s->update($id, ['title' => 'Adhésion', 'slug' => 'adherer', 'blocks' => [['type' => 'titre', 'text' => 'Adhésion', 'level' => '2']]], $this->author);
+        $s->update($id, ['title' => 'Adhésion', 'slug' => 'adherer', 'blocks' => [['type' => 'titre', 'text' => 'Adhésion', 'level' => '2']]], $this->publisher);
         $this->assertSame('publie', $this->stateOf($id), 'changer d\'adresse seule ne dépublie pas');
         $this->assertSame($id, (int) $this->db->fetchValue("SELECT page_id FROM cms_page_redirects WHERE old_slug = 'adhesion'"));
         // L'ancienne adresse ne peut pas être reprise par une autre page.
@@ -271,7 +292,7 @@ final class PageWorkflowTest extends AdminTestCase
             $this->assertStringContainsString('ancienne adresse', $e->errors['slug']);
         }
         // Retour à l'ancienne adresse : la redirection devient « adherer ».
-        $s->update($id, ['title' => 'Adhésion', 'slug' => 'adhesion', 'blocks' => [['type' => 'titre', 'text' => 'Adhésion', 'level' => '2']]], $this->author);
+        $s->update($id, ['title' => 'Adhésion', 'slug' => 'adhesion', 'blocks' => [['type' => 'titre', 'text' => 'Adhésion', 'level' => '2']]], $this->publisher);
         $this->assertSame(['adherer'], array_column($this->db->fetchAll('SELECT old_slug FROM cms_page_redirects WHERE page_id = ?', [$id]), 'old_slug'));
     }
 
@@ -526,5 +547,159 @@ final class PageWorkflowTest extends AdminTestCase
         $this->assertSame('brouillon', $this->stateOf($id));
         $this->assertSame(302, $this->request('POST', "/admin/site/pages/$id/ordre", ['dir' => 'down'])->status());
         $this->assertSame(404, $this->request('GET', '/admin/site/pages/999999')->status());
+    }
+
+    public function test_author_cannot_restructure_a_page_that_was_live(): void
+    {
+        $s = $this->service();
+        $parent = $this->page('Rubrique');
+        $sister = $this->page('Sœur');
+        $id = $this->page('Statuts', ['slug' => 'statuts']);
+        $s->publish($id, $this->publisher);
+        $base = ['title' => 'Statuts', 'slug' => 'statuts', 'template' => 'standard', 'blocks' => [['type' => 'titre', 'text' => 'Statuts', 'level' => '2']]];
+        foreach ([['slug' => 'statuts-x'], ['template' => 'accueil'], ['parent_id' => (string) $parent]] as $change) {
+            try {
+                $s->update($id, $change + $base, $this->author);
+                $this->fail(json_encode($change));
+            } catch (PageInvalid $e) {
+                $this->assertStringContainsString('seul un publicateur', $e->errors[array_key_first($change)]);
+            }
+        }
+        foreach ([fn () => $s->move($id, $parent, $this->author), fn () => $s->reorder($id, -1, $this->author)] as $op) {
+            try {
+                $op();
+                $this->fail('déplacement par un rédacteur');
+            } catch (PageInvalid) {
+                $this->addToAssertionCount(1);
+            }
+        }
+        $live = $s->liveVersion($id);
+        $this->assertSame(['statuts', 'standard', null, 'publie'], [$live['slug'], $live['template'], $live['parent_id'], $this->stateOf($id)]);
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_page_redirects'));
+
+        // Écran : champs en lecture seule pour le rédacteur, POST forgé refusé (422), ordre refusé (422).
+        $this->actingAs($this->author);
+        $html = $this->request('GET', "/admin/site/pages/$id")->body();
+        $this->assertMatchesRegularExpression('/id="f-slug"[^>]*disabled/', $html);
+        $this->assertMatchesRegularExpression('/id="f-template"[^>]*disabled/', $html);
+        $this->assertStringContainsString('<input type="hidden" name="slug" value="statuts">', $html);
+        $res = $this->request('POST', "/admin/site/pages/$id", ['title' => 'Statuts', 'slug' => 'statuts-x', 'template' => 'standard']);
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString('seul un publicateur peut changer son adresse', html_entity_decode($res->body()));
+        $res = $this->request('POST', "/admin/site/pages/$id/ordre", ['dir' => 'up']);
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString('sa place dans le menu', html_entity_decode($res->body()));
+        // Le contenu reste modifiable (copie de travail), et le publicateur peut restructurer.
+        $s->update($id, ['title' => 'Statuts révisés'] + $base, $this->author);
+        $this->assertSame('brouillon', $this->stateOf($id));
+        $s->update($id, ['slug' => 'statuts-x', 'parent_id' => (string) $parent, 'title' => 'Statuts révisés'] + $base, $this->publisher);
+        $s->reorder($sister, -1, $this->author); // une page jamais en ligne reste rangeable par l'auteur
+        $this->assertSame('statuts-x', $this->db->fetchValue('SELECT slug FROM cms_pages WHERE id = ?', [$id]));
+    }
+
+    public function test_publisher_publishes_only_the_version_reviewed(): void
+    {
+        $s = $this->service();
+        $id = $this->service()->create(['title' => 'Cotisations', 'blocks' => [['type' => 'titre', 'text' => 'V2', 'level' => '2']]], $this->author);
+        $s->submit($id, $this->author);
+        $this->actingAs($this->publisher);
+        $seen = $this->seenVersion($id);
+        // Le rédacteur modifie pendant la relecture : retour en brouillon, version incrémentée.
+        $s->update($id, ['title' => 'Cotisations', 'slug' => 'cotisations', 'blocks' => [['type' => 'titre', 'text' => 'V3-sneaky', 'level' => '2']]], $this->author);
+        $this->assertSame('brouillon', $this->stateOf($id));
+        $s->submit($id, $this->author); // et resoumet aussitôt
+        $res = $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'publie', 'version' => $seen]);
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString('La page a été modifiée depuis votre lecture, relisez-la', html_entity_decode($res->body()));
+        $res = $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'programme', 'version' => $seen, 'at' => $this->future()->format('Y-m-d\TH:i')]);
+        $this->assertSame(422, $res->status());
+        $this->assertSame(422, $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'publie'])->status(), 'version absente');
+        $this->assertNull($s->liveVersion($id));
+        $this->assertSame(302, $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'publie', 'version' => $this->seenVersion($id)])->status());
+        $this->assertSame('V3-sneaky', $s->liveVersion($id)['blocks'][0]['text'], 'publiée après relecture de cette version');
+    }
+
+    public function test_truncated_or_oversized_form_is_refused_without_writing(): void
+    {
+        $s = $this->service();
+        $id = $this->page('Longue', ['slug' => 'longue', 'seo_title' => 'SEO conservé']);
+        $before = $this->db->fetch('SELECT blocks, seo_title, content_version, updated_at FROM cms_pages WHERE id = ?', [$id]);
+        $this->actingAs($this->author);
+        // Envoi tronqué par max_input_vars : la sentinelle finale manque (et le bouton op aussi).
+        foreach ([[], ['op' => 'del:0'], ['op' => 'save']] as $extra) {
+            $res = $this->request('POST', "/admin/site/pages/$id", ['_form_complete' => null, 'title' => 'Longue', 'slug' => 'longue', 'blocs' => []] + $extra);
+            $this->assertSame(422, $res->status());
+            $this->assertStringContainsString('Le formulaire est trop long : enregistrez moins de blocs ou de lignes à la fois', html_entity_decode($res->body()));
+            $this->assertStringContainsString('value="SEO conservé"', $res->body(), 'réaffiché depuis la base, pas tronqué');
+        }
+        $this->assertSame($before, $this->db->fetch('SELECT blocks, seo_title, content_version, updated_at FROM cms_pages WHERE id = ?', [$id]));
+        $this->assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE action = 'cms.page_updated' AND auditable_id = ?", [$id]));
+        $res = $this->request('POST', '/admin/site/pages/nouvelle', ['_form_complete' => null, 'title' => 'Nouvelle']);
+        $this->assertSame(422, $res->status());
+        // Au-delà du plafond de champs (sous max_input_vars = 1000) : refusé, rien d'écrit.
+        $rows = array_fill(0, 50, ['name' => 'n', 'description' => 'd', 'nature' => 'x']);
+        $big = array_fill(0, 6, ['type' => 'domaines', 'items' => $rows]); // 6 × (1 + 150) = 906 champs
+        $this->assertGreaterThan(\App\Modules\Cms\Blocks::MAX_FIELDS, \App\Modules\Cms\Blocks::fieldCount($big));
+        $res = $this->request('POST', "/admin/site/pages/$id", ['title' => 'Longue', 'slug' => 'longue', 'blocs' => $big]);
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString('Le formulaire est trop long', html_entity_decode($res->body()));
+        $this->assertSame($before['blocks'], $this->db->fetchValue('SELECT blocks FROM cms_pages WHERE id = ?', [$id]));
+        // L'éditeur refuse d'ajouter au-delà du plafond.
+        $five = [...array_fill(0, 5, ['type' => 'domaines', 'items' => $rows]), ['type' => 'liste', 'items' => array_fill(0, 42, ['text' => 't'])]]; // 798 champs
+        $html = $this->request('POST', "/admin/site/pages/$id", ['title' => 'Longue', 'op' => 'add', 'add_type' => 'domaines', 'blocs' => $five])->body();
+        $this->assertStringContainsString('Le formulaire est trop long', html_entity_decode($html));
+        $this->assertStringNotContainsString('name="blocs[6][type]"', $html);
+        // Plafond + champs de la page < 1000.
+        $this->assertLessThan(1000, \App\Modules\Cms\Blocks::MAX_FIELDS + 30);
+        $this->assertSame(1, substr_count($html, 'name="_form_complete"'));
+        $this->assertMatchesRegularExpression('~name="_form_complete" value="1">(?:(?!<input|<select|<textarea|<button).)*</form>~s', $html, 'sentinelle = dernier champ du formulaire');
+    }
+
+    public function test_retirer_takes_a_scheduled_page_with_a_live_copy_fully_offline(): void
+    {
+        $s = $this->service();
+        $id = $this->page('Programmée en ligne');
+        $s->publish($id, $this->publisher);
+        $s->update($id, ['title' => 'V2', 'slug' => (string) $s->get($id)['slug'], 'blocks' => []], $this->author);
+        $s->publish($id, $this->publisher, $this->future());
+        $this->assertNotNull($s->liveVersion($id));
+        $this->actingAs($this->publisher);
+        $this->assertSame(302, $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'retirer'])->status());
+        $this->assertNull($s->liveVersion($id), 'un seul clic');
+        $this->assertSame('brouillon', $this->stateOf($id));
+    }
+
+    public function test_reorder_lock_wait_gives_a_retry_message_and_all_block_errors_are_listed(): void
+    {
+        $s = $this->service();
+        $a = $this->page('A');
+        $b = $this->page('B');
+        $other = Database::connect(self::config(), test: true);
+        $other->pdo()->beginTransaction();
+        $other->fetchValue('SELECT id FROM cms_pages WHERE id = ? FOR UPDATE', [$b]);
+        $this->db->query('SET SESSION innodb_lock_wait_timeout = 1');
+        try {
+            $s->reorder($a, 1, $this->author);
+            $this->fail('pas d\'attente');
+        } catch (\DomainException $e) {
+            $this->assertStringContainsString('réessayez', $e->getMessage());
+        } finally {
+            $other->pdo()->rollBack();
+            $this->db->query('SET SESSION innodb_lock_wait_timeout = 50');
+        }
+        $s->reorder($a, 1, $this->author);
+        $this->assertSame([$b, $a], array_map(static fn (array $r): int => (int) $r['id'], $s->tree()));
+
+        $this->actingAs($this->author);
+        $res = $this->request('POST', '/admin/site/pages/nouvelle', ['title' => 'Erreurs', 'blocs' => [
+            ['type' => 'faits', 'items' => [['label' => '', 'value' => '1'], ['label' => 'x', 'value' => '']]],
+            ['type' => 'intro', 'title' => ''],
+        ]]);
+        $html = html_entity_decode($res->body());
+        $this->assertSame(422, $res->status());
+        foreach (['Bloc 1 (Chiffres clés), élément 1, Libellé : Obligatoire.', 'Bloc 1 (Chiffres clés), élément 2, Valeur : Obligatoire.', 'Bloc 2 (Introduction), Titre : Obligatoire.'] as $msg) {
+            $this->assertStringContainsString($msg, $html);
+        }
+        $this->assertStringNotContainsString('Valeur : Valeur', $html);
     }
 }

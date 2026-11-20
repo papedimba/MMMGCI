@@ -68,7 +68,9 @@ final class PageController
                 if ($to === 'retirer') {
                     $this->pages->unpublish($id, $this->actor($r));
                 } elseif (in_array($to, ContentWorkflow::STATUSES, true)) {
-                    $this->pages->transition($id, $to, $this->actor($r), $to === 'programme' ? $this->scheduledAt($r->post('at')) : null);
+                    // Version affichée au publicateur ; absente ou illisible = -1, donc refusée pour publier/programmer.
+                    $seen = is_string($r->post('version')) && ctype_digit($r->post('version')) ? (int) $r->post('version') : -1;
+                    $this->pages->transition($id, $to, $this->actor($r), $to === 'programme' ? $this->scheduledAt($r->post('at')) : null, $seen);
                 } else {
                     throw new ContentTransitionInvalid('Action inconnue.');
                 }
@@ -83,7 +85,13 @@ final class PageController
     public function reorder(Request $r): Response
     {
         return $this->found(function () use ($r): Response {
-            $this->pages->reorder($this->id($r), $r->post('dir') === 'up' ? -1 : 1, $this->actor($r));
+            try {
+                $this->pages->reorder($this->id($r), $r->post('dir') === 'up' ? -1 : 1, $this->actor($r));
+            } catch (PageInvalid $e) {
+                return $this->render($r, 'admin/cms/pages/index', ['title' => 'Pages', 'rows' => $this->pages->tree(), 'flash' => implode(' ', $e->errors), 'flashKind' => 'danger'], 422);
+            } catch (DomainException $e) {
+                return $this->render($r, 'admin/cms/pages/index', ['title' => 'Pages', 'rows' => $this->pages->tree(), 'flash' => $e->getMessage(), 'flashKind' => 'danger'], 422);
+            }
             return Response::redirect(self::BASE);
         });
     }
@@ -115,6 +123,14 @@ final class PageController
     /** @param array<string,mixed>|null $page */
     private function save(Request $r, ?array $page): Response
     {
+        // Champ sentinelle placé en dernier : absent, PHP a tronqué l'envoi (max_input_vars) ; rien n'est enregistré ni réaffiché tronqué.
+        if ($r->post('_form_complete') !== '1') {
+            $values = ['template' => 'standard'];
+            foreach ($page === null ? [] : self::FIELDS as $k) {
+                $values[$k] = (string) ($page[$k] ?? '');
+            }
+            return $this->form($r, $page, $values, $page === null ? [] : Blocks::fromRequest($page['blocks']), ['form' => Blocks::TOO_LONG . ' Rien n\'a été enregistré.'], 422);
+        }
         $values = [];
         foreach (self::FIELDS as $k) {
             $v = $r->post($k, '');

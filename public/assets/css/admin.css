@@ -189,3 +189,6 @@
   .form-actions-sticky .btn { flex: 1 1 0; }
   .page-depth-1, .page-depth-2, .page-depth-3, .page-depth-4 { padding-left: var(--s3); }
 }
+@media (pointer: coarse) {
+  .page-depth a { display: inline-flex; align-items: center; min-height: var(--control-h); }
+}
