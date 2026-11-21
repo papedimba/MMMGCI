@@ -231,6 +231,16 @@ final class PublishedContentTest extends AdminTestCase
         $this->assertNull($this->content()->page("/$old"));
     }
 
+    public function test_hierarchical_path_needs_live_parents(): void
+    {
+        [$parent, $pslug] = $this->page('Parent brouillon', 'brouillon');
+        [$child, $cslug] = $this->page('Enfant en ligne');
+        $this->db->query('UPDATE cms_pages SET parent_id = ? WHERE id = ?', [$parent, $child]);
+        $this->assertNull($this->content()->page("/$pslug/$cslug"), 'le slug d\'un brouillon n\'est pas confirmable');
+        $this->pages()->publish($parent, $this->publisher);
+        $this->assertSame(['redirect' => "/$cslug"], $this->content()->page("/$pslug/$cslug"));
+    }
+
     public function test_banners_galleries_testimonials_and_memoisation(): void
     {
         $this->app();

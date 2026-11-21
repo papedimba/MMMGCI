@@ -79,8 +79,8 @@ final class ArticleService implements ScheduledContent
                     'published_featured_file_id' => $old['featured_file_id'], 'published_og_file_id' => $old['og_file_id'],
                     'published_canonical_url' => $old['canonical_url'], 'published_version_at' => $old['published_at']];
                 $status = 'brouillon';
-            } elseif ($changed !== [] && in_array($status, ['en_relecture', 'programme'], true)) {
-                $status = 'brouillon'; // contenu versionné seulement : un champ structurel (publicateur) ne défait ni la relecture ni la programmation
+            } elseif (($changed !== [] || ($structural !== [] && !$this->gate->allows($actor, 'cms.publish'))) && in_array($status, ['en_relecture', 'programme'], true)) {
+                $status = 'brouillon'; // un champ structurel modifié par un publicateur ne défait ni la relecture ni la programmation ; par un auteur, si
             }
             if ($status !== $old['status']) {
                 $row += ['status' => $status, 'published_at' => null];

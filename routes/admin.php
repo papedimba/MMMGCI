@@ -334,7 +334,7 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/site/articles/{id:\d+}/suppression', static fn (Request $q): Response => $articles()->delete($q), $editPages);
 
     // Menus : enregistrement publié immédiatement ; le service exige cms.pages.manage ET cms.publish.
-    $manageMenus = [$requireAuth, $permission('cms.publish')];
+    $manageMenus = [$requireAuth, $permission('cms.pages.manage'), $permission('cms.publish')];
     $r->get('/admin/site/menus', static fn (Request $q): Response => Response::redirect('/admin/site/menus/header'), $manageMenus);
     $r->get('/admin/site/menus/{location:\w+}', static fn (Request $q): Response => $menus()->show($q), $manageMenus);
     $r->post('/admin/site/menus/{location:\w+}', static fn (Request $q): Response => $menus()->save($q), $manageMenus);

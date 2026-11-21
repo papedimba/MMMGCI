@@ -193,6 +193,26 @@ final class CmsContentTypesTest extends AdminTestCase
         }
     }
 
+    public function test_event_live_list_matrix_never_leaks_non_public_states(): void
+    {
+        $svc = $this->events();
+        $now = $this->future('+0 days')->format('Y-m-d H:i:s');
+        $expected = [];
+        foreach (['brouillon', 'en_relecture', 'programme', 'publie', 'archive'] as $status) {
+            foreach (['2000-01-01 00:00:00', $this->future('+5 days')->format('Y-m-d H:i:s')] as $when) {
+                $id = $svc->create(['title' => "E $status " . substr($when, 0, 4), 'starts_at' => $this->input('+3 days')], $this->author);
+                $this->db->query('UPDATE cms_events SET status = ?, published_at = ? WHERE id = ?', [$status, $when, $id]);
+                if ($status === 'publie' || ($status === 'programme' && $when <= $now)) {
+                    $expected[] = $id;
+                }
+            }
+        }
+        $listed = array_column($svc->liveList(['limit' => 100]), 'id');
+        sort($expected);
+        sort($listed);
+        $this->assertSame($expected, $listed);
+    }
+
     public function test_event_live_list_filters_and_scheduling(): void
     {
         $svc = $this->events();

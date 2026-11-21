@@ -393,6 +393,14 @@ final class MediaLibraryTest extends AdminTestCase
         $this->assertSame(['Quai de Vridi', 'Pirogue', 'ab', 'cd'], array_values($row));
     }
 
+    public function test_tabs_and_newlines_become_spaces_and_zwj_is_kept(): void
+    {
+        $id = $this->add($this->png(), ['title' => "Quai\tde\nVridi", 'alt' => "Famille \u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}"]);
+        $row = $this->db->fetch('SELECT title, alt FROM cms_media WHERE id = ?', [$id]);
+        $this->assertSame('Quai de Vridi', $row['title']);
+        $this->assertSame("Famille \u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}", $row['alt']);
+    }
+
     public function test_htaccess_forbids_listing_and_cgi(): void
     {
         $this->assertStringContainsString('Options -Indexes -ExecCGI', (string) file_get_contents(dirname(__DIR__, 2) . '/public/media/.htaccess'));

@@ -48,6 +48,24 @@ final class FormInboxTest extends AdminTestCase
         return array_map(static fn (array $m): array => ['to' => $m['to'], 'subject' => $m['subject'], 'text' => base64_decode(str_replace("\r\n", '', $m['body']))], $this->mail->messages);
     }
 
+    public function test_invisible_characters_are_stripped_and_history_is_readable(): void
+    {
+        $in = $this->inbox();
+        $id = $in->submit('contact', $this->contact(['name' => "Awa\u{202E}Kon\u{200B}é \u{1F468}\u{200D}\u{1F469}"]), '10.7.0.1');
+        $this->assertSame("AwaKoné \u{1F468}\u{200D}\u{1F469}", $in->get($id)['payload']['name']);
+        $in->addNote($id, "no\u{2066}te", $this->manager);
+        $this->assertSame('note', $in->get($id)['history'][1]['note']);
+        $this->actingAs($this->manager);
+        $res = $this->request('POST', "/admin/site/formulaires/$id/etat", ['to' => ['x'], 'note' => ['y']]);
+        $this->assertSame(422, $res->status());
+        $this->assertStringNotContainsString('Array', $res->body());
+        $this->request('POST', "/admin/site/formulaires/$id/etat", ['to' => 'en_cours']);
+        $body = $this->request('GET', "/admin/site/formulaires/$id")->body();
+        $this->assertStringContainsString('Passé à « En cours »', $body);
+        $this->assertStringContainsString('Utilisateur gest', $body);
+        $this->assertStringNotContainsString('etat:en_cours', $body);
+    }
+
     public function test_form_submission_is_throttled_by_ip_and_honeypot(): void
     {
         $in = $this->inbox();

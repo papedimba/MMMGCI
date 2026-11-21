@@ -22,7 +22,7 @@ $actions = ui('button', ['label' => 'Nouvel article', 'href' => $base . '/nouvea
     'empty' => ['title' => 'Aucun article', 'message' => 'Aucun article ne correspond.'],
     'rows' => $rows,
     'columns' => [
-        ['title', 'Titre', '', false, static fn (array $a): string => '<a href="' . e($base . '/' . $a['id']) . '">' . e($a['title']) . '</a> <span class="page-slug">/' . e($a['slug']) . '</span>'],
+        ['title', 'Titre', '', false, static fn (array $a): string => '<a class="cell-link" href="' . e($base . '/' . $a['id']) . '">' . e($a['title']) . '</a> <span class="page-slug">/' . e($a['slug']) . '</span>'],
         ['status', 'État', '', false, static fn (array $a): string => ui('badge', ['kind' => $kinds[$a['status']] ?? 'neutral', 'label' => $labels[$a['status']] ?? $a['status']])
             . ($a['has_copy'] ? ' ' . ui('badge', ['kind' => 'warn', 'label' => 'Modifications à publier']) : ''), 'status'],
         ['category', 'Catégorie'],

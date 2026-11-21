@@ -101,6 +101,9 @@ final class MenuController
             $rows[] = ['label' => '', 'kind' => 'page', 'page_id' => '', 'url' => '', 'target' => '', 'is_active' => true, 'depth' => '0'];
         } elseif ($i >= 0 && $i < $n) {
             if ($parts[0] === 'del') {
+                if ($rows[$i]['depth'] === '0' && ($rows[$i + 1]['depth'] ?? '0') === '1') {
+                    return [$rows, 'Cet élément a des sous-éléments : supprimez-les ou rendez-les de premier niveau avant de le supprimer.'];
+                }
                 array_splice($rows, $i, 1);
             } elseif (in_array($parts[0], ['up', 'down'], true)) {
                 $j = $parts[0] === 'up' ? $i - 1 : $i + 1;

@@ -49,7 +49,9 @@ final class FormController extends CmsScreen
 
     public function transition(Request $r): Response
     {
-        return $this->act($r, fn (int $id, int $uid) => $this->inbox->transition($id, (string) $r->post('to', ''), $uid, (string) $r->post('note', '')), 'État mis à jour.');
+        $to = $r->post('to', '');
+        $note = $r->post('note', '');
+        return $this->act($r, fn (int $id, int $uid) => $this->inbox->transition($id, is_string($to) ? $to : '', $uid, is_string($note) ? $note : ''), 'État mis à jour.');
     }
 
     public function assign(Request $r): Response

@@ -99,7 +99,7 @@ final class SiteSettingsTest extends AdminTestCase
     {
         $s = $this->svc();
         $bad = ['contact_email' => ['pas-un-mail', "a@b.ci\r\nBcc: x@y.z"], 'contact_phone' => ['abc', '+225 (01)', str_repeat('1', 25)],
-            'address' => ['<b>rue</b>', str_repeat('a', 301)], 'social_facebook' => ['http://facebook.com/x', 'javascript:alert(1)', 'facebook.com/x'],
+            'address' => ['<b>rue</b>', str_repeat('a', 301)], 'social_facebook' => ['https://evil.test/facebook.com', 'https://facebook.com.evil.test/x', 'http://facebook.com/x', 'javascript:alert(1)', 'facebook.com/x'],
             'social_whatsapp' => ['https://exemple.ci/x', 'abc'], 'consent_text' => [str_repeat('a', 4001), '<script>x</script>'],
             'adhesion_open' => ['oui', '1'], 'testimonials_enabled' => ['vrai'], 'forms_retention_months' => ['0', '121', 'abc', '-3', '1.5']];
         foreach ($bad as $key => $values) {

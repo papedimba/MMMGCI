@@ -148,6 +148,22 @@ final class MenuTest extends AdminTestCase
         $this->assertArrayHasKey('items[0].label', $this->refused('header', [$this->item("\x01\x02")])->errors);
     }
 
+    public function test_deleting_a_top_item_with_sub_items_is_refused_and_route_needs_both_permissions(): void
+    {
+        $this->actingAs($this->publisher);
+        $row = fn (string $l, string $d): array => ['label' => $l, 'kind' => 'url', 'url' => '/' . $l, 'is_active' => '1', 'depth' => $d, 'target' => ''];
+        $items = ['items' => [$row('a', '0'), $row('b', '1'), $row('c', '0')]];
+        $r = $this->request('POST', '/admin/site/menus/header', $items + ['op' => 'del:0']);
+        $this->assertStringContainsString('sous-éléments', $r->body());
+        $this->assertSame(3, preg_match_all('/name="items\[\d\]\[label\]"/', $r->body()), 'rien n\'a été retiré');
+        $r = $this->request('POST', '/admin/site/menus/header', $items + ['op' => 'del:2']);
+        $this->assertSame(2, preg_match_all('/name="items\[\d\]\[label\]"/', $r->body()));
+        $only = $this->createUser('seulpub@x.test', []);
+        $this->db->query("INSERT INTO user_roles (user_id, role_id) SELECT ?, id FROM roles WHERE name = 'redacteur'", [$only]);
+        $this->actingAs($only);
+        $this->assertSame(403, $this->request('GET', '/admin/site/menus/header')->status());
+    }
+
     public function test_reorder_by_buttons(): void
     {
         $this->actingAs($this->publisher);

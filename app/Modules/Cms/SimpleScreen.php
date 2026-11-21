@@ -27,6 +27,11 @@ abstract class SimpleScreen extends CmsScreen
     /** Dossier de vues, nom au singulier (« Nouveau … »), nom du type pour les messages. @return array{0:string,1:string,2:string} */
     abstract protected function names(): array;
 
+    private function newWord(string $label): string
+    {
+        return $label === 'bannière' ? 'Nouvelle ' : 'Nouveau '; // seul nom féminin des contenus simples
+    }
+
     /** @return list<string> champs texte lus dans la requête */
     abstract protected function fields(): array;
 
@@ -59,7 +64,7 @@ abstract class SimpleScreen extends CmsScreen
         [, $label] = $this->names();
         $labels = SimpleContent::STATUS_LABELS;
         $columns = [...$this->columns(), ['status', 'État', '', false, static fn (array $a): string => ui('badge', ['kind' => self::KINDS[$a['status']] ?? 'neutral', 'label' => $labels[$a['status']] ?? $a['status']]), 'status']];
-        return $this->render($r, 'admin/cms/simple-index', ['title' => $this->title(), 'subtitle' => static::SUBTITLE, 'base' => $this->base(), 'newLabel' => 'Nouveau ' . $label,
+        return $this->render($r, 'admin/cms/simple-index', ['title' => $this->title(), 'subtitle' => static::SUBTITLE, 'base' => $this->base(), 'newLabel' => $this->newWord($label) . $label,
             'rows' => $this->content->all(), 'columns' => $columns, 'notice' => $this->notice()]);
     }
 
@@ -169,7 +174,7 @@ abstract class SimpleScreen extends CmsScreen
         $transitions = $row === null ? [] : SimpleContent::transitionsFor((string) $row['status'], $mayPublish);
         $published = $row !== null && $row['published_at'] !== null;
         return $this->render($r, 'admin/cms/' . $dir . '/form', [
-            'title' => $row === null ? 'Nouveau ' . $label : 'Modifier : ' . $label, 'base' => $this->base(), 'row' => $row, 'values' => $values, 'errors' => $errors,
+            'title' => $row === null ? $this->newWord($label) . $label : 'Modifier : ' . $label, 'base' => $this->base(), 'row' => $row, 'values' => $values, 'errors' => $errors,
             'errorSummary' => self::summary($errors), 'mayPublish' => $mayPublish, 'locked' => $row !== null && $row['status'] === 'publie' && !$mayPublish, 'noun' => $noun,
             'publication' => $row === null ? '' : $this->view->partial('admin/cms/_publication', ['base' => $this->base(), 'row' => $row, 'transitions' => $transitions, 'mayPublish' => $mayPublish,
                 'version' => (int) $row['content_version'], 'canDelete' => !$published && $row['status'] === 'brouillon', 'csrfToken' => $this->csrf->token(), 'noun' => $noun, 'extra' => $this->publicationNote($row)]),

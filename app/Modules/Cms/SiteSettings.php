@@ -26,7 +26,7 @@ final class SiteSettings
         'contact_email' => ['Adresse e-mail de contact', 'email', 'Reçoit les notifications des formulaires. Vide : les gestionnaires des formulaires sont prévenus.'],
         'contact_phone' => ['Téléphone de contact', 'tel', 'Chiffres, espaces et « + », 20 caractères au maximum.'],
         'address' => ['Adresse postale', 'text', '300 caractères au maximum, en texte simple.'],
-        'social_facebook' => ['Page Facebook', 'url', 'Adresse https://… uniquement.'],
+        'social_facebook' => ['Page Facebook', 'url', 'Adresse https://… de facebook.com ou fb.com.'],
         'social_whatsapp' => ['WhatsApp', 'text', 'Lien https://wa.me/… ou numéro avec indicatif (+225…).'],
         'consent_text' => ['Texte de consentement des formulaires', 'textarea', 'Texte fourni par la Mutuelle (4000 caractères au maximum) : il n\'est pas rédigé ici.'],
         'adhesion_open' => ['Adhésion en ligne ouverte', 'bool', 'Décision des instances : oui ou non.'],
@@ -137,8 +137,8 @@ final class SiteSettings
                 return mb_strlen($v) <= 300 && !preg_match('/[<>]/', $v) ? $v : $fail('Adresse invalide : 300 caractères au maximum, sans < ni >.');
             case 'social_facebook':
                 $p = parse_url($v);
-                return mb_strlen($v) <= 255 && filter_var($v, FILTER_VALIDATE_URL) !== false && ($p['scheme'] ?? '') === 'https' && ($p['host'] ?? '') !== '' && !preg_match('/[<>"\'\s]/', $v)
-                    ? $v : $fail('Adresse invalide : https://… uniquement.');
+                return mb_strlen($v) <= 255 && filter_var($v, FILTER_VALIDATE_URL) !== false && ($p['scheme'] ?? '') === 'https' && preg_match('/^(?:www\.|m\.)?(?:facebook|fb)\.com$/i', (string) ($p['host'] ?? '')) === 1 && !preg_match('/[<>"\'\s]/', $v)
+                    ? $v : $fail('Adresse invalide : https://… sur facebook.com ou fb.com.');
             case 'social_whatsapp':
                 return preg_match('#^https://wa\.me/\d{6,15}(\?[^\s<>"\']{0,100})?$#', $v) === 1 || preg_match('/^\+?\d{6,15}$/', $v) === 1
                     ? $v : $fail('WhatsApp : lien https://wa.me/… ou numéro avec indicatif (chiffres et « + »).');

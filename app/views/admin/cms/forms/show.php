@@ -15,8 +15,12 @@ foreach ($next as $to) {
 }
 $opts = ['' => 'Personne'] + $assignees;
 $history = '<ul class="history-list">';
+$actions = ['recu' => 'Reçu', 'note' => 'Note ajoutée', 'affectation' => 'Affectation modifiée'];
 foreach ($row['history'] as $h) {
-    $history .= '<li><strong>' . e((string) ($h['at'] ?? '')) . '</strong> — ' . e((string) ($h['action'] ?? '')) . ($h['by'] ?? null ? ' (utilisateur n° ' . (int) $h['by'] . ')' : '') . (($h['note'] ?? '') !== '' ? '<br><span class="prewrap">' . e((string) $h['note']) . '</span>' : '') . '</li>';
+    $act = (string) ($h['action'] ?? '');
+    $act = str_starts_with($act, 'etat:') ? 'Passé à « ' . ($labels[substr($act, 5)] ?? substr($act, 5)) . ' »' : ($actions[$act] ?? $act);
+    $who = ($h['by'] ?? null) ? ' (' . ($row['history_users'][(int) $h['by']] ?? 'utilisateur supprimé') . ')' : '';
+    $history .= '<li><strong>' . e((string) ($h['at'] ?? '')) . '</strong> — ' . e($act) . e($who) . (($h['note'] ?? '') !== '' ? '<br><span class="prewrap">' . e((string) $h['note']) . '</span>' : '') . '</li>';
 }
 $history .= '</ul>';
 ?>

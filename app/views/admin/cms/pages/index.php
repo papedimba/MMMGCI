@@ -17,7 +17,7 @@ $order = static fn (array $row, string $dir, string $label): string => '<form me
     'columns' => [
         ['title', 'Titre', '', false, static fn (array $p): string => '<span class="page-depth page-depth-' . min(4, (int) $p['depth']) . '">'
             . ((int) $p['depth'] > 0 ? '<span class="visually-hidden">Sous-page de niveau ' . ((int) $p['depth'] + 1) . ' : </span>' : '')
-            . '<a href="' . e($base . '/' . $p['id']) . '">' . e($p['title']) . '</a> <span class="page-slug">/' . e($p['slug']) . '</span></span>'],
+            . '<a class="cell-link" href="' . e($base . '/' . $p['id']) . '">' . e($p['title']) . '</a> <span class="page-slug">/' . e($p['slug']) . '</span></span>'],
         ['status', 'État', '', false, static fn (array $p): string => ui('badge', ['kind' => $kinds[$p['status']] ?? 'neutral', 'label' => $labels[$p['status']] ?? $p['status']])
             . ($p['live'] && $p['status'] !== 'publie' ? ' ' . ui('badge', ['kind' => 'ok', 'label' => 'Version en ligne']) : '')
             . ($p['has_copy'] ? ' ' . ui('badge', ['kind' => 'warn', 'label' => 'Modifications à publier']) : ''), 'status'],

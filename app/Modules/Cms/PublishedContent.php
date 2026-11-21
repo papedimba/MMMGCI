@@ -70,7 +70,8 @@ final class PublishedContent
         $parent = $this->db->fetchValue('SELECT parent_id FROM cms_pages WHERE id = ?', [$pageId]);
         foreach (array_reverse($ancestors) as $slug) {
             $row = $parent === null || $parent === false ? null : $this->db->fetch('SELECT slug, parent_id FROM cms_pages WHERE id = ?', [(int) $parent]);
-            if ($row === null || $row['slug'] !== $slug) {
+            $live = $row === null ? null : $this->pages->liveVersion((int) $parent); // un parent hors ligne ne confirme jamais son adresse
+            if ($row === null || $live === null || $live['slug'] !== $slug) {
                 return false;
             }
             $parent = $row['parent_id'];

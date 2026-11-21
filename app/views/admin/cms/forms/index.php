@@ -18,7 +18,7 @@ $query = array_filter($filters, static fn (string $v): bool => $v !== '');
     'empty' => ['title' => 'Aucun envoi', 'message' => 'Aucun envoi ne correspond.'],
     'rows' => $rows,
     'columns' => [
-        ['reference', 'Référence', '', false, static fn (array $a): string => '<a href="' . e($base . '/' . $a['id']) . '">' . e($a['reference']) . '</a>'],
+        ['reference', 'Référence', '', false, static fn (array $a): string => '<a class="cell-link" href="' . e($base . '/' . $a['id']) . '">' . e($a['reference']) . '</a>'],
         ['status', 'État', '', false, static fn (array $a): string => ui('badge', ['kind' => $kinds[$a['status']] ?? 'neutral', 'label' => $labels[$a['status']] ?? $a['status']]), 'status'],
         ['form_name', 'Formulaire'],
         ['assignee', 'Affecté à'],

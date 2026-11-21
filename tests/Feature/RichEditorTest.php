@@ -53,4 +53,14 @@ final class RichEditorTest extends AdminTestCase
         $this->assertStringContainsString('data-rich-editor', $res->body());
         $this->assertStringContainsString('<script src="/assets/js/editor.js" defer></script>', $res->body());
     }
+
+    public function test_href_never_keeps_raw_space_or_control(): void
+    {
+        foreach (["/a b", "https://x.test/a\x01b", "/a\x00b", " /ok b", "/a%20b c"] as $href) {
+            $out = \App\Modules\Cms\RichText::sanitize('<p><a href="' . $href . '">texte</a></p>');
+            $this->assertSame(0, preg_match('/href="[^"]*[\x00-\x20]/', $out), $href); // jamais d'espace ni de contrôle brut dans un href
+            $this->assertStringContainsString('texte', $out);
+        }
+        $this->assertStringContainsString('href="/ok"', \App\Modules\Cms\RichText::sanitize('<p><a href=" /ok ">t</a></p>'));
+    }
 }

@@ -22,7 +22,7 @@ final class RichText
 
     public static function sanitize(string $html): string
     {
-        $body = HtmlSanitizer::parse(HtmlSanitizer::clean($html, self::RENAME));
+        $body = HtmlSanitizer::parse(HtmlSanitizer::clean(str_replace("\0", ' ', $html), self::RENAME)); // NUL → espace : libxml tronquerait l'attribut
         if ($body === null) {
             return '';
         }
@@ -100,7 +100,7 @@ final class RichText
             $copy = in_array($name, self::ELEMENTS, true) ? $out->createElement($name) : null;
             if ($copy !== null && $name === 'a') {
                 $href = $node->getAttribute('href');
-                if (preg_match('~^(?:https?:|mailto:|tel:|/(?![/\\\\]))~i', $href) !== 1) {
+                if (preg_match('~^(?:https?:|mailto:|tel:|/(?![/\\\\]))~i', $href) !== 1 || preg_match('/[\x00-\x20]/', $href) === 1) {
                     $copy = null; // lien refusé : le texte reste
                 } else {
                     $copy->setAttribute('href', $href);

@@ -97,8 +97,8 @@ final class MediaService
                 ? 'Le serveur est occupé : réessayez dans quelques instants.'
                 : 'Ce média est encore référencé ailleurs : suppression impossible.'); // filet : contrainte FK
         }
-        if ($path !== null) {
-            @unlink($path); // après le COMMIT : au pire un fichier orphelin, jamais une ligne sans fichier
+        if ($path !== null && !@unlink($path)) { // après le COMMIT : au pire un fichier orphelin, jamais une ligne sans fichier
+            error_log('cms.media: fichier orphelin non supprimé (média #' . $id . ')');
         }
     }
 
@@ -170,7 +170,7 @@ final class MediaService
     /** @param array<string,mixed> $meta @return array{title:string,alt:?string,caption:?string,credit:?string,folder:?string} */
     private function clean(array $meta, bool $altRequired): array
     {
-        $str = static fn (string $k, int $max): ?string => ($v = mb_substr(trim(preg_replace('/[\p{Cc}\p{Cf}]/u', '', mb_scrub((string) ($meta[$k] ?? ''))) ?? ''), 0, $max)) === '' ? null : $v;
+        $str = static fn (string $k, int $max): ?string => ($v = mb_substr(trim(preg_replace('/(?!\x{200D})[\p{Cc}\p{Cf}]/u', '', preg_replace('/[\t\r\n]+/', ' ', mb_scrub((string) ($meta[$k] ?? ''))) ?? '') ?? ''), 0, $max)) === '' ? null : $v;
         $title = $str('title', 160);
         if ($title === null) {
             throw new DomainException('Le titre est obligatoire.');
@@ -260,7 +260,7 @@ final class MediaService
                 return [];
             }
             $reMedia = '"media_id"[[:space:]]*:[[:space:]]*"?' . $id . '([^0-9]|$)';
-            $reList = '"media_ids"[[:space:]]*:[[:space:]]*\\[([^]]*[^0-9])?' . $id . '([^0-9]|$)';
+            $reList = '"media_ids"[[:space:]]*:[[:space:]]*\\[([^\\]]*[^0-9])?' . $id . '([^0-9]|$)';
             $reFile = '"file_id"[[:space:]]*:[[:space:]]*"?' . $ref['file_id'] . '([^0-9]|$)';
             [$a, $b] = $this->pathLikes($ref['path']);
             $conds = [];

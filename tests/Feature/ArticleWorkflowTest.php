@@ -289,6 +289,43 @@ final class ArticleWorkflowTest extends AdminTestCase
         $this->assertNull($this->liveOfNone());
     }
 
+    public function test_structural_exemption_applies_to_publishers_only(): void
+    {
+        $s = $this->service();
+        $id = $this->article('Relu');
+        $s->transition($id, 'en_relecture', $this->author);
+        $s->update($id, ['title' => 'Relu', 'body' => '<p>Corps Relu</p>', 'slug' => 'autre-adresse'], $this->author);
+        $this->assertSame('brouillon', $this->row($id)['status'], 'un auteur qui change l\'adresse renvoie en brouillon');
+        $s->transition($id, 'en_relecture', $this->author);
+        $s->update($id, ['title' => 'Relu', 'body' => '<p>Corps Relu</p>', 'slug' => 'adresse-publicateur'], $this->publisher);
+        $this->assertSame('en_relecture', $this->row($id)['status'], 'un publicateur garde la relecture');
+    }
+
+    public function test_live_list_is_exactly_the_set_with_a_live_version(): void
+    {
+        $s = $this->service();
+        $expected = [];
+        $past = '2000-01-01 00:00:00';
+        $future = $this->future('+5 days')->format('Y-m-d H:i:s');
+        foreach (['brouillon', 'en_relecture', 'programme', 'publie', 'archive'] as $status) {
+            foreach ([false, true] as $kept) {
+                foreach ([$past, $future] as $when) {
+                    $id = $this->article("M $status " . (int) $kept . ' ' . substr($when, 0, 4));
+                    $this->db->query('UPDATE cms_articles SET status = ?, published_at = ?, published_body = ?, published_title = ?, published_version_at = ?, published_by = ? WHERE id = ?',
+                        [$status, $when, $kept ? '<p>V1</p>' : null, $kept ? 'V1' : null, $kept ? $past : null, $kept ? $this->publisher : null, $id]);
+                    if ($s->liveVersion($id) !== null) {
+                        $expected[] = $id;
+                    }
+                }
+            }
+        }
+        $listed = array_column($s->liveList(1000), 'id');
+        sort($expected);
+        sort($listed);
+        $this->assertSame($expected, $listed);
+        $this->assertNotSame([], $listed);
+    }
+
     private function liveOfNone(): mixed
     {
         return $this->service()->liveVersion(999999);

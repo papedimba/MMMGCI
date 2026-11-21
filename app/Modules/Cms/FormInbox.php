@@ -88,7 +88,7 @@ final class FormInbox
             $raw = $payload[$name] ?? '';
             $v = is_scalar($raw) ? (string) $raw : '';
             $v = (string) preg_replace($type === 'area' ? '/[^\P{Cc}\n]/u' : '/\p{Cc}/u', $type === 'area' ? '' : ' ', str_replace("\r\n", "\n", $v));
-            $v = trim($v);
+            $v = trim(self::noInvisible($v));
             if ($v === '') {
                 if ($required) {
                     $errors[$name] = $label . ' : champ obligatoire.';
@@ -111,6 +111,12 @@ final class FormInbox
             throw new FormInvalid($errors);
         }
         return $out;
+    }
+
+    /** Retire les caractères de mise en forme invisibles (bidi, largeur nulle…), sauf la jonction U+200D des émojis. */
+    private static function noInvisible(string $v): string
+    {
+        return (string) preg_replace('/(?!\x{200D})\p{Cf}/u', '', $v);
     }
 
     /** E-mail interne différé : référence et type seulement, jamais le contenu. */
@@ -172,6 +178,13 @@ final class FormInbox
             LEFT JOIN users u ON u.id = s.assigned_to WHERE s.id = ?', [$id]) ?? throw new NotFound('Envoi introuvable.');
         $r['payload'] = json_decode((string) $r['payload'], true) ?: [];
         $r['history'] = json_decode((string) ($r['history'] ?? '[]'), true) ?: [];
+        $ids = array_values(array_unique(array_filter(array_map(static fn (array $h): int => (int) ($h['by'] ?? 0), $r['history']))));
+        $r['history_users'] = [];
+        if ($ids !== []) {
+            foreach ($this->db->fetchAll('SELECT id, name FROM users WHERE id IN (' . implode(',', array_fill(0, count($ids), '?')) . ')', $ids) as $u) {
+                $r['history_users'][(int) $u['id']] = (string) $u['name'];
+            }
+        }
         return $r;
     }
 
@@ -206,7 +219,7 @@ final class FormInbox
 
     public function addNote(int $id, string $note, int $actor): void
     {
-        $note = trim((string) preg_replace('/[^\P{Cc}\n]/u', '', str_replace("\r\n", "\n", $note)));
+        $note = trim(self::noInvisible((string) preg_replace('/[^\P{Cc}\n]/u', '', str_replace("\r\n", "\n", $note))));
         if ($note === '' || mb_strlen($note) > 1000) {
             throw new DomainException('La note est obligatoire (1000 caractères au maximum).');
         }
