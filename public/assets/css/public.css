@@ -122,6 +122,9 @@ html.js .pub-menu[data-open] > ul > li + li { border-top: 1px solid var(--line);
 .pub-list { list-style: none; margin: var(--s5) 0; padding: 0; display: grid; }
 .pub-list li { padding: var(--s3) var(--s4); font-size: var(--text-lg); line-height: var(--leading-snug); }
 .pub-list li:nth-child(odd) { background: var(--frame); }
+/* Marqueur léger : petit carré plein devant chaque élément (liste et pièces du dossier) ; une seule colonne, jamais de colonnes à lecture ambiguë. */
+.pub-list li, .pub-dossier-pieces li { position: relative; padding-left: calc(var(--s4) + var(--s5)); }
+.pub-list li::before, .pub-dossier-pieces li::before { content: ""; position: absolute; left: var(--s3); top: calc(var(--s3) + .5em); width: .45em; height: .45em; background: var(--navy-900); }
 .home-body > .pub-list { padding: var(--s4); }
 
 /* « Préparer mon dossier » */
@@ -136,7 +139,7 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
 .pub-check input { width: 22px; height: 22px; margin: 0; accent-color: var(--navy-800); flex: none; }
 .pub-check:has(input:checked) { background: var(--ocean-100); font-weight: 600; }
 .pub-dossier-pieces { list-style: none; margin: 0; padding: 0; display: grid; }
-.pub-dossier-pieces li { padding: var(--s3) var(--s3); font-size: var(--text-lg); line-height: var(--leading-snug); }
+.pub-dossier-pieces li { padding: var(--s3) var(--s3) var(--s3) calc(var(--s4) + var(--s5)); font-size: var(--text-lg); line-height: var(--leading-snug); }
 .pub-dossier-pieces li:nth-child(odd of :not([hidden])) { background: var(--frame); } /* rangées alternées recalculées après le filtre */
 .pub-dossier-pieces li[hidden] { display: none; }
 .pub-dossier-cond { font-style: normal; color: var(--ink-2); white-space: nowrap; }
@@ -199,7 +202,7 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
 
 /* Mouvement : arrivée de la carte au chargement, puis des objets au défilement ; rien sans « no-preference ». */
 @keyframes pub-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
-@keyframes pub-reveal { from { opacity: .4; transform: translateY(24px); } to { opacity: 1; transform: none; } } /* au défilement : jamais invisible */
+@keyframes pub-reveal { from { opacity: .9; transform: translateY(24px); } to { opacity: 1; transform: none; } } /* au défilement : jamais invisible */
 @keyframes pub-draw { from { transform: scaleX(0); } to { transform: none; } }
 @media (prefers-reduced-motion: no-preference) {
   .flag i { transform-origin: left center; animation: pub-draw 700ms var(--ease) both; } /* le filet national se trace */
@@ -209,7 +212,7 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
   .home-figure, .pub-head h1 { animation-delay: 80ms; }
   .pub-head > :nth-child(3) { animation-delay: 160ms; }
   @supports (animation-timeline: view()) {
-    :is(.home-body, .pub-body, .pub-foot-in, .pub-rich) > *, .pub-domains > li, .pub-list > li, .pub-cards > li, .pub-dossier-pieces > li { animation: pub-reveal linear both; animation-timeline: view(); animation-range: entry 0% entry 60%; }
+    :is(.home-body, .pub-body, .pub-foot-in) > * { animation: pub-reveal linear both; animation-timeline: view(); animation-range: entry 0% entry 60%; }
   }
 }
 
@@ -249,9 +252,6 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
   .home-body > .pub-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s6); align-items: end; }
   .home-body > .pub-intro p { margin: 0; }
   .home-body .pub-domains { grid-template-columns: 1fr 1fr; gap: var(--s5) var(--s8); padding: var(--s7); }
-  .home-body > .pub-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); padding: var(--s6); }
-  .home-body > .pub-list { column-gap: var(--s6); }
-  .home-body > .pub-list li { padding: 0; background: none; font-family: var(--font-display); font-size: var(--text-xl); color: var(--navy-900); }
   .home-body > .pub-cta { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s7); align-items: end; padding: var(--s7); }
   .home-body > .pub-cta > :not(.btn) { grid-column: 1; }
   .home-body > .pub-cta .btn { grid-column: 2; grid-row: 1 / span 2; align-self: center; margin: 0; }

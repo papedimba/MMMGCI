@@ -152,6 +152,7 @@ final class ContentSeedTest extends AdminTestCase
         }
         $this->assertSame([], $menus->publicItems('header'));
         $this->assertSame([], $menus->publicItems('footer'));
+        $this->assertSame(['Documents', 'Partenaires'], array_column($menus->items('footer'), 'label'), 'pas de lien « Fonds de solidarité » sans sa réserve');
         $this->publishAll();
         $this->assertSame(['La Mutuelle', 'Adhésion', 'Actions sociales', 'Emploi', 'Formation', 'Contact'], array_column($menus->publicItems('header'), 'label'), 'Actualités reste inactif');
     }
@@ -166,7 +167,7 @@ final class ContentSeedTest extends AdminTestCase
         foreach (['/adhesion', '/la-mutuelle', '/missions', '/contact', '/'] as $path) {
             $this->assertSame(200, $this->request('GET', $path)->status(), $path);
         }
-        $this->assertStringContainsString('Marin en activité', $this->request('GET', '/adhesion')->body());
+        $this->assertStringContainsString('Livret maritime disponible', $this->request('GET', '/adhesion')->body());
     }
 
     public function test_domains_block_keeps_the_charter_reservations(): void
@@ -183,6 +184,8 @@ final class ContentSeedTest extends AdminTestCase
             $this->assertStringContainsString('selon les conditions prévues', $text);
         }
         $this->assertStringContainsString('critères écrits', json_encode($this->seeded()['fonds-de-solidarite']['blocks'], JSON_UNESCAPED_UNICODE));
+        // Le fonds n'est jamais présenté comme existant : « peut constituer » accompagne toute mention (page actions sociales comprise).
+        $this->assertStringContainsString('peut constituer un fonds de solidarité', json_encode($this->seeded()['actions-sociales']['blocks'], JSON_UNESCAPED_UNICODE));
     }
 
     public function test_no_forbidden_invented_tokens(): void

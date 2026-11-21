@@ -21,7 +21,7 @@
       });
       if (chosen.length) { block.setAttribute('data-filtered', ''); } else { block.removeAttribute('data-filtered'); }
       if (count) {
-        count.textContent = chosen.length ? shown + (shown > 1 ? ' pièces à préparer pour votre situation.' : ' pièce à préparer pour votre situation.') : '';
+        count.textContent = chosen.length ? 'Pièces à préparer selon votre sélection (' + shown + ').' : '';
       }
     }
     Array.prototype.forEach.call(boxes, function (b) { b.addEventListener('change', update); });

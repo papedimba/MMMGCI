@@ -101,9 +101,8 @@ final class ContentSeed
                 $titre('Conditions d’adhésion', 'CDC art. 5'),
                 $texte('<p>Peuvent demander leur adhésion les marins de la marine marchande, les gens de mer, les personnels navigants et assimilés du secteur maritime, les anciens marins ainsi que toute autre catégorie admise par les statuts. L’admission est prononcée selon la procédure interne.</p>', 'CDC art. 5'),
                 ['type' => 'dossier', 'title' => 'Constitution du dossier d’adhésion', 'intro' => '', 'source' => 'CDC art. 6',
-                    'situations' => [
-                        ['key' => 'en-activite', 'label' => 'Marin en activité'], ['key' => 'ancien-marin', 'label' => 'Ancien marin'],
-                        ['key' => 'livret', 'label' => 'Livret maritime disponible'], ['key' => 'ayants-droit', 'label' => 'Ayants droit à déclarer']],
+                    // Seules les situations qui modifient réellement la liste (art. 6 : « lorsque disponible ou pertinent », « lorsque le dispositif le prévoit »).
+                    'situations' => [['key' => 'livret', 'label' => 'Livret maritime disponible'], ['key' => 'ayants-droit', 'label' => 'Ayants droit à déclarer']],
                     'pieces' => [
                         ['label' => 'Une fiche individuelle d’adhésion dûment renseignée', 'situations' => ''],
                         ['label' => 'Une copie d’une pièce d’identité valide', 'situations' => ''],
@@ -145,7 +144,7 @@ final class ContentSeed
                 $texte('<p>' . self::RESERVE . '</p>', 'CDC art. 9'),
                 $this->domaines(),
                 $titre('Fonds de solidarité', 'CDC art. 10'),
-                $texte('<p>Toute aide est soumise à des critères écrits, à une procédure d’examen et à une validation par l’organe compétent.</p>', 'CDC art. 10'),
+                $texte('<p>La Mutuelle peut constituer un fonds de solidarité distinctement suivi afin de répondre aux situations sociales urgentes.</p><p>Toute aide est soumise à des critères écrits, à une procédure d’examen et à une validation par l’organe compétent.</p>', 'CDC art. 10'),
             ]],
             'fonds-de-solidarite' => fn (): array => ['title' => 'Fonds de solidarité', 'parent' => 'actions-sociales', 'blocks' => [
                 $texte('<p>La Mutuelle peut constituer un fonds de solidarité distinctement suivi afin de répondre aux situations sociales urgentes.</p>'
@@ -153,22 +152,25 @@ final class ContentSeed
                     . '<p>Toute aide est soumise à des critères écrits, à une procédure d’examen et à une validation par l’organe compétent. Les décisions et décaissements sont documentés et justifiés.</p>', 'CDC art. 10'),
             ]],
             'emploi' => fn (array $ids): array => ['title' => 'Emploi', 'blocks' => [
+                $texte('<p>' . self::RESERVE . '</p>', 'CDC art. 9'),
+                $this->domaines(['Emploi']),
+                $titre('Objectifs spécifiques', 'CDC art. 2'),
                 $texte('<p>Contribuer à l’insertion professionnelle et au retour à l’emploi des marins.</p>', 'CDC art. 2'),
-                $texte('<p>' . self::RESERVE . '</p><p>Emploi : mise en relation avec les armements et diffusion d’opportunités.</p>', 'CDC art. 9'),
                 ['type' => 'appel', 'title' => 'Nous écrire', 'text' => '', 'button_label' => 'Aller à la page Contact', 'page_id' => $ids['contact'], 'url' => '',
                     'source' => 'Fonction du site (aucun texte du cahier des charges)'],
             ]],
             'formation' => fn (): array => ['title' => 'Formation', 'blocks' => [
+                $texte('<p>' . self::RESERVE . '</p>', 'CDC art. 9'),
+                $this->domaines(['Formation']),
+                $titre('Objectifs spécifiques', 'CDC art. 2'),
                 $texte('<p>Promouvoir la formation et le perfectionnement professionnel.</p>', 'CDC art. 2'),
-                $texte('<p>' . self::RESERVE . '</p><p>Formation : information et orientation vers les formations professionnelles.</p>', 'CDC art. 9'),
             ]],
             'partenaires' => fn (): array => ['title' => 'Partenariats', 'blocks' => [
+                $titre('Objectifs spécifiques', 'CDC art. 2'),
                 $texte('<p>Développer des partenariats avec les armements, entreprises maritimes, syndicats, ONG et institutions.</p>', 'CDC art. 2'),
                 $titre('Partenariats stratégiques', 'CDC art. 12'),
-                $texte('<p>La Mutuelle recherche des conventions avec :</p>', 'CDC art. 12'),
-                $liste(['les armements maritimes', 'les sociétés de pêche industrielle', 'les entreprises offshore', 'les syndicats', 'les associations professionnelles',
-                    'les établissements sanitaires', 'les centres de formation', 'les institutions publiques ou privées'], 'CDC art. 12'),
-                $texte('<p>Chaque partenariat fait l’objet d’un écrit précisant son objet, les engagements réciproques, sa durée, son suivi et ses modalités de fin.</p>', 'CDC art. 12'),
+                $texte('<p>La Mutuelle recherche des conventions avec les armements maritimes, sociétés de pêche industrielle, entreprises offshore, syndicats, associations professionnelles, établissements sanitaires, centres de formation et institutions publiques ou privées.</p>'
+                    . '<p>Chaque partenariat fait l’objet d’un écrit précisant son objet, les engagements réciproques, sa durée, son suivi et ses modalités de fin.</p>', 'CDC art. 12'),
             ]],
             'accueil' => fn (array $ids): array => ['title' => 'Mutuelle des Marins Marchands et Gens de Mer de Côte d’Ivoire', 'template' => 'accueil',
                 'excerpt' => 'La Mutuelle des Marins Marchands et Gens de Mer de Côte d’Ivoire est une organisation de solidarité, d’entraide et d’accompagnement social destinée aux professionnels du secteur maritime ainsi qu’à leurs familles.',
@@ -188,8 +190,8 @@ final class ContentSeed
         ];
     }
 
-    /** @return array<string,mixed> */
-    private function domaines(): array
+    /** @param list<string>|null $only @return array<string,mixed> */
+    private function domaines(?array $only = null): array
     {
         $rows = [
             ['Santé', 'Information, orientation sanitaire et dispositifs d’accès aux soins.'],
@@ -201,6 +203,7 @@ final class ContentSeed
             ['Retraite', 'Accompagnement des anciens marins.'],
             ['Urgences', 'Étude des demandes d’aide en situation sociale urgente.'],
         ];
+        $rows = array_values(array_filter($rows, static fn (array $r): bool => $only === null || in_array($r[0], $only, true)));
         return ['type' => 'domaines', 'source' => 'CDC art. 9', 'items' => array_map(static fn (array $r): array => ['name' => $r[0], 'nature' => $r[1], 'description' => ''], $rows)];
     }
 
@@ -218,7 +221,6 @@ final class ContentSeed
     private function footerMenu(array $ids): array
     {
         return [['label' => 'Documents', 'url' => '/documents', 'depth' => 0, 'is_active' => 0],
-            ['label' => 'Partenaires', 'page_id' => $ids['partenaires'], 'depth' => 0, 'is_active' => 1],
-            ['label' => 'Fonds de solidarité', 'page_id' => $ids['fonds-de-solidarite'], 'depth' => 0, 'is_active' => 1]];
+            ['label' => 'Partenaires', 'page_id' => $ids['partenaires'], 'depth' => 0, 'is_active' => 1]];
     }
 }
