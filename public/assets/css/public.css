@@ -174,6 +174,50 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
 .pub-gallery .pub-figure { margin: 0; }
 .pub-form-link .btn { margin-top: var(--s2); }
 
+/* Adhésion en ligne : une feuille par étape (bande de cordage), sur la page intérieure ; téléphone d'abord, cibles de 48 px. */
+.pub-form-note { padding: var(--s4); background: var(--frame); border-radius: var(--r-sm); color: var(--ink-2); font-weight: 600; max-width: 60ch; }
+.apply-progress { margin-top: var(--s4); color: var(--ocean-100); font-size: var(--text-lg); }
+.apply-steps { list-style: none; display: flex; gap: var(--s2); margin: var(--s3) 0 0; padding: 0; max-width: 32rem; }
+.apply-steps li { flex: 1; height: 6px; background: var(--navy-800); }
+.apply-steps li[data-done] { background: var(--ocean-100); }
+.apply-steps li[aria-current] { background: var(--gold-400); }
+.apply-card { background: var(--paper); border-radius: var(--r-sm); overflow: hidden; }
+.apply-in { padding: var(--s5) var(--s4) var(--s6); }
+.apply-in > :first-child { margin-top: 0; }
+.apply .field label, .apply legend { font-size: var(--text-md); font-weight: 700; color: var(--ink); }
+.apply .field-hint { font-size: var(--text-sm); color: var(--ink-2); }
+.apply .control { min-height: 48px; font-size: var(--text-md); }
+.apply-group { margin: 0 0 var(--s5); padding: 0; border: 0; min-width: 0; display: grid; gap: var(--s2); }
+.apply-group legend { padding: 0; margin-bottom: var(--s2); }
+.apply-group .pub-check { min-height: 48px; }
+.apply-inline { grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr)); }
+.apply-inline legend, .apply-inline .field-error { grid-column: 1 / -1; }
+.apply-sub, .pub-page .apply-sub { margin: var(--s6) 0 var(--s3); font-size: var(--text-xl); }
+.apply-in > .apply-sub:first-child, .apply-form > .apply-sub:first-child { margin-top: 0; }
+.apply-errors { margin-bottom: var(--s5); padding: var(--s4); border-left: 4px solid var(--danger); background: var(--danger-bg); }
+.apply-errors h2, .pub-page .apply-errors h2 { margin: 0 0 var(--s2); font-size: var(--text-lg); color: var(--danger); }
+.apply-errors ul { margin: 0; padding-left: var(--s4); }
+.apply-errors a { display: inline-flex; min-height: var(--control-h); align-items: center; color: var(--danger); font-weight: 600; }
+.apply-errors:focus-visible { outline: var(--focus-ring); }
+.apply-nav { display: flex; flex-direction: row-reverse; flex-wrap: wrap; justify-content: space-between; gap: var(--s3); margin-top: var(--s6); }
+.apply-nav .btn, .apply-form .btn, .apply-in .btn { min-height: 48px; padding: 0 var(--s5); font-size: var(--text-md); }
+.apply-nav .btn { flex: 1 1 12rem; }
+.apply-files { list-style: none; margin: 0 0 var(--s4); padding: 0; display: grid; }
+.apply-files li { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2); padding: var(--s2) var(--s3); }
+.apply-files li:nth-child(odd) { background: var(--frame); }
+.apply-recap { margin-bottom: var(--s5); }
+.apply-recap h3 { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--s2); }
+.apply-edit { display: inline-flex; align-items: center; min-height: var(--control-h); font-size: var(--text-md); font-family: var(--font-body); color: var(--navy-800); }
+.apply-recap dd { overflow-wrap: anywhere; }
+.apply-consent { max-height: 18rem; overflow: auto; margin-bottom: var(--s4); padding: var(--s4); background: var(--sheet); border-radius: var(--r-sm); }
+.apply-consent p { max-width: 68ch; }
+.apply-accept { min-height: 56px; font-weight: 700; }
+.apply-trap { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.apply-lead { font-size: var(--text-lg); font-weight: 600; max-width: 60ch; }
+.apply-ref-label { color: var(--ink-2); }
+.apply-ref { font-family: var(--font-display); font-size: clamp(2rem, 1.4rem + 2.5vw, 3rem); line-height: 1.1; color: var(--navy-900); margin-bottom: var(--s4); overflow-wrap: anywhere; }
+.apply-in p + p { margin-top: var(--s3); }
+
 /* 404 : texte et dessin de l'ancre. */
 .pub-lost { display: grid; gap: var(--s5); align-items: center; }
 .pub-lost p + p { margin-top: var(--s4); }
@@ -234,6 +278,7 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
   .home-body .pub-domains { padding: var(--s6); }
   .pub-head { padding-top: var(--s6); padding-bottom: var(--s7); }
   .pub-lost { grid-template-columns: 1fr auto; }
+  .apply-in { padding: var(--s6); }
   .pub-lost-art { width: 200px; }
   .pub-foot-in { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s6); padding: var(--s6); }
   .pub-foot-in > * { grid-column: 1; }

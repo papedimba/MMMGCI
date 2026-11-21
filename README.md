@@ -105,6 +105,8 @@ Publication programmée du site (lot L3) : la tâche `cms.publish_scheduled` est
 
 Tâches enregistrées (lot L1) : `login_attempts.purge` et `password_resets.purge`, chacune toutes les 60 minutes (suppression des tentatives de connexion et des jetons de réinitialisation ou d'invitation de plus de 24 h).
 
+Adhésion en ligne (lot L4) : `site.cleanup_apply_drafts`, toutes les 60 minutes, supprime les pièces téléversées dans une demande en ligne **abandonnée** depuis plus de 24 h (jamais rattachées à une demande) : ligne `apply_draft_files`, puis fichier en base, puis fichier sur le disque privé.
+
 ## Premier administrateur
 
 Après `php bin/migrate.php`, créer le premier compte (rôles `super_admin` et `admin_general`) :
@@ -158,7 +160,7 @@ Le mot de passe est alors envoyé dans l'e-mail du Cron : **supprimer la tâche 
 
 **Production** : renseigner `APP_URL` (https://votre-domaine) dans `.env` ; le QR de la carte en est tiré. En production sans `APP_URL`, l'impression de carte est refusée avec un message (jamais construit depuis l'en-tête Host ; ce repli ne sert qu'en développement).
 
-**Limites connues** : la vérification publique `/verifier` est limitée à 30 requêtes par minute et par `REMOTE_ADDR` (limite partagée derrière un proxy ou un CDN) ; les exports et la liste imprimable sont construits en mémoire (ordre de grandeur validé : 2 000 lignes en moins de 0,1 s ; au-delà de ~100 000 lignes, prévoir de relever `memory_limit` ou de filtrer) ; la carte s'imprime sur une page A4 (le format physique CR80 sur imprimante de cartes, page nommée `cr80`, n'est pas utilisé ni vérifié) ; pas d'anonymisation après conservation, pas de suppression de pièce ni de photo, pas d'Espace adhérent ni d'adhésion en ligne (lots L15 et L4).
+**Limites connues** : la vérification publique `/verifier` est limitée à 30 requêtes par minute et par `REMOTE_ADDR` (limite partagée derrière un proxy ou un CDN) ; les exports et la liste imprimable sont construits en mémoire (ordre de grandeur validé : 2 000 lignes en moins de 0,1 s ; au-delà de ~100 000 lignes, prévoir de relever `memory_limit` ou de filtrer) ; la carte s'imprime sur une page A4 (le format physique CR80 sur imprimante de cartes, page nommée `cr80`, n'est pas utilisé ni vérifié) ; pas d'anonymisation après conservation, pas de suppression de pièce ni de photo, pas d'Espace adhérent (lot L15) ; l'adhésion en ligne (lot L4) est décrite sous « Site web ».
 
 ## Finances (lot L6)
 
@@ -316,6 +318,19 @@ Trois formulaires (contact, information, partenariat) déposés via `FormInbox::
 ### Adresses publiques (pour le lot L4)
 
 Le schéma d'URL public est défini **une seule fois** dans `App\Modules\Cms\PublishedContent` : pages `/{slug}` (la forme hiérarchique `/parent/enfant` n'est honorée que si tous les parents sont en ligne et redirige vers `/{slug}`), articles `/actualites/{slug}`, évènements `/evenements/{slug}`, plan du site `sitemapUrls()`. Le rendu public (L4) ne lit que `PublishedContent` (jamais un brouillon), qui fournit aussi les résolveurs `mediaUrl()`, `fileUrl()`, `pagePath()` (pages en ligne seulement) et `category()` pour les identifiants qu'il renvoie.
+
+### Adhésion en ligne (`/adhesion-en-ligne`, lot L4)
+
+Parcours public en 5 étapes servies par le serveur (Situation, Identité, Coordonnées et profession, Pièces, Consentement et envoi), sans JavaScript, une adresse par étape (`/adhesion-en-ligne/etape/1` à `5`, accusé `/adhesion-en-ligne/envoye`). Code : `App\Modules\Site\ApplyFlow` (règles) et `ApplyController` (routes).
+
+- **Ouverture** : seulement si `site.adhesion_open` est **validé et vaut oui** et si `site.consent_text` est **validé et non vide** ; relu à chaque requête. Sinon toute route du parcours (GET et POST) répond une page « Les adhésions en ligne ouvriront prochainement. » (200, avec la liste des pièces du bloc « dossier » de la page Adhésion si elle est publiée, et le téléphone / l'e-mail de contact validés) et **rien n'est écrit**. Sur la page Adhésion, le bloc formulaire « adhesion » affiche « Commencer ma demande » seulement quand le parcours est ouvert, sinon « Le formulaire en ligne ouvrira prochainement. ».
+- **Brouillon** : en session (cookie de session seulement sur ces routes), clé `apply`, jeton aléatoire ; chaque étape valide ses champs avec les règles de `MemberService` (celles de l'envoi), plus : référentiels **actifs** seulement, sexe dans la liste, e-mail refusé s'il contient CR/LF. Les cases « livret disponible » et « ayants droit à déclarer » restent dans le brouillon (aucune colonne de demande ne les reçoit).
+- **Pièces** : toutes facultatives (l'art. 6 les liste sans les rendre bloquantes) ; profils `document` (PDF, JPG, PNG) et `image` pour la photo (ré-encodée) ; 6 pièces et 15 Mo au plus par demande, taille par fichier `UPLOAD_MAX_MB` ; disque **privé** ; nom du fichier du visiteur jamais conservé (`identite.pdf`, `photo.png`…) ; liées au jeton (`apply_draft_files`, migration 0023), rattachées à la demande (`membership_application_files`, types `identite`, `livret_maritime`, `photo`, `autre`) dans la même transaction que la création ; visibles côté administration sur la demande.
+- **Envoi** : `ApplicationService::submit(…, 'en_ligne', null, $ip)` crée une demande « Reçue », **jamais un membre** ; l'adresse IP est conservée dans `membership_applications.ip` (preuve et lutte contre les abus ; durée de conservation à fixer par les instances). Accusé « Votre demande a été reçue. Elle sera examinée par la Mutuelle. Conservez cette référence. » avec la référence `AD-AAAA-NNNN`, identique qu'il existe ou non des homonymes (la détection des doublons reste interne, à la validation). Un renvoi du même formulaire (double clic, retour arrière) ne crée rien : jeton consommé, même accusé.
+- **Anti-abus** : jeton CSRF ; champ piège `website` ; délai minimal de 8 s entre l'ouverture de l'étape 1 et l'envoi (horodatage signé HMAC avec `APP_KEY`) ; refus générique sans dire quel contrôle a échoué ; 5 demandes au plus par adresse IP et 30 minutes (clé partagée avec les formulaires : `App\Core\IpKey`, IPv4 mappée = IPv4, IPv6 par /64 ; compteur `login_attempts`, repère 7) puis 429.
+- **Accusé par e-mail** : seulement si une adresse est donnée et que l'envoi est configuré (`MAIL_FROM` valide), en différé ; sujet et corps fixes avec la **référence seule** (aucun nom) ; 20 accusés par heure au plus pour tout le site (repère 8) ; un échec d'envoi n'empêche rien.
+- Toutes les réponses du parcours : `Cache-Control: no-store`, `X-Robots-Tag: noindex, nofollow`. L'audit ne contient que référence, source et zone.
+- **Limites** : la limite par IP est partagée derrière un proxy ou un CDN (`REMOTE_ADDR`) ; deux envois strictement simultanés du même brouillon sont sérialisés par le verrou de session PHP (fichiers).
 
 ### Limites connues
 

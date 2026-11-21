@@ -14,7 +14,8 @@ use Throwable;
  */
 final class PageRenderer
 {
-    public function __construct(private View $view, private PublishedContent $content)
+    /** @param bool $adhesionOpen adhésion en ligne ouverte (ApplyFlow::isOpen) : le bloc formulaire « adhesion » n'y renvoie qu'alors */
+    public function __construct(private View $view, private PublishedContent $content, private bool $adhesionOpen = false)
     {
     }
 
@@ -31,7 +32,7 @@ final class PageRenderer
                 continue;
             }
             try {
-                $out .= $this->view->partial('public/blocks/' . $type, ['b' => $b, 'content' => $this->content, 'first' => !isset($seen[$type]), 'home' => $home]);
+                $out .= $this->view->partial('public/blocks/' . $type, ['b' => $b, 'content' => $this->content, 'first' => !isset($seen[$type]), 'home' => $home, 'adhesionOpen' => $this->adhesionOpen]);
                 $seen[$type] = true;
             } catch (Throwable $e) {
                 error_log('Site public : bloc ' . $type . ' ignoré (' . get_class($e) . ', page ' . (int) ($page['id'] ?? 0) . ')');

@@ -54,6 +54,9 @@ final class ViewsPolicyTest extends TestCase
         foreach (['standard', 'accueil', 'liste', 'not-found', 'article', 'evenement', 'galerie'] as $page) {
             $this->assertContains($root . "/app/views/public/pages/$page.php", $files, "gabarit $page");
         }
+        foreach (['frame', 'step1', 'step2', 'step3', 'step4', 'step5', 'done', 'closed'] as $apply) {
+            $this->assertContains($root . "/app/views/public/apply/$apply.php", $files, "adhésion en ligne : $apply");
+        }
         $this->assertFileDoesNotExist($root . '/app/views/public/_menu.php', 'menu codé en dur supprimé : il vient de PublishedContent::menu');
         $allowed = '~^<\?=\s*(?:e\(|e_lines\(|ui\(|ui_icon\(|\(int\)|RichText::sanitize\(|\$body\s*\?>|\$content\s*\?>|\$link\(|\$tag\s*\?>|\$external \? \' rel="noopener noreferrer"\' : \'\'|'
             . '\$m\[\'width\'\] !== null && \$m\[\'height\'\] !== null \? \' width="\' \. \(int\)|\$card\[\'expires_at\'\] === null \?)~';

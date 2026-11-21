@@ -117,20 +117,10 @@ final class FormInbox
         return $out;
     }
 
-    /** Clé du compteur : IPv4 telle quelle ; IPv6 regroupée par /64 (une personne dispose de 2^64 adresses). */
+    /** Clé du compteur : voir IpKey::of (partagée avec l'adhésion en ligne). */
     private static function throttleKey(string $ip): string
     {
-        $bin = str_contains($ip, ':') ? @inet_pton($ip) : false;
-        if ($bin === false || strlen($bin) !== 16) {
-            return $ip;
-        }
-        if (str_starts_with($bin, str_repeat("\0", 10) . "\xff\xff")) {
-            return (string) inet_ntop(substr($bin, 12)); // IPv4 mappée (::ffff:a.b.c.d) : la clé de l'adresse IPv4
-        }
-        if (str_starts_with($bin, str_repeat("\0", 8))) {
-            return (string) inet_ntop($bin); // ::1, :: et apparentées : pas de regroupement (un seul « /64 » les réunirait toutes)
-        }
-        return bin2hex(substr($bin, 0, 8)) . '/64';
+        return \App\Core\IpKey::of($ip);
     }
 
     /** Retire les caractères de mise en forme invisibles (bidi, largeur nulle…), sauf la jonction U+200D des émojis. */

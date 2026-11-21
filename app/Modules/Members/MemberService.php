@@ -175,6 +175,22 @@ final class MemberService
     /** Règles de saisie communes (adhérent et demande d'adhésion) ; DomainException au premier lot d'erreurs. @param array<string,mixed> $data @return array<string,mixed> */
     public function validate(array $data, bool $creating): array
     {
+        [$out, $errors] = $this->check($data, $creating);
+        if ($errors !== []) {
+            throw new DomainException(implode(' ', $errors));
+        }
+        return $out;
+    }
+
+    /** Mêmes règles que validate(), erreurs par champ (formulaire public d'adhésion : erreurs liées aux champs). @param array<string,mixed> $data @return array<string,string> */
+    public function fieldErrors(array $data, bool $creating): array
+    {
+        return $this->check($data, $creating)[1];
+    }
+
+    /** @param array<string,mixed> $data @return array{0: array<string,mixed>, 1: array<string,string>} */
+    private function check(array $data, bool $creating): array
+    {
         foreach (['last_name', 'first_names'] as $k) {
             if (is_string($data[$k] ?? null)) {
                 $data[$k] = self::squash($data[$k]);
@@ -221,12 +237,12 @@ final class MemberService
             $errors['id_document_type'] = 'Type de pièce invalide : choisissez-le dans la liste proposée.';
         }
         if ($errors !== []) {
-            throw new DomainException(implode(' ', $errors));
+            return [[], $errors];
         }
         unset($out['status']);
         foreach (self::REFS as $k => $_) {
             $out[$k] = ($out[$k] ?? null) === null ? null : (int) $out[$k];
         }
-        return $out + ($creating ? ['status' => $status] : []);
+        return [$out + ($creating ? ['status' => $status] : []), []];
     }
 }

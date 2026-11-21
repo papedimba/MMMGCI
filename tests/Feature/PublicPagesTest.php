@@ -331,9 +331,19 @@ final class PublicPagesTest extends AdminTestCase
 
     public function test_form_block_links_to_the_form_pages_without_rendering_a_form(): void
     {
-        $html = $this->get('/' . $this->rawPage([['type' => 'formulaire', 'form_key' => 'adhesion'], ['type' => 'formulaire', 'form_key' => 'contact'],
-            ['type' => 'formulaire', 'form_key' => 'partenariat']]))->body();
+        $path = '/' . $this->rawPage([['type' => 'formulaire', 'form_key' => 'adhesion'], ['type' => 'formulaire', 'form_key' => 'contact'],
+            ['type' => 'formulaire', 'form_key' => 'partenariat']]);
+        $html = $this->get($path)->body();
+        // Adhésion en ligne fermée (réglages non validés) : note honnête, aucun lien vers le parcours.
+        $this->assertStringNotContainsString('href="/adhesion-en-ligne"', $html);
+        $this->assertStringContainsString('Le formulaire en ligne ouvrira prochainement.', $html);
+        $settings = new \App\Core\Settings($this->db);
+        $settings->validate('site', 'adhesion_open', true, $this->publisher, 'PV test');
+        $settings->validate('site', 'consent_text', 'Texte fourni par la Mutuelle.', $this->publisher, 'PV test');
+        $html = $this->get($path)->body();
         $this->assertStringContainsString('href="/adhesion-en-ligne"', $html);
+        $this->assertStringContainsString('Commencer ma demande', $html);
+        $this->assertStringNotContainsString('ouvrira prochainement', $html);
         $this->assertSame(2, substr_count($html, 'href="/contact"'));
         $this->assertStringNotContainsString('<form', $html);
         $this->assertStringNotContainsString('csrf', $html);

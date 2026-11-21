@@ -22,6 +22,6 @@ final class VerifyCsrf implements Middleware
         if (is_string($t) && $this->csrf->check($t)) {
             return $next($r);
         }
-        return new Response($this->view->render('errors/419', ['title' => 'Session expirée']), 419);
+        return new Response($this->view->render('errors/419', ['title' => 'Session expirée']), 419, ['Cache-Control' => 'no-store', 'X-Robots-Tag' => 'noindex']);
     }
 }

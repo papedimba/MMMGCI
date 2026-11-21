@@ -181,7 +181,7 @@ final class SiteController
                 'aides' => array_filter(is_array($page['blocks'] ?? null) ? $page['blocks'] : [], static fn ($b): bool => is_array($b) && ($b['type'] ?? '') === 'domaines' && !empty($b['items'])) !== []];
         }
         return $this->html($this->view->render($home ? 'public/pages/accueil' : 'public/pages/standard', ['title' => (string) ($page['seo_title'] ?: $page['title']), 'description' => $page['seo_description'] ?: $page['excerpt'],
-            'page' => $page, 'body' => (new PageRenderer($this->view, $this->content()))->render($page), 'ogImage' => $image, 'site' => $this->site()] + $extra, 'layouts/public'));
+            'page' => $page, 'body' => (new PageRenderer($this->view, $this->content(), ApplyFlow::isOpen($this->settings ??= ($this->makeSettings)())))->render($page), 'ogImage' => $image, 'site' => $this->site()] + $extra, 'layouts/public'));
     }
 
     /** @param list<array<string,mixed>> $items */
@@ -229,8 +229,8 @@ final class SiteController
             'adhesion' => $adhesion !== null && !isset($adhesion['redirect']) ? '/adhesion' : null];
     }
 
-    /** @return array<string,mixed> */
-    private function safeSite(): array
+    /** Données du gabarit public (aussi pour l'adhésion en ligne) ; [] si la base est injoignable. @return array<string,mixed> */
+    public function safeSite(): array
     {
         try {
             return $this->site();
