@@ -197,3 +197,6 @@
 @media (pointer: coarse) {
   .page-depth a { display: inline-flex; align-items: center; min-height: var(--control-h); }
 }
+
+/* Texte saisi par un visiteur ou une note : retours à la ligne conservés. */
+.prewrap { white-space: pre-wrap; overflow-wrap: anywhere; }

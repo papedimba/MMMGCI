@@ -44,6 +44,10 @@ use App\Modules\Cms\MediaController;
 use App\Modules\Cms\MenuController;
 use App\Modules\Cms\MenuService;
 use App\Modules\Cms\MediaService;
+use App\Modules\Cms\FormController;
+use App\Modules\Cms\FormInbox;
+use App\Modules\Cms\SettingsController;
+use App\Modules\Cms\SiteSettings;
 use App\Modules\Cms\PageController;
 use App\Modules\Cms\PageService;
 use App\Modules\Finance\AccountService;
@@ -118,6 +122,10 @@ return static function (Router $r, array $deps): void {
     $galleries = static fn (): GalleryController => new GalleryController($view, $csrf, $session, $gate(), new GalleryService($db(), $audit(), $gate()));
     $banners = static fn (): BannerController => new BannerController($view, $csrf, $session, $gate(), new BannerService($db(), $audit(), $gate()));
     $testimonials = static fn (): TestimonialController => new TestimonialController($view, $csrf, $session, $gate(), new TestimonialService($db(), $audit(), $gate(), new Settings($db()), $uploads()), new SensitiveAccess($db()));
+    $siteSettings = static fn (): SiteSettings => new SiteSettings($db(), $audit(), $gate());
+    $siteSettingsScreen = static fn (): SettingsController => new SettingsController($view, $csrf, $session, $gate(), $siteSettings());
+    $formInbox = static fn (): FormController => new FormController($view, $csrf, $session, $gate(), new FormInbox($db(), $audit(), $gate(), new Sequence($db()), $siteSettings(),
+        static fn () => $mailer(), Closure::fromCallable($defer), (string) $config->get('APP_URL', '')));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -348,6 +356,20 @@ return static function (Router $r, array $deps): void {
     }
     // Pièce de consentement (privée) : publicateurs seulement, consultation journalisée ; jamais sous /media.
     $r->get('/admin/site/temoignages/{id:\d+}/consentement', static fn (Request $q): Response => $testimonials()->download($q), [$requireAuth, $permission('cms.publish')]);
+
+    // Réglages du site : saisie (cms.settings.manage) ; validation par les instances (settings.validate) ; lecture par l'un ou l'autre.
+    $r->get('/admin/site/reglages', static fn (Request $q): Response => $siteSettingsScreen()->index($q), [$requireAuth, $permission('cms.settings.manage', 'settings.validate')]);
+    $r->post('/admin/site/reglages/{key:[a-z0-9_]+}', static fn (Request $q): Response => $siteSettingsScreen()->save($q), [$requireAuth, $permission('cms.settings.manage')]);
+    $r->post('/admin/site/reglages/{key:[a-z0-9_]+}/validation', static fn (Request $q): Response => $siteSettingsScreen()->validate($q), [$requireAuth, $permission('settings.validate')]);
+
+    // Formulaires reçus (cms.forms.manage).
+    $manageForms = [$requireAuth, $permission('cms.forms.manage')];
+    $r->get('/admin/site/formulaires', static fn (Request $q): Response => $formInbox()->index($q), $manageForms);
+    $r->get('/admin/site/formulaires/export.csv', static fn (Request $q): Response => $formInbox()->export($q), $manageForms);
+    $r->get('/admin/site/formulaires/{id:\d+}', static fn (Request $q): Response => $formInbox()->show($q), $manageForms);
+    $r->post('/admin/site/formulaires/{id:\d+}/etat', static fn (Request $q): Response => $formInbox()->transition($q), $manageForms);
+    $r->post('/admin/site/formulaires/{id:\d+}/affectation', static fn (Request $q): Response => $formInbox()->assign($q), $manageForms);
+    $r->post('/admin/site/formulaires/{id:\d+}/notes', static fn (Request $q): Response => $formInbox()->note($q), $manageForms);
 
     // Galerie du kit et page d'exemple d'impression : outils de développement, routes non enregistrées en production (404).
     if ($config->get('APP_ENV', 'production') !== 'production') {

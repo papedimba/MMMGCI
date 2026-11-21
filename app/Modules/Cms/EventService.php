@@ -155,7 +155,7 @@ final class EventService extends CmsContent implements ScheduledContent
             $where[] = 'slug = ?';
             $args[] = (string) $criteria['slug'];
         }
-        $limit = max(1, min(100, (int) ($criteria['limit'] ?? 20)));
+        $limit = max(1, min(5000, (int) ($criteria['limit'] ?? 20)));
         return $this->db->fetchAll('SELECT id, title, slug, description, starts_at, ends_at, location, featured_file_id, published_at FROM cms_events WHERE '
             . implode(' AND ', $where) . " ORDER BY $order LIMIT $limit", $args);
     }

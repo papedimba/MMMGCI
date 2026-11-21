@@ -53,11 +53,12 @@ final class MenuService
     public function publicItems(string $location): array
     {
         $out = [];
-        foreach ($this->rows($location, true) as $row) {
+        $rows = $this->rows($location, true);
+        $slugs = $this->pages->liveSlugs(array_values(array_unique(array_map(static fn (array $r): int => (int) $r['page_id'], array_filter($rows, static fn (array $r): bool => $r['page_id'] !== null)))));
+        foreach ($rows as $row) {
             $href = $row['url'];
             if ($row['page_id'] !== null) {
-                $live = $this->pages->liveVersion((int) $row['page_id']);
-                $href = $live === null ? null : '/' . $live['slug'];
+                $href = isset($slugs[(int) $row['page_id']]) ? '/' . $slugs[(int) $row['page_id']] : null;
             }
             $parent = $row['parent_id'] === null ? null : (int) $row['parent_id'];
             if ($href === null || ($parent !== null && !isset($out[$parent]))) {

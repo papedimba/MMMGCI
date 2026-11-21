@@ -22,6 +22,8 @@ return [
     ['Site web', 'Bannières', '/admin/site/bannieres', ['cms.pages.manage', 'cms.publish'], 'file'],
     ['Site web', 'Témoignages', '/admin/site/temoignages', ['cms.pages.manage', 'cms.publish'], 'file'],
     ['Site web', 'Médias', '/admin/site/medias', ['cms.media.manage', 'cms.pages.manage'], 'file'],
+    ['Site web', 'Formulaires reçus', '/admin/site/formulaires', 'cms.forms.manage', 'file'],
+    ['Site web', 'Réglages du site', '/admin/site/reglages', ['cms.settings.manage', 'settings.validate'], 'file'],
     ['Site web', 'Menus', '/admin/site/menus', 'cms.publish', 'file'],
     ['Administration', 'Utilisateurs', '/admin/utilisateurs', 'users.manage', 'users'],
     ['Administration', 'Rôles', '/admin/roles', 'roles.manage', 'shield'],

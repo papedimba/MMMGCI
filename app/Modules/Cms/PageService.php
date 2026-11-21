@@ -366,6 +366,24 @@ final class PageService implements ScheduledContent
         return null;
     }
 
+    /**
+     * Adresse (slug) des pages ayant une version en ligne, en une requête : même règle que liveVersion() (testée), pour les menus publics.
+     * @param list<int> $ids @return array<int,string> id => slug
+     */
+    public function liveSlugs(array $ids): array
+    {
+        if ($ids === []) {
+            return [];
+        }
+        $marks = implode(',', array_fill(0, count($ids), '?'));
+        $out = [];
+        foreach ($this->db->fetchAll("SELECT id, slug FROM cms_pages WHERE id IN ($marks) AND (status = 'publie' OR (status = 'programme' AND published_at <= ?)
+            OR (status IN ('brouillon', 'en_relecture', 'programme') AND published_blocks IS NOT NULL))", [...$ids, $this->now()->format('Y-m-d H:i:s')]) as $r) {
+            $out[(int) $r['id']] = (string) $r['slug'];
+        }
+        return $out;
+    }
+
     /** Arbre aplati (ordre, profondeur) pour la liste et les sélecteurs. @return list<array<string,mixed>> */
     public function tree(): array
     {
