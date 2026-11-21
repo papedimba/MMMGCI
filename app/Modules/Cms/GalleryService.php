@@ -34,6 +34,7 @@ final class GalleryService extends SimpleContent
             $old = $this->lock($id);
             $this->assertMayEdit($old, $actor);
             $this->db->update(static::TABLE, $this->clean($data, $id), ['id' => $id]);
+            $this->bump($id);
             $this->audit->log($actor, 'cms.gallery_updated', static::TABLE, $id, ['status' => $old['status']], ['status' => $old['status']]);
         }));
     }
@@ -66,6 +67,7 @@ final class GalleryService extends SimpleContent
             }
             $id = $this->db->insert('cms_gallery_items', ['gallery_id' => $galleryId, 'media_id' => $mid, 'caption' => $caption ?: null, 'credit' => $credit ?: null,
                 'sort_order' => (int) $this->db->fetchValue('SELECT COALESCE(MAX(sort_order), 0) + 1 FROM cms_gallery_items WHERE gallery_id = ?', [$galleryId])]);
+            $this->bump($galleryId);
             $this->audit->log($actor, 'cms.gallery_item_added', static::TABLE, $galleryId, null, ['item_id' => $id, 'media_id' => $mid]);
             return $id;
         });
@@ -83,6 +85,7 @@ final class GalleryService extends SimpleContent
                 throw new PageInvalid($errors);
             }
             $this->db->update('cms_gallery_items', ['caption' => $caption ?: null, 'credit' => $credit ?: null], ['id' => $itemId]);
+            $this->bump($galleryId);
             $this->audit->log($actor, 'cms.gallery_item_updated', static::TABLE, $galleryId, null, ['item_id' => $itemId]);
         });
     }
@@ -93,6 +96,7 @@ final class GalleryService extends SimpleContent
             $this->assertMayEdit($this->lock($galleryId), $actor);
             $this->itemRow($galleryId, $itemId);
             $this->db->query('DELETE FROM cms_gallery_items WHERE id = ?', [$itemId]);
+            $this->bump($galleryId);
             $this->audit->log($actor, 'cms.gallery_item_removed', static::TABLE, $galleryId, null, ['item_id' => $itemId]);
         });
     }
@@ -112,6 +116,7 @@ final class GalleryService extends SimpleContent
             foreach ($ids as $n => $id) {
                 $this->db->update('cms_gallery_items', ['sort_order' => $n + 1], ['id' => $id]);
             }
+            $this->bump($galleryId);
             $this->audit->log($actor, 'cms.gallery_item_moved', static::TABLE, $galleryId, null, ['item_id' => $itemId]);
         });
     }

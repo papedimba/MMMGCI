@@ -36,18 +36,19 @@ final class BannerService extends SimpleContent
                 $this->assertRoom($id, $row['ends_at']);
             }
             $this->db->update(static::TABLE, $row, ['id' => $id]);
+            $this->bump($id);
             $this->audit->log($actor, 'cms.banner_updated', static::TABLE, $id, ['status' => $old['status']], ['status' => $old['status']]);
         });
     }
 
-    public function transition(int $id, string $to, int $actor): void
+    public function transition(int $id, string $to, int $actor, ?int $seenVersion = null): void
     {
         try {
-            $this->db->atomic(function () use ($id, $to, $actor): void {
+            $this->db->atomic(function () use ($id, $to, $actor, $seenVersion): void {
                 if ($to === 'publie') {
                     $this->lockSet(); // même ordre de verrous que update() : l'ensemble, puis la ligne
                 }
-                parent::transition($id, $to, $actor);
+                parent::transition($id, $to, $actor, $seenVersion);
             });
         } catch (PDOException $e) {
             if (in_array((int) ($e->errorInfo[1] ?? 0), [1205, 1213], true)) {

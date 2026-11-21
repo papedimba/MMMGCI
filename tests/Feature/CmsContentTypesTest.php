@@ -105,6 +105,11 @@ final class CmsContentTypesTest extends AdminTestCase
         return $this->db->insert('cms_media', ['file_id' => $file, 'title' => $title, 'alt' => $alt]);
     }
 
+    private function v(object $svc, int $id): int
+    {
+        return (int) $svc->get($id)['content_version'];
+    }
+
     private function future(string $m = '+2 days'): DateTimeImmutable
     {
         return (new DateTimeImmutable('now', new DateTimeZone('Africa/Abidjan')))->modify($m);
@@ -238,7 +243,7 @@ final class CmsContentTypesTest extends AdminTestCase
         $this->request('POST', "/admin/site/documents/$id/etat", ['to' => 'publie']);
         $this->assertSame('brouillon', $svc->get($id)['status']);
         $this->assertSame([], $svc->publishedList(null));
-        $svc->transition($id, 'publie', $this->publisher);
+        $svc->transition($id, 'publie', $this->publisher, $this->v($svc, $id));
         $list = $svc->publishedList(null);
         $this->assertCount(1, $list);
         $this->assertStringStartsWith('/media/', $list[0]['url']);
@@ -324,7 +329,7 @@ final class CmsContentTypesTest extends AdminTestCase
         // Lecture publique : seulement les albums publiés ; une image dont l'alt a disparu n'est pas servie.
         $this->assertSame([], $svc->publishedAlbums());
         $this->assertSame([], $svc->publishedItems($g));
-        $svc->transition($g, 'publie', $this->publisher);
+        $svc->transition($g, 'publie', $this->publisher, $this->v($svc, $g));
         $this->assertSame(2, (int) $svc->publishedAlbums()[0]['item_count']);
         $this->assertCount(2, $svc->publishedItems($g));
         $this->db->query("UPDATE cms_media SET alt = '' WHERE id = (SELECT media_id FROM cms_gallery_items WHERE id = ?)", [$b]);
@@ -369,11 +374,11 @@ final class CmsContentTypesTest extends AdminTestCase
         $mk = fn (string $t, string $start = '', string $end = ''): int => $svc->create(['title' => $t, 'starts_at' => $start, 'ends_at' => $end], $this->author);
         $ids = [$mk('Un'), $mk('Deux'), $mk('Trois', $this->input('+10 days'), $this->input('+20 days'))];
         foreach ($ids as $i) {
-            $svc->transition($i, 'publie', $this->publisher);
+            $svc->transition($i, 'publie', $this->publisher, $this->v($svc, $i));
         }
         $four = $mk('Quatre');
         try {
-            $svc->transition($four, 'publie', $this->publisher);
+            $svc->transition($four, 'publie', $this->publisher, $this->v($svc, $four));
             $this->fail('4e bannière');
         } catch (ContentTransitionInvalid $e) {
             $this->assertStringContainsString('Trois bannières', $e->getMessage());
@@ -381,9 +386,9 @@ final class CmsContentTypesTest extends AdminTestCase
         $this->assertSame('brouillon', $svc->get($four)['status']);
         // La période terminée ne compte pas ; une bannière archivée libère la place.
         $past = $mk('Passée', $this->input('-5 days'), $this->input('-1 day'));
-        $svc->transition($past, 'publie', $this->publisher);
+        $svc->transition($past, 'publie', $this->publisher, $this->v($svc, $past));
         $svc->transition($ids[0], 'archive', $this->publisher);
-        $svc->transition($four, 'publie', $this->publisher);
+        $svc->transition($four, 'publie', $this->publisher, $this->v($svc, $four));
         $this->assertSame(['Deux', 'Quatre'], array_column($svc->activeNow($this->future('now')), 'text'), 'Trois commence dans le futur, Passée est terminée');
         $this->assertSame(['Deux', 'Trois', 'Quatre'], array_column($svc->activeNow($this->future('+11 days')), 'text'));
         $this->assertSame([], array_filter(array_column($svc->activeNow($this->future('+30 days')), 'text'), static fn (string $t): bool => $t === 'Trois'));
@@ -400,7 +405,7 @@ final class CmsContentTypesTest extends AdminTestCase
         $other->query('SELECT id FROM cms_banners ORDER BY id FOR UPDATE'); // une publication concurrente détient le verrou de l'ensemble
         $this->db->query('SET SESSION innodb_lock_wait_timeout = 1');
         try {
-            $svc->transition($id, 'publie', $this->publisher);
+            $svc->transition($id, 'publie', $this->publisher, $this->v($svc, $id));
             $this->fail('verrou attendu');
         } catch (ContentTransitionInvalid $e) {
             $this->assertStringContainsString('occupé', $e->getMessage());
@@ -408,7 +413,7 @@ final class CmsContentTypesTest extends AdminTestCase
             $other->pdo()->rollBack();
             $this->db->query('SET SESSION innodb_lock_wait_timeout = 50');
         }
-        $svc->transition($id, 'publie', $this->publisher);
+        $svc->transition($id, 'publie', $this->publisher, $this->v($svc, $id));
         foreach (['javascript:alert(1)', 'data:text/html,x', '//evil.test', str_repeat('a', 300)] as $bad) {
             try {
                 $svc->create(['title' => 'Lien', 'link_url' => $bad], $this->author);
@@ -439,7 +444,7 @@ final class CmsContentTypesTest extends AdminTestCase
         $this->assertNotNull($svc->get($withConsent)['consent_file_id']);
         // réglage non validé
         try {
-            $svc->transition($withConsent, 'publie', $this->publisher);
+            $svc->transition($withConsent, 'publie', $this->publisher, $this->v($svc, $withConsent));
             $this->fail('réglage non validé');
         } catch (ContentTransitionInvalid $e) {
             $this->assertStringContainsString('testimonials_enabled', $e->getMessage());
@@ -449,14 +454,14 @@ final class CmsContentTypesTest extends AdminTestCase
         $this->assertFalse($svc->enabled());
         $this->expectOutputString('');
         try {
-            $svc->transition($withConsent, 'publie', $this->publisher);
+            $svc->transition($withConsent, 'publie', $this->publisher, $this->v($svc, $withConsent));
             $this->fail('valeur false');
         } catch (ContentTransitionInvalid) {
         }
         $this->enableTestimonials(true);
         $this->assertTrue($svc->enabled());
         try {
-            $svc->transition($without, 'publie', $this->publisher);
+            $svc->transition($without, 'publie', $this->publisher, $this->v($svc, $without));
             $this->fail('sans consentement');
         } catch (ContentTransitionInvalid $e) {
             $this->assertStringContainsString('consentement', $e->getMessage());
@@ -467,7 +472,7 @@ final class CmsContentTypesTest extends AdminTestCase
         } catch (ContentTransitionInvalid) {
         }
         $this->assertSame([], $svc->publishable());
-        $svc->transition($withConsent, 'publie', $this->publisher);
+        $svc->transition($withConsent, 'publie', $this->publisher, $this->v($svc, $withConsent));
         $this->assertSame(['Awa Koné'], array_column($svc->publishable(), 'author_name'));
         $this->assertArrayNotHasKey('consent_file_id', $svc->publishable()[0]);
         $this->enableTestimonials(false);
@@ -508,7 +513,7 @@ final class CmsContentTypesTest extends AdminTestCase
             $this->assertStringNotContainsString($file['path'], $this->request('GET', $url)->body(), $url);
         }
         $this->enableTestimonials();
-        $this->testimonials()->transition($id, 'publie', $this->publisher);
+        $this->testimonials()->transition($id, 'publie', $this->publisher, (int) $this->testimonials()->get($id)['content_version']);
         $this->assertStringNotContainsString($file['path'], json_encode($this->testimonials()->publishable()));
         // Téléchargement : refusé au rédacteur, invisible pour lui, journalisé pour le publicateur.
         $this->assertStringNotContainsString('/consentement', $this->request('GET', "/admin/site/temoignages/$id")->body());
@@ -542,6 +547,65 @@ final class CmsContentTypesTest extends AdminTestCase
         $this->assertStringContainsString('Aucun témoignage ne peut être publié', $this->request('GET', '/admin/site/temoignages')->body());
         $this->enableTestimonials();
         $this->assertStringNotContainsString('ne peut être publié', $this->request('GET', '/admin/site/temoignages')->body());
+    }
+
+    public function test_publication_needs_the_version_the_publisher_saw(): void
+    {
+        $pdf = $this->media('application/pdf', null);
+        $doc = $this->docs();
+        $d = $doc->create(['title' => 'Doc', 'document_date' => '2026-01-01', 'media_id' => (string) $pdf], $this->author);
+        $seen = $this->v($doc, $d);
+        $doc->update($d, ['title' => 'Doc', 'document_date' => '2026-01-01', 'media_id' => (string) $this->media('application/pdf', null)], $this->author); // autre fichier
+        $this->assertSame('brouillon', $this->tryPublish($doc, $d, $seen));
+        $this->assertSame('publie', $this->tryPublish($doc, $d, $this->v($doc, $d)));
+
+        $t = $this->testimonials();
+        $this->enableTestimonials();
+        $id = $t->create(['body' => 'Avant', 'author_name' => 'Awa'], $this->pdfUpload(), $this->author);
+        $seen = $this->v($t, $id);
+        $t->update($id, ['body' => 'Après', 'author_name' => 'Awa'], null, $this->author);
+        $this->assertSame('brouillon', $this->tryPublish($t, $id, $seen));
+        $seen = $this->v($t, $id);
+        $t->update($id, ['body' => 'Après', 'author_name' => 'Awa'], $this->pdfUpload(), $this->author); // remplacement du consentement
+        $this->assertSame('brouillon', $this->tryPublish($t, $id, $seen));
+
+        $g = $this->galleries();
+        $gid = $g->create(['title' => 'Alb'], $this->author);
+        $item = $g->addItem($gid, ['media_id' => (string) $this->media()], $this->author);
+        $other = $g->addItem($gid, ['media_id' => (string) $this->media('image/png', 'B')], $this->author);
+        foreach ([fn () => $g->updateItem($gid, $item, ['caption' => 'x'], $this->author), fn () => $g->moveItem($gid, $item, 1, $this->author),
+            fn () => $g->removeItem($gid, $other, $this->author), fn () => $g->addItem($gid, ['media_id' => (string) $this->media('image/png', 'C')], $this->author)] as $change) {
+            $seen = $this->v($g, $gid);
+            $change();
+            $this->assertSame('brouillon', $this->tryPublish($g, $gid, $seen));
+        }
+
+        $b = $this->banners();
+        $bid = $b->create(['title' => 'B'], $this->author);
+        $seen = $this->v($b, $bid);
+        $b->update($bid, ['title' => 'B2'], $this->author);
+        $this->assertSame('brouillon', $this->tryPublish($b, $bid, $seen));
+        $this->assertSame('brouillon', $this->tryPublish($b, $bid, null), 'version absente : refus');
+
+        // Écran : le formulaire porte la version affichée ; une version périmée est refusée avec le message.
+        $this->actingAs($this->publisher);
+        $v = $this->v($b, $bid);
+        $this->assertStringContainsString('name="version" value="' . $v . '"', $this->request('GET', "/admin/site/bannieres/$bid")->body());
+        $b->update($bid, ['title' => 'B3'], $this->author);
+        $res = $this->request('POST', "/admin/site/bannieres/$bid/etat", ['to' => 'publie', 'version' => (string) $v]);
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString('modifié depuis votre lecture', $res->body());
+        $this->assertSame('brouillon', $b->get($bid)['status']);
+    }
+
+    private function tryPublish(object $svc, int $id, ?int $seen): string
+    {
+        try {
+            $svc->transition($id, 'publie', $this->publisher, $seen);
+        } catch (ContentTransitionInvalid $e) {
+            $this->assertStringContainsString('relisez-le', $e->getMessage());
+        }
+        return (string) $svc->get($id)['status'];
     }
 
     // ---- Transversal ------------------------------------------------------------------------------------------------------------------
@@ -613,7 +677,7 @@ final class CmsContentTypesTest extends AdminTestCase
         $this->assertStringContainsString('name="_form_complete"', $body);
         $this->actingAs($this->publisher);
         $this->assertStringContainsString('name="to" value="publie"', $this->request('GET', "/admin/site/bannieres/$b")->body());
-        $this->assertSame(302, $this->request('POST', "/admin/site/bannieres/$b/etat", ['to' => 'publie'])->status());
+        $this->assertSame(302, $this->request('POST', "/admin/site/bannieres/$b/etat", ['to' => 'publie', 'version' => (string) $this->v($this->banners(), $b)])->status());
         $this->assertSame('publie', $this->banners()->get($b)['status']);
         $this->assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE auditable_type = 'cms_banners' AND (new_values LIKE '%Bandeau%' OR old_values LIKE '%Bandeau%')"), 'l\'audit ne contient pas le texte');
     }

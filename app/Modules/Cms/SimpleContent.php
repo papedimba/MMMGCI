@@ -24,9 +24,16 @@ abstract class SimpleContent extends CmsContent
     {
     }
 
-    public function transition(int $id, string $to, int $actor): void
+    /** Version de la copie de travail : à appeler à chaque changement de contenu (texte, fichier, éléments), verrou déjà posé. */
+    protected function bump(int $id): void
     {
-        $this->db->atomic(function () use ($id, $to, $actor): void {
+        $this->db->query('UPDATE ' . static::TABLE . ' SET content_version = content_version + 1 WHERE id = ?', [$id]);
+    }
+
+    /** $seenVersion : version affichée au publicateur ; exigée pour publier (absente ou différente : refus). */
+    public function transition(int $id, string $to, int $actor, ?int $seenVersion = null): void
+    {
+        $this->db->atomic(function () use ($id, $to, $actor, $seenVersion): void {
             $row = $this->lock($id);
             $from = (string) $row['status'];
             if (!in_array($to, self::transitionsFor($from, $this->gate->allows($actor, 'cms.publish')), true)) {
@@ -34,6 +41,9 @@ abstract class SimpleContent extends CmsContent
             }
             $set = ['status' => $to];
             if ($to === 'publie') {
+                if ($seenVersion !== (int) $row['content_version']) {
+                    throw new ContentTransitionInvalid('Le contenu a été modifié depuis votre lecture, relisez-le.');
+                }
                 $this->beforePublish($row);
                 $set['published_at'] = $this->now()->format('Y-m-d H:i:s');
             }

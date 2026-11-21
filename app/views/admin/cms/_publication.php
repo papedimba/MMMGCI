@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 /**
  * Panneau « Publication » des contenus à circuit simple : boutons d'état et suppression (sans JavaScript).
- * @var string $base @var array<string,mixed> $row @var list<string> $transitions @var bool $mayPublish @var bool $canDelete @var string $csrfToken @var string $noun @var string $extra
+ * @var string $base @var array<string,mixed> $row @var list<string> $transitions @var bool $mayPublish @var bool $canDelete @var string $csrfToken @var string $noun @var string $extra @var int $version
  */
 use App\Modules\Cms\SimpleContent;
 
@@ -9,7 +9,7 @@ $labels = ['publie' => 'Publier', 'archive' => 'Archiver', 'brouillon' => $row['
 $forms = '';
 foreach ($transitions as $to) {
     $forms .= '<form method="post" action="' . e($base . '/' . $row['id'] . '/etat') . '" class="transition-form"><input type="hidden" name="_csrf" value="' . e($csrfToken) . '">'
-        . '<input type="hidden" name="to" value="' . e($to) . '">' . ui('button', ['label' => $labels[$to], 'type' => 'submit', 'variant' => $to === 'publie' ? 'primary' : 'secondary']) . '</form>';
+        . '<input type="hidden" name="to" value="' . e($to) . '"><input type="hidden" name="version" value="' . (int) $version . '">' . ui('button', ['label' => $labels[$to], 'type' => 'submit', 'variant' => $to === 'publie' ? 'primary' : 'secondary']) . '</form>';
 }
 $state = '<p>État : <strong>' . e(SimpleContent::STATUS_LABELS[$row['status']] ?? (string) $row['status']) . '</strong>.</p>'
     . (!$mayPublish ? '<p class="field-hint">La publication est réservée aux publicateurs.</p>' : '')

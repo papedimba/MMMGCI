@@ -92,7 +92,8 @@ abstract class SimpleScreen extends CmsScreen
             $id = $this->id($r);
             $to = is_string($r->post('to')) ? $r->post('to') : '';
             try {
-                $this->content->transition($id, $to, $this->actor($r));
+                $seen = is_string($r->post('version')) && ctype_digit($r->post('version')) ? (int) $r->post('version') : null;
+                $this->content->transition($id, $to, $this->actor($r), $seen);
             } catch (DomainException $e) {
                 return $this->editWithError($r, $id, $e->getMessage());
             }
@@ -171,7 +172,7 @@ abstract class SimpleScreen extends CmsScreen
             'title' => $row === null ? 'Nouveau ' . $label : 'Modifier : ' . $label, 'base' => $this->base(), 'row' => $row, 'values' => $values, 'errors' => $errors,
             'errorSummary' => self::summary($errors), 'mayPublish' => $mayPublish, 'locked' => $row !== null && $row['status'] === 'publie' && !$mayPublish, 'noun' => $noun,
             'publication' => $row === null ? '' : $this->view->partial('admin/cms/_publication', ['base' => $this->base(), 'row' => $row, 'transitions' => $transitions, 'mayPublish' => $mayPublish,
-                'canDelete' => !$published && $row['status'] === 'brouillon', 'csrfToken' => $this->csrf->token(), 'noun' => $noun, 'extra' => $this->publicationNote($row)]),
+                'version' => (int) $row['content_version'], 'canDelete' => !$published && $row['status'] === 'brouillon', 'csrfToken' => $this->csrf->token(), 'noun' => $noun, 'extra' => $this->publicationNote($row)]),
         ] + $this->formData($row), $status);
     }
 

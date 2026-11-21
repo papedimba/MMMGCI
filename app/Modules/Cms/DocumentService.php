@@ -31,6 +31,7 @@ final class DocumentService extends SimpleContent
             $old = $this->lock($id);
             $this->assertMayEdit($old, $actor);
             $this->db->update(static::TABLE, $this->clean($data), ['id' => $id]);
+            $this->bump($id);
             $this->audit->log($actor, 'cms.document_updated', static::TABLE, $id, ['status' => $old['status']], ['status' => $old['status']]);
         });
     }

@@ -60,6 +60,7 @@ final class TestimonialService extends SimpleContent
                 $old = $this->lock($id);
                 $this->assertMayEdit($old, $actor);
                 $this->db->update(static::TABLE, $row + ($new === null ? [] : ['consent_file_id' => $new]), ['id' => $id]);
+                $this->bump($id);
                 $this->audit->log($actor, 'cms.testimonial_updated', static::TABLE, $id, ['status' => $old['status']], ['status' => $old['status'], 'consent_replaced' => $new !== null]);
                 return $new !== null && $old['consent_file_id'] !== null ? (int) $old['consent_file_id'] : null;
             });

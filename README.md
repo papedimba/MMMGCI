@@ -230,6 +230,10 @@ Matrice complète : [`docs/conception/03-architecture.md`](docs/conception/03-ar
 **Rôles protégés** : seul un super administrateur peut désigner les approbateurs et les décideurs, attribuer les rôles les plus élevés ou modifier les comptes qui les détiennent
 (ou un administrateur qui détient lui-même toutes les permissions du rôle concerné). La ligne de commande `bin/create-admin.php` en est exemptée.
 
+## Site public (lot L3) — points à décider par les instances
+
+- **Pièces de consentement des témoignages** : supprimer un témoignage (jamais publié) supprime seulement sa ligne, la pièce signée reste sur le disque privé comme preuve ; remplacer la pièce d'un témoignage supprime l'ancienne. La durée de conservation et la purge des pièces orphelines sont à décider par les instances.
+
 ## Sécurité des accès
 
 - Connexion : 5 échecs par compte et par IP sur 15 minutes, 20 échecs par IP sur 15 minutes, puis blocage temporaire.
