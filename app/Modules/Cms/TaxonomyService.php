@@ -58,7 +58,14 @@ final class TaxonomyService
             if ($used > 0) {
                 throw new DomainException(ucfirst($label) . " « {$row['name']} » est utilisée par $used article" . ($used > 1 ? 's' : '') . ' : retirez-la de ces articles d\'abord.');
             }
-            $this->db->query("DELETE FROM `$table` WHERE id = ?", [$id]);
+            try {
+                $this->db->query("DELETE FROM `$table` WHERE id = ?", [$id]);
+            } catch (PDOException $e) { // affectation concurrente entre le contrôle et la suppression
+                if ((int) ($e->errorInfo[1] ?? 0) !== 1451) {
+                    throw $e;
+                }
+                throw new DomainException(ucfirst($label) . " « {$row['name']} » vient d'être utilisée par un article : retirez-la de ces articles d'abord.");
+            }
             $this->audit->log($actor, "cms.{$prefix}_deleted", $table, $id, ['slug' => $row['slug']], null);
         });
     }

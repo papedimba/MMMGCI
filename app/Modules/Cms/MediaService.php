@@ -235,8 +235,8 @@ final class MediaService
                 $this->db->fetchAll('SELECT id, label FROM cms_menu_items WHERE url LIKE ?', ['%/media/' . addcslashes($ref['path'], '\\%_') . '%']));
         });
         // Colonnes de texte (HTML riche, liens) : on cherche le chemin public brut et sous forme JSON (« / » échappés).
-        foreach ([['article', 'cms_articles', ['body', 'excerpt']], ['evenement', 'cms_events', ['description']], ['galerie', 'cms_galleries', ['description']],
-            ['page', 'cms_pages', ['excerpt']], ['banniere', 'cms_banners', ['link_url', 'body']]] as [$type, $table, $cols]) {
+        foreach ([['article', 'cms_articles', ['body', 'excerpt', 'published_body', 'published_excerpt']], ['evenement', 'cms_events', ['description']], ['galerie', 'cms_galleries', ['description']],
+            ['page', 'cms_pages', ['excerpt', 'published_excerpt']], ['banniere', 'cms_banners', ['link_url', 'body']]] as [$type, $table, $cols]) {
             $this->registerUsageProvider($type . '_texte', function (int $id) use ($type, $table, $cols): array {
                 $ref = $this->ref($id);
                 if ($ref === null) {

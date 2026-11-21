@@ -79,8 +79,8 @@ final class ArticleService implements ScheduledContent
                     'published_featured_file_id' => $old['featured_file_id'], 'published_og_file_id' => $old['og_file_id'],
                     'published_canonical_url' => $old['canonical_url'], 'published_version_at' => $old['published_at']];
                 $status = 'brouillon';
-            } elseif ([...$changed, ...$structural] !== [] && in_array($status, ['en_relecture', 'programme'], true)) {
-                $status = 'brouillon';
+            } elseif ($changed !== [] && in_array($status, ['en_relecture', 'programme'], true)) {
+                $status = 'brouillon'; // contenu versionné seulement : un champ structurel (publicateur) ne défait ni la relecture ni la programmation
             }
             if ($status !== $old['status']) {
                 $row += ['status' => $status, 'published_at' => null];
@@ -236,15 +236,16 @@ final class ArticleService implements ScheduledContent
     /** Articles visibles du public, du plus récent au plus ancien (L4 : listes). @return list<array<string,mixed>> */
     public function liveList(int $limit = 20, ?int $categoryId = null): array
     {
+        $now = $this->now()->format('Y-m-d H:i:s');
         $out = [];
-        foreach ($this->db->fetchAll("SELECT id, COALESCE(published_at, published_version_at) AS d FROM cms_articles WHERE status <> 'archive' AND (status IN ('publie', 'programme') OR published_body IS NOT NULL)
-            AND (? IS NULL OR category_id = ?) ORDER BY d DESC, id DESC", [$categoryId, $categoryId]) as $r) {
+        // Date affichée : celle de la copie de travail si elle est en ligne, sinon celle de la version conservée.
+        foreach ($this->db->fetchAll("SELECT id FROM cms_articles WHERE (status = 'publie' OR (status = 'programme' AND published_at <= ?)
+            OR (status IN ('brouillon', 'en_relecture', 'programme') AND published_body IS NOT NULL)) AND (? IS NULL OR category_id = ?)
+            ORDER BY CASE WHEN status = 'publie' OR (status = 'programme' AND published_at <= ?) THEN published_at ELSE published_version_at END DESC, id DESC LIMIT " . max(1, $limit),
+            [$now, $categoryId, $categoryId, $now]) as $r) {
             $v = $this->liveVersion((int) $r['id']);
             if ($v !== null) {
                 $out[] = $v;
-                if (count($out) >= $limit) {
-                    break;
-                }
             }
         }
         return $out;

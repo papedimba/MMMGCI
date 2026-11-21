@@ -164,7 +164,7 @@ final class ArticleWorkflowTest extends AdminTestCase
         $this->assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE action = 'cms.schedule_failed' AND new_values LIKE '%boum%'"));
     }
 
-    public function test_cron_task_is_registered_every_five_minutes(): void
+    public function test_cron_task_is_registered_every_minute(): void
     {
         $this->app();
         $id = $this->article('Cron');
@@ -173,9 +173,63 @@ final class ArticleWorkflowTest extends AdminTestCase
         $this->db->query("DELETE FROM scheduled_runs WHERE task = 'cms.publish_scheduled'");
         $s = new Scheduler($this->db);
         CmsScheduler::register($s, $this->db, $this->audit());
-        $this->assertSame('ran', $s->run(time())['cms.publish_scheduled'] ?? null);
+        $t = time();
+        $this->assertSame('ran', $s->run($t)['cms.publish_scheduled'] ?? null);
         $this->assertSame('publie', $this->row($id)['status']);
+        $this->assertSame('skipped_not_due', $s->run($t + 30)['cms.publish_scheduled'] ?? null);
+        $this->assertSame('ran', $s->run($t + 61)['cms.publish_scheduled'] ?? null, 'prête 61 s plus tard : aucun cycle de cron de 5 min n\'est sauté');
         $this->assertStringContainsString('CmsScheduler::register', (string) file_get_contents(dirname(__DIR__, 2) . '/bin/cron.php'));
+    }
+
+    public function test_media_kept_in_the_live_version_is_still_in_use(): void
+    {
+        $this->app();
+        $path = '2026/11/aaaabbbbccccddddeeeeffff00001111.png';
+        $file = $this->db->insert('files', ['disk' => 'public', 'path' => $path, 'original_name' => 'x', 'mime' => 'image/png', 'size' => 1, 'sha256' => str_repeat('1', 64)]);
+        $media = $this->db->insert('cms_media', ['file_id' => $file, 'title' => 'Photo', 'alt' => 'Photo']);
+        $id = $this->article('Avec image', ['body' => '<p><img src="/media/' . $path . '" alt="Photo"></p>', 'excerpt' => 'Texte']);
+        $this->publish($id);
+        $svc = new \App\Modules\Cms\MediaService($this->db, $this->audit(), new \App\Core\Uploads($this->db, sys_get_temp_dir(), sys_get_temp_dir(), 1000));
+        $this->service()->update($id, ['title' => 'Avec image', 'body' => '<p>sans image</p>'], $this->author);
+        $this->assertNotNull($this->row($id)['published_body']);
+        $this->assertStringNotContainsString($path, (string) $this->row($id)['body']);
+        $this->assertContains('article', array_column($svc->usages($media), 'type'), 'la version en ligne conservée utilise encore le média');
+        $this->expectException(\DomainException::class);
+        $svc->delete($media, $this->author);
+    }
+
+    public function test_publisher_structural_edit_keeps_scheduled_state_and_date(): void
+    {
+        $id = $this->article('Programmé structurel');
+        $this->service()->transition($id, 'programme', $this->publisher, $this->future('+3 days'));
+        $before = $this->row($id);
+        $this->service()->update($id, ['title' => 'Programmé structurel', 'body' => '<p>Corps Programmé structurel</p>', 'author_label' => 'Le bureau'], $this->publisher);
+        $after = $this->row($id);
+        $this->assertSame('programme', $after['status']);
+        $this->assertSame($before['published_at'], $after['published_at']);
+        $this->assertSame('Le bureau', $after['author_label']);
+        $this->service()->update($id, ['title' => 'Titre changé', 'body' => '<p>Corps Programmé structurel</p>', 'author_label' => 'Le bureau'], $this->publisher);
+        $this->assertSame('brouillon', $this->row($id)['status'], 'contenu versionné : programmation annulée');
+    }
+
+    public function test_live_list_is_ordered_by_displayed_date_and_limited(): void
+    {
+        $old = $this->article('Ancien');
+        $this->publish($old);
+        $this->db->query("UPDATE cms_articles SET published_at = '2026-01-01 10:00:00' WHERE id = ?", [$old]);
+        $mid = $this->article('Milieu');
+        $this->publish($mid);
+        $this->db->query("UPDATE cms_articles SET published_at = '2026-03-01 10:00:00' WHERE id = ?", [$mid]);
+        $this->service()->update($old, ['title' => 'Ancien v2', 'body' => '<p>v2</p>'], $this->author);
+        $this->db->query("UPDATE cms_articles SET published_version_at = '2026-01-01 10:00:00' WHERE id = ?", [$old]);
+        $this->service()->transition($old, 'programme', $this->publisher, $this->future('+30 days'));
+        $new = $this->article('Récent');
+        $this->publish($new);
+        $this->db->query("UPDATE cms_articles SET published_at = '2026-06-01 10:00:00' WHERE id = ?", [$new]);
+        $draft = $this->article('Jamais public');
+        $this->assertSame([$new, $mid, $old], array_column($this->service()->liveList(), 'id'));
+        $this->assertSame([$new, $mid], array_column($this->service()->liveList(2), 'id'));
+        $this->assertNotContains($draft, array_column($this->service()->liveList(), 'id'));
     }
 
     public function test_author_cannot_publish(): void
