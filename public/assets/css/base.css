@@ -49,6 +49,7 @@ a:hover { text-decoration-thickness: 2px; }
 
 .skip-link { position: absolute; left: var(--s2); top: -100px; z-index: 30; padding: var(--s3) var(--s4); background: var(--navy-900); color: #fff; border-radius: var(--r-sm); }
 .skip-link:focus { top: var(--s2); outline: var(--focus-ring-on-dark); }
+.skip-link:not(:focus) { clip-path: inset(50%); } /* hors écran et hors mesure tant qu'il n'a pas le focus */
 
 /* Icônes : dans base.css car le gabarit d'impression ne charge pas components.css. */
 .icon { width: 18px; height: 18px; flex: none; }

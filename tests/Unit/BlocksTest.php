@@ -125,4 +125,35 @@ final class BlocksTest extends TestCase
         }
         $this->assertGreaterThan(0, $found);
     }
+
+    /** Bloc « dossier » (L4) : clés de situation, pièces rattachées à des clés déclarées, deux listes éditables séparément. */
+    public function test_dossier_block_validation(): void
+    {
+        $ok = ['type' => 'dossier', 'title' => ' Préparer mon dossier ', 'intro' => '',
+            'situations' => [['key' => 'livret', 'label' => 'Livret maritime disponible'], ['key' => 'ayants-droit', 'label' => 'Ayants droit']],
+            'pieces' => [['label' => 'Fiche individuelle', 'situations' => ''], ['label' => 'Copie du livret', 'situations' => ' livret , ayants-droit,livret ']]];
+        $clean = Blocks::validate([$ok])[0];
+        $this->assertSame('Préparer mon dossier', $clean['title']);
+        $this->assertSame('livret,ayants-droit', $clean['pieces'][1]['situations'], 'clés normalisées, sans doublon');
+        $this->assertSame('', $clean['pieces'][0]['situations'], 'vide : pièce toujours demandée');
+        $this->assertSame([], Blocks::validate([array_replace($ok, ['situations' => [], 'pieces' => [$ok['pieces'][0]]])])[0]['situations'], 'situations facultatives');
+
+        $this->assertSame('blocs[0].pieces[1].situations', $this->invalidPath([array_replace($ok, ['pieces' => [$ok['pieces'][0], ['label' => 'X', 'situations' => 'inconnue']]])]));
+        $this->assertSame('blocs[0].situations[0].key', $this->invalidPath([array_replace($ok, ['situations' => [['key' => 'Livret Maritime', 'label' => 'L']]])]));
+        $this->assertSame('blocs[0].situations[1].key', $this->invalidPath([array_replace($ok, ['situations' => [['key' => 'a', 'label' => 'A'], ['key' => 'a', 'label' => 'B']]])]));
+        $this->assertSame('blocs[0].pieces[0]', $this->invalidPath([array_replace($ok, ['pieces' => []])]), 'au moins une pièce');
+        $this->assertSame('blocs[0].title', $this->invalidPath([array_replace($ok, ['title' => ''])]));
+
+        // Éditeur sans JS : chaque liste a ses propres boutons (item-add:i:champ, item-del:i:j:champ).
+        $blocks = Blocks::fromRequest([$ok]);
+        [$rows] = Blocks::apply($blocks, 'item-add:0:pieces');
+        $this->assertCount(3, $rows[0]['pieces']);
+        $this->assertCount(2, $rows[0]['situations']);
+        [$rows] = Blocks::apply($blocks, 'item-del:0:1:situations');
+        $this->assertSame([['key' => 'livret', 'label' => 'Livret maritime disponible']], $rows[0]['situations']);
+        $this->assertCount(2, $rows[0]['pieces']);
+        $this->assertSame($blocks, Blocks::apply($blocks, 'item-add:0:inconnu')[0], 'liste inconnue : rien');
+        $this->assertSame(['type' => 'dossier', 'title' => '', 'intro' => '', 'situations' => [['key' => '', 'label' => '']], 'pieces' => [['label' => '', 'situations' => '']]], Blocks::blank('dossier'));
+        $this->assertSame('Bloc 1 (Préparer mon dossier), élément 2, Pièce', Blocks::describePath('blocs[0].pieces[1].label', $blocks));
+    }
 }

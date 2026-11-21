@@ -35,6 +35,7 @@ $link = static function (array $item, string $class = ''): string {
 <link rel="stylesheet" href="/assets/css/public.css">
 <script src="/assets/js/js-flag.js"></script>
 <script src="/assets/js/app.js" defer></script>
+<script src="/assets/js/site.js" defer></script>
 </head>
 <body class="public">
 <a class="skip-link" href="#contenu">Aller au contenu</a>
@@ -68,10 +69,12 @@ $link = static function (array $item, string $class = ''): string {
 <?= $content ?>
 </main>
 <footer class="pub-foot">
+<div class="pub-foot-card">
 <div class="cordage" aria-hidden="true"></div>
 <div class="pub-foot-in">
-<img src="/assets/img/logo-complet.jpg" srcset="/assets/img/logo-complet.jpg 1x, /assets/img/logo-complet@2x.jpg 2x" alt="MMMGCI et MOHS, Maritime Oceans and Hospitality Services" width="118" height="104">
+<p class="pub-foot-name">Mutuelle des Marins Marchands et Gens de Mer de Côte d'Ivoire</p>
 <p class="pub-foot-motto">Un nouveau jour se lève</p>
+<img class="pub-foot-logo" src="/assets/img/logo-complet.jpg" srcset="/assets/img/logo-complet.jpg 1x, /assets/img/logo-complet@2x.jpg 2x" alt="MMMGCI et MOHS, Maritime Oceans and Hospitality Services" width="118" height="104">
 <?php if ($contacts !== []): ?>
 <address class="pub-contacts">
 <?php if (isset($contacts['address'])): ?><p><?= e_lines($contacts['address']) ?></p>
@@ -96,6 +99,7 @@ $link = static function (array $item, string $class = ''): string {
 <?php endif; ?>
 <?php if (!empty($imageCredits)): ?><p class="pub-credits"><?= e($imageCredits) ?></p>
 <?php endif; ?>
+</div>
 </div>
 </footer>
 </body>

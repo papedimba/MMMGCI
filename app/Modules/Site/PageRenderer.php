@@ -22,6 +22,8 @@ final class PageRenderer
     public function render(array $page): string
     {
         $out = '';
+        $seen = [];
+        $home = ($page['template'] ?? '') === 'accueil'; // accueil : un bloc dynamique vide est omis au lieu d'afficher son état vide
         foreach (is_array($page['blocks'] ?? null) ? $page['blocks'] : [] as $i => $b) {
             $type = is_array($b) && is_string($b['type'] ?? null) ? $b['type'] : '';
             if (!isset(Blocks::TYPES[$type])) {
@@ -29,7 +31,8 @@ final class PageRenderer
                 continue;
             }
             try {
-                $out .= $this->view->partial('public/blocks/' . $type, ['b' => $b, 'content' => $this->content]);
+                $out .= $this->view->partial('public/blocks/' . $type, ['b' => $b, 'content' => $this->content, 'first' => !isset($seen[$type]), 'home' => $home]);
+                $seen[$type] = true;
             } catch (Throwable $e) {
                 error_log('Site public : bloc ' . $type . ' ignoré (' . get_class($e) . ', page ' . (int) ($page['id'] ?? 0) . ')');
             }

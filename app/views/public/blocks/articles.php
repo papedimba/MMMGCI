@@ -3,8 +3,13 @@
 use App\Modules\Cms\PublishedContent;
 
 $items ??= $content->articles(['limit' => max(1, min(12, (int) plain($b['count'] ?? 3)))]);
+if ($items === [] && !empty($home)) {
+    return; // accueil : rien de publié, section omise
+}
 ?>
 <section class="pub-block pub-articles">
+<?php if (!empty($home)): ?><h2><a href="/actualites">Dernières actualités</a></h2>
+<?php endif; ?>
 <?php if ($items === []): ?>
 <p class="pub-empty">Aucune actualité publiée pour le moment.</p>
 <?php else: ?>

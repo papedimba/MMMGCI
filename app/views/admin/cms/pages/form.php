@@ -120,9 +120,9 @@ if ($locked) {
             foreach ($spec[3] as $sub => $subSpec) {
                 $inner .= $blockField($subSpec, "blocs[$i][$name][$j][$sub]", "blocs[$i].$name" . "[$j].$sub", (string) ($row[$sub] ?? ''));
             }
-            $inner .= '</div>' . $opButton("item-del:$i:$j", 'Retirer la ligne', ' ' . ($j + 1) . ' du bloc ' . ($i + 1), $i, false, 'ghost') . '</fieldset>';
+            $inner .= '</div>' . $opButton("item-del:$i:$j:$name", 'Retirer la ligne', ' ' . ($j + 1) . ' du bloc ' . ($i + 1), $i, false, 'ghost') . '</fieldset>';
         }
-        $inner .= $opButton("item-add:$i", 'Ajouter une ligne', ' au bloc ' . ($i + 1), $i) . '</div>';
+        $inner .= $opButton("item-add:$i:$name", 'Ajouter une ligne', ' (' . $spec[1] . ') au bloc ' . ($i + 1), $i) . '</div>';
     }
     // Erreurs du bloc sans champ propre (type, liste vide…)
     $rest = '';

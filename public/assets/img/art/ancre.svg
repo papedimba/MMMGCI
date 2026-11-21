@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 280" width="240" height="280" role="img" aria-label="Illustration : une ancre entourée d'un cordage">
+<title>Illustration : ancre et cordage</title>
+<g fill="none" stroke-linecap="round" stroke-linejoin="round">
+<g stroke="#12306B" stroke-width="12">
+<circle cx="120" cy="40" r="20"/>
+<path d="M120 60v176M80 92h80"/>
+<path d="M40 176c6 44 40 68 80 68s74-24 80-68"/>
+</g>
+<path d="M40 176l-20 18m20-18 26 6m134-6 20 18m-20-18-26 6" stroke="#12306B" stroke-width="12"/>
+<path d="M140 30c40 6 58 34 40 58s-80 20-94 52 22 54 64 60-6 32-30 34" stroke="#D2AE55" stroke-width="9"/>
+<path d="M140 30c40 6 58 34 40 58s-80 20-94 52 22 54 64 60-6 32-30 34" stroke="#7E5F17" stroke-width="9" stroke-dasharray="2 9"/>
+</g>
+</svg>

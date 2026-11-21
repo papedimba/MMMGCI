@@ -3,8 +3,11 @@
 use App\Modules\Cms\RichText;
 ?>
 <article class="pub-page">
-<p class="pub-back"><a href="/galeries">Toutes les galeries</a></p>
+<header class="pub-head">
+<?= ui('breadcrumbs', ['items' => [['Accueil', '/'], ['Galeries', '/galeries'], [plain($album['title'])]]]) ?>
 <h1><?= e(plain($album['title'])) ?></h1>
+</header>
+<div class="pub-body">
 <?php if (plain($album['description'] ?? '') !== ''): ?><div class="pub-rich"><?= RichText::sanitize(plain($album['description'])) ?></div>
 <?php endif; ?>
 <?php if ($items === []): ?>
@@ -19,4 +22,5 @@ use App\Modules\Cms\RichText;
 <?php endforeach; ?>
 </ul>
 <?php endif; ?>
+</div>
 </article>

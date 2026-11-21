@@ -46,10 +46,12 @@ final class ViewsPolicyTest extends TestCase
         foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root . '/app/views/public', \FilesystemIterator::SKIP_DOTS)) as $f) {
             $files[] = $f->getPathname();
         }
-        foreach (['texte', 'titre', 'intro', 'faits', 'domaines', 'liste', 'appel', 'image', 'documents', 'articles', 'evenements', 'formulaire'] as $type) {
+        foreach (['texte', 'titre', 'intro', 'faits', 'domaines', 'liste', 'appel', 'image', 'documents', 'articles', 'evenements', 'formulaire', 'dossier'] as $type) {
             $this->assertContains($root . "/app/views/public/blocks/$type.php", $files, "bloc $type");
         }
-        foreach (['standard', 'accueil', 'liste', 'not-found'] as $page) {
+        $this->assertSame(array_keys(\App\Modules\Cms\Blocks::TYPES), array_values(array_filter(array_keys(\App\Modules\Cms\Blocks::TYPES),
+            static fn (string $t): bool => in_array($root . "/app/views/public/blocks/$t.php", $files, true))), 'chaque type de bloc a son gabarit public couvert');
+        foreach (['standard', 'accueil', 'liste', 'not-found', 'article', 'evenement', 'galerie'] as $page) {
             $this->assertContains($root . "/app/views/public/pages/$page.php", $files, "gabarit $page");
         }
         $this->assertFileDoesNotExist($root . '/app/views/public/_menu.php', 'menu codé en dur supprimé : il vient de PublishedContent::menu');

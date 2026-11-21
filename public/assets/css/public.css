@@ -1,18 +1,28 @@
-/* Site public : gabarit (en-tête, filet national, pied « dos de la carte »). Dépend de tokens.css, base.css, components.css. */
-body.public { background: var(--paper); display: flex; flex-direction: column; min-height: 100svh; }
+/* Site public, direction « La page est l'objet » : le livret maritime et la carte de membre, objets imprimés en papier
+   posés sur un fond marine. Un seul rayon (--r-sm), aucun dégradé, aucune ombre au repos, aucun filet décoratif.
+   Téléphone d'abord (390 px), puis 768 et 1100 px. Dépend de tokens.css, base.css, components.css. */
+body.public { --wrap: 1200px; --gutter: var(--s4); background: var(--paper); display: flex; flex-direction: column; min-height: 100svh; }
 body.public main { flex: 1; display: flex; flex-direction: column; }
 main:focus { outline: none; }
 
-.pub-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s4); padding: 10px var(--s5); background: var(--sheet); }
+/* En-tête : barre blanche, logo, menu ; sur téléphone emblème et bouton « Menu ». */
+.pub-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s2) var(--s4); padding: var(--s2) max(var(--gutter), calc((100% - var(--wrap)) / 2)); background: var(--sheet); }
 .pub-brand { display: block; line-height: 0; }
-.pub-logo { height: 104px; width: auto; display: block; }
-.pub-emblem { display: none; border-radius: 50%; }
-.pub-menu { display: flex; gap: var(--s5); font-weight: 600; font-size: var(--text-sm); }
-.pub-menu a { color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; min-height: var(--control-h); }
-.pub-menu a[href]:hover { text-decoration: underline; }
-.pub-menu ul, .pub-foot-menu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0 var(--s5); }
-.pub-menu li ul { gap: 0 var(--s4); font-weight: 400; }
-.pub-menu-btn { display: none; align-items: center; gap: var(--s2); min-height: var(--control-h); padding: 0 var(--s3); border: 1px solid var(--control-border); border-radius: var(--r-sm); background: var(--sheet); color: var(--navy-900); font: 600 var(--text-sm)/1 var(--font-body); cursor: pointer; }
+.pub-logo { display: none; height: 96px; width: auto; }
+.pub-emblem { display: block; border-radius: 50%; }
+.pub-menu { flex-basis: 100%; font-weight: 600; }
+.pub-menu ul, .pub-foot-menu ul { list-style: none; margin: 0; padding: 0; }
+.pub-menu > ul { display: flex; flex-direction: column; padding-bottom: var(--s2); }
+.pub-menu a { display: flex; align-items: center; min-height: var(--control-h); color: var(--ink); text-decoration: none; }
+.pub-menu a[href]:hover { color: var(--navy-800); text-decoration: underline; }
+.pub-menu li ul { padding-left: var(--s4); font-weight: 400; }
+.pub-menu-btn { display: none; align-items: center; gap: var(--s2); min-height: var(--control-h); min-width: var(--control-h); padding: 0 var(--s4); border: 2px solid var(--navy-900); border-radius: var(--r-sm); background: var(--sheet); color: var(--navy-900); font: 600 var(--text-md)/1 var(--font-body); cursor: pointer; transition: background-color var(--dur-fast) var(--ease); }
+.pub-menu-btn:hover, .pub-menu-btn[aria-expanded="true"] { background: var(--ocean-50); }
+/* Sans JS : le menu reste affiché sous l'en-tête. Avec JS : bouton « Menu », panneau replié. */
+html.js .pub-menu-btn { display: inline-flex; }
+html.js .pub-menu { display: none; }
+html.js .pub-menu[data-open] { display: block; }
+html.js .pub-menu[data-open] > ul > li + li { border-top: 1px solid var(--line); } /* taste-skill-ignore : séparateurs de lignes d'un menu ouvert, cibles de 44 px */
 
 /* Filet national : orange / blanc / vert de Côte d'Ivoire. */
 .flag { display: flex; height: 4px; }
@@ -21,38 +31,233 @@ main:focus { outline: none; }
 .flag-white { background: var(--sheet); box-shadow: inset 0 1px 0 var(--line-strong), inset 0 -1px 0 var(--line-strong); } /* liseré : le blanc reste visible sur l'en-tête blanc */ /* taste-skill-ignore */
 .flag-green { background: var(--ci-green); }
 
-/* Cordage : barres marine / papier en alternance, en CSS seul. */
-.cordage { height: 28px; background: url("/assets/img/cordage.svg") repeat-x left top / 64px 28px; } /* image et non dégradé : barres marine / papier à bords nets */
+/* Cordage tressé (motif du logo) : bande en haut des cartes. Image et non dégradé. */
+.cordage { height: 24px; background: var(--navy-800) url("/assets/img/art/cordage.svg") repeat-x left center / auto 100%; }
 
-.pub-hero { flex: 1; display: flex; align-items: center; background: var(--navy-950); padding: var(--s8) var(--s4); }
-.card-paper { width: 100%; max-width: 560px; margin: 0 auto; background: var(--paper); border-radius: var(--r-lg); overflow: hidden; }
-.card-paper .in { padding: var(--s6) var(--s6) var(--s7); display: grid; justify-items: center; gap: var(--s4); text-align: center; }
+/* Boutons et liens du site */
+.pub-home .btn, .pub-page .btn { min-height: 48px; padding: 0 var(--s5); font-size: var(--text-md); transition: background-color var(--dur-fast) var(--ease), transform var(--dur-fast) var(--ease); }
+.pub-home .btn:active, .pub-page .btn:active { transform: translateY(1px); }
+
+/* Accueil : fond marine, objets en papier. */
+.pub-home { flex: 1; background: var(--navy-950); color: var(--paper); }
+.home-hero { display: grid; gap: var(--s5); max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: var(--s5) var(--gutter) var(--s6); }
+.home-card { background: var(--paper); color: var(--ink); border-radius: var(--r-sm); overflow: hidden; clip-path: polygon(0 0, 100% 0, 100% calc(100% - 28px), calc(100% - 28px) 100%, 0 100%); } /* coin coupé : la carte imprimée */
+.home-card-in { display: grid; gap: var(--s5); padding: var(--s5) var(--s4) var(--s6); }
+.home-card h1 { font-size: clamp(2.25rem, .9rem + 5.2vw, 5.5rem); line-height: 1.02; letter-spacing: -.02em; max-width: 11ch; }
+.home-lead { font-size: var(--text-lg); color: var(--ink); max-width: 34ch; }
+.home-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3) var(--s5); }
+.home-link { display: inline-flex; align-items: center; min-height: 48px; font-weight: 600; color: var(--navy-800); }
+.home-issuer { display: flex; align-items: center; gap: var(--s3); padding-top: var(--s4); font-size: var(--text-sm); color: var(--ink-2); }
+.home-issuer img { flex: none; border-radius: 50%; }
+.home-issuer em { display: block; font-family: var(--font-display); font-style: normal; font-size: var(--text-md); color: var(--navy-900); }
+.home-figure { margin: 0; display: grid; align-content: center; gap: var(--s3); }
+.home-figure img { width: 100%; height: auto; display: block; }
+.home-figure img:not(.home-art) { border-radius: var(--r-sm); aspect-ratio: 4 / 3; object-fit: cover; }
+.home-figure figcaption { font-size: var(--text-sm); color: var(--ocean-100); }
+
+.home-body { max-width: calc(var(--wrap) + 2 * var(--gutter)); margin: 0 auto; padding: 0 var(--gutter) var(--s8); display: grid; gap: var(--s6); }
+.home-body > .pub-block { margin: 0; }
+.home-body > .pub-title, .home-body > .pub-intro h2 { color: var(--paper); }
+.home-body > .pub-title, .home-body > .pub-intro h2 { font-size: clamp(1.75rem, 1.3rem + 1.8vw, 2.75rem); line-height: 1.1; max-width: 20ch; }
+.home-body > .pub-title, .home-body > .pub-intro { margin-top: var(--s6); }
+.home-body > .pub-title + .pub-block { margin-top: calc(var(--s5) - var(--s6)); }
+.home-body > :is(.pub-intro, .pub-rich, .pub-facts) { color: var(--paper); }
+.home-body > .pub-intro p, .home-body > .pub-rich { color: var(--ocean-100); }
+.home-body > :is(.pub-intro, .pub-rich, .pub-form-link) a:not(.btn) { color: var(--ocean-100); }
+.home-body > .pub-form-link .btn-primary { background: var(--gold-400); color: var(--navy-950); }
+.home-body > .pub-form-link .btn-primary:hover { background: var(--gold-100); }
+:is(.home-hero .home-figure, .home-body > :is(.pub-title, .pub-intro, .pub-rich, .pub-facts, .pub-form-link), .pub-head, .pub-foot) :focus-visible { outline: var(--focus-ring-on-dark); }
+.pub-foot-card :focus-visible, .home-card :focus-visible { outline: var(--focus-ring); }
+
+/* Objets en papier posés sur le marine (accueil) */
+.home-body > :is(.pub-menu-card, .pub-list, .pub-dossier, .pub-cta, .pub-articles, .pub-events, .pub-docs) { background: var(--paper); color: var(--ink); border-radius: var(--r-sm); overflow: hidden; }
+.home-body > :is(.pub-list, .pub-dossier, .pub-cta, .pub-articles, .pub-events, .pub-docs) { padding: var(--s5) var(--s4); }
+
+/* Pages intérieures : colonne de lecture de 68 caractères, centrée ; le titre part du même bord gauche et peut déborder à droite. */
+.pub-page { flex: 1; width: 100%; --col: max(var(--gutter), calc((100% - 68ch) / 2)); }
+.pub-head, .pub-body { padding-left: var(--col); padding-right: var(--col); }
+.pub-head { padding-right: max(var(--gutter), calc((100% - var(--wrap)) / 2)); }
+.pub-head { background: var(--navy-950); color: var(--paper); padding-top: var(--s5); padding-bottom: var(--s6); }
+.pub-head .breadcrumbs { margin-bottom: var(--s3); color: var(--ocean-100); font-size: var(--text-sm); }
+.pub-head .breadcrumbs a { color: var(--ocean-100); display: inline-flex; align-items: center; min-height: var(--control-h); }
+.pub-head .breadcrumbs li:has([aria-current]) { display: none; } /* la page courante est le titre juste dessous */
+.pub-head h1 { color: var(--paper); font-size: clamp(1.875rem, .9rem + 4vw, 4.5rem); line-height: 1.04; letter-spacing: -.02em; max-width: 20ch; margin: 0; }
+.pub-head .pub-meta { color: var(--ocean-100); margin-top: var(--s4); font-size: var(--text-md); }
+.pub-body { padding-top: var(--s6); padding-bottom: var(--s8); }
+.pub-body > :first-child { margin-top: 0; }
+.pub-page h2 { margin: var(--s7) 0 var(--s3); font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem); line-height: 1.15; }
+.pub-page h3 { margin: 0 0 var(--s2); font-size: var(--text-lg); }
+.pub-block { margin: var(--s5) 0; }
+.pub-rich { font-size: 1.0625rem; }
+.pub-rich p, .pub-rich ul, .pub-rich ol, .pub-rich blockquote { margin: 0 0 var(--s4); max-width: 68ch; }
+.pub-rich h2, .pub-rich h3 { margin: var(--s6) 0 var(--s3); }
+.pub-rich img, .pub-figure img { max-width: 100%; height: auto; border-radius: var(--r-sm); }
+.pub-figure { margin: var(--s5) 0; }
+.pub-figure figcaption { margin-top: var(--s2); font-size: var(--text-sm); color: var(--ink-2); }
+.pub-credit { color: var(--ink-3); }
+.pub-meta { color: var(--ink-2); font-size: var(--text-sm); }
+.pub-intro p { font-size: var(--text-lg); max-width: 60ch; margin-top: var(--s3); }
+
+/* Faits exacts : une rangée, sans boîtes. */
+.pub-facts { display: flex; flex-wrap: wrap; gap: var(--s5) var(--s7); margin: var(--s5) 0; }
+.pub-facts div { display: flex; flex-direction: column; }
+.pub-facts dd { margin: 0; font-family: var(--font-display); font-size: var(--text-3xl); line-height: 1.1; color: inherit; }
+.pub-facts dt { order: 2; font-size: var(--text-sm); color: var(--ink-2); }
+.pub-page .pub-facts dd { color: var(--navy-900); }
+.home-body > .pub-facts dt { color: var(--ocean-100); }
+
+/* Carte de menu : domaine à gauche, nature de l'aide à droite, pointillés légers entre les deux. */
+.pub-menu-card .cordage { display: none; }
+.home-body > .pub-menu-card .cordage { display: block; }
+.pub-domains { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--s4); }
+.home-body .pub-domains { padding: var(--s5) var(--s4) var(--s6); }
+.pub-domain-row { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: var(--s2); }
+.pub-domain-name { font-family: var(--font-display); font-weight: 400; font-size: var(--text-xl); color: var(--navy-900); }
+.pub-leader { flex: 1 1 var(--s6); min-width: var(--s6); border-bottom: 3px dotted var(--line-strong); transform: translateY(-4px); } /* taste-skill-ignore : points de conduite d'une carte de menu */
+.pub-domain-nature { flex: 1 1 18ch; text-align: right; color: var(--ink-2); }
+@media (max-width: 599.98px) { .pub-domain-nature { flex-basis: 100%; } } /* téléphone : la nature passe sous le domaine, les pointillés vont jusqu'au bord */
+.pub-domain-desc { margin-top: var(--s1); color: var(--ink-2); font-size: var(--text-sm); max-width: 60ch; }
+
+/* Liste : rangées d'une feuille imprimée (fond alterné, pas de filets). */
+.pub-list { list-style: none; margin: var(--s5) 0; padding: 0; display: grid; }
+.pub-list li { padding: var(--s3) var(--s4); font-size: var(--text-lg); line-height: var(--leading-snug); }
+.pub-list li:nth-child(odd) { background: var(--frame); }
+.home-body > .pub-list { padding: var(--s4); }
+
+/* « Préparer mon dossier » */
+.pub-dossier { display: grid; gap: var(--s4); }
+.pub-dossier h2 { margin: 0; }
+.pub-dossier-intro { max-width: 60ch; }
+.pub-dossier-choices { display: none; margin: 0; padding: 0; border: 0; min-width: 0; }
+html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
+.pub-dossier-choices legend { padding: 0; margin-bottom: var(--s2); font-weight: 700; }
+.pub-check { display: flex; align-items: center; gap: var(--s3); min-height: var(--control-h); padding: 0 var(--s3); border-radius: var(--r-sm); background: var(--frame); cursor: pointer; transition: background-color var(--dur-fast) var(--ease); }
+.pub-check:hover { background: var(--ocean-100); }
+.pub-check input { width: 22px; height: 22px; margin: 0; accent-color: var(--navy-800); flex: none; }
+.pub-check:has(input:checked) { background: var(--ocean-100); font-weight: 600; }
+.pub-dossier-pieces { list-style: none; margin: 0; padding: 0; display: grid; }
+.pub-dossier-pieces li { padding: var(--s3) var(--s3); font-size: var(--text-lg); line-height: var(--leading-snug); }
+.pub-dossier-pieces li:nth-child(odd of :not([hidden])) { background: var(--frame); } /* rangées alternées recalculées après le filtre */
+.pub-dossier-pieces li[hidden] { display: none; }
+.pub-dossier-cond { font-style: normal; color: var(--ink-2); white-space: nowrap; }
+.pub-list li, .pub-dossier-pieces li, .pub-domain-nature, .pub-card h3 { text-wrap: pretty; }
+.pub-dossier[data-filtered] .pub-dossier-cond { display: none; }
+.pub-dossier-count:empty { display: none; }
+.pub-dossier-count { font-weight: 600; color: var(--navy-900); }
+
+/* Appel : la carte-réponse (bande de cordage, coin coupé). */
+.pub-cta { padding: var(--s5) var(--s4); background: var(--frame); border-radius: var(--r-sm); clip-path: polygon(0 0, 100% 0, 100% calc(100% - 24px), calc(100% - 24px) 100%, 0 100%); }
+.pub-cta h2, .pub-page .pub-cta h2 { margin: 0 0 var(--s3); }
+.pub-cta p { max-width: 60ch; }
+.pub-cta .btn { margin-top: var(--s4); }
+
+/* Fiches : actualités, évènements, documents, galeries — rangées d'une feuille, pas de grille de cartes. */
+.pub-cards { list-style: none; margin: var(--s5) 0; padding: 0; display: grid; }
+.pub-card { padding: var(--s3) var(--s4); }
+.pub-card:nth-child(odd) { background: var(--frame); }
+.pub-card h3, .pub-card-title { margin: 0; font-size: var(--text-lg); }
+.pub-card a { display: inline-flex; align-items: center; min-height: var(--control-h); color: var(--navy-900); }
+.pub-card p:not(.pub-meta) { color: var(--ink); max-width: 60ch; }
+.home-body > :is(.pub-articles, .pub-events, .pub-docs) .pub-cards { margin: 0; gap: var(--s4); }
+.home-body > :is(.pub-articles, .pub-events, .pub-docs) .pub-card { padding: 0; background: none; }
+.home-body > :is(.pub-articles, .pub-events, .pub-docs) h2 { margin: 0 0 var(--s4); font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem); }
+.home-body > :is(.pub-articles, .pub-events, .pub-docs) h2 a { color: var(--navy-900); text-decoration-thickness: 1px; }
+.pub-empty { padding: var(--s4); background: var(--frame); border-radius: var(--r-sm); color: var(--ink-2); }
+.pub-facts-inline { display: grid; grid-template-columns: auto 1fr; gap: var(--s2) var(--s4); margin: 0 0 var(--s5); }
+.pub-facts-inline div { display: contents; }
+.pub-facts-inline dt { color: var(--ink-2); }
+.pub-facts-inline dd { margin: 0; font-weight: 600; }
+.pub-gallery { list-style: none; margin: var(--s5) 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--s4); }
+.pub-gallery .pub-figure { margin: 0; }
+.pub-form-link .btn { margin-top: var(--s2); }
+
+/* 404 : texte et dessin de l'ancre. */
+.pub-lost { display: grid; gap: var(--s5); align-items: center; }
+.pub-lost p + p { margin-top: var(--s4); }
+.pub-lost-art { width: 160px; height: auto; justify-self: center; }
+
+/* Pied de page : le dos de la carte, en papier sur le marine. */
+.pub-foot { background: var(--navy-950); padding: var(--s6) var(--gutter); }
+.pub-foot-card { max-width: var(--wrap); margin: 0 auto; background: var(--paper); border-radius: var(--r-sm); overflow: hidden; }
+.pub-foot-in { padding: var(--s5) var(--s4) var(--s6); display: grid; gap: var(--s4); justify-items: start; }
+.pub-foot-logo { mix-blend-mode: multiply; } /* le logo est sur fond blanc : il se fond dans le papier */
+.pub-foot-name { font-family: var(--font-display); font-size: clamp(1.5rem, 1rem + 2vw, 2.75rem); line-height: 1.1; color: var(--navy-900); max-width: 24ch; text-wrap: balance; }
+.pub-foot-motto { font-family: var(--font-display); font-size: var(--text-lg); color: var(--gold-700); }
+.pub-contacts { font-style: normal; display: grid; gap: 0; color: var(--ink); }
+.pub-foot a { display: inline-flex; align-items: center; min-height: var(--control-h); color: var(--navy-800); }
+.pub-foot-menu ul { display: flex; flex-wrap: wrap; gap: 0 var(--s5); }
+.pub-credits { font-size: var(--text-xs); color: var(--ink-3); }
+
+/* Page d'attente (aucune page d'accueil publiée) */
+.pub-hero { flex: 1; display: flex; align-items: center; background: var(--navy-950); padding: var(--s6) var(--gutter); }
+.card-paper { width: 100%; max-width: 560px; margin: 0 auto; background: var(--paper); border-radius: var(--r-sm); overflow: hidden; }
+.card-paper .in { padding: var(--s5) var(--s4) var(--s6); display: grid; justify-items: center; gap: var(--s4); text-align: center; }
 .card-emblem { width: 96px; height: 96px; border-radius: 50%; }
 .card-paper h1 { font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem); line-height: var(--leading-tight); max-width: 24ch; }
 .card-paper p { max-width: 68ch; font-size: var(--text-lg); color: var(--ink-2); }
 .card-paper .btn { margin-top: var(--s2); }
 
-.pub-foot { background: var(--paper); }
-.pub-foot-in { max-width: 1100px; margin: 0 auto; padding: var(--s6) var(--s4); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s5); }
-.pub-foot-motto { font-family: var(--font-display); font-size: var(--text-xl); color: var(--navy-900); }
-.pub-credits { flex-basis: 100%; font-size: var(--text-xs); color: var(--ink-3); }
-
-@media (max-width: 767.98px) {
-  .pub-top { padding: var(--s2) var(--s4); flex-wrap: wrap; }
-  .pub-logo { display: none; }
-  .pub-emblem { display: block; }
-  .pub-hero { padding: var(--s6) var(--s4); }
-  .card-paper .in { padding: var(--s5) var(--s4) var(--s6); }
-  .pub-menu { flex-basis: 100%; flex-direction: column; gap: 0; }
-  .pub-menu ul { flex-direction: column; }
-  .pub-menu li ul { padding-left: var(--s4); }
-  /* Sans JS : le menu reste affiché sous l'en-tête. Avec JS : bouton « Menu », panneau replié. */
-  html.js .pub-menu-btn { display: inline-flex; }
-  html.js .pub-menu { display: none; }
-  html.js .pub-menu[data-open] { display: flex; }
+/* Mouvement : arrivée de la carte au chargement, puis des objets au défilement ; rien sans « no-preference ». */
+@keyframes pub-rise { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+@keyframes pub-reveal { from { opacity: .4; transform: translateY(24px); } to { opacity: 1; transform: none; } } /* au défilement : jamais invisible */
+@keyframes pub-draw { from { transform: scaleX(0); } to { transform: none; } }
+@media (prefers-reduced-motion: no-preference) {
+  .flag i { transform-origin: left center; animation: pub-draw 700ms var(--ease) both; } /* le filet national se trace */
+  .flag-white { animation-delay: 120ms; }
+  .flag-green { animation-delay: 240ms; }
+  .home-card, .home-figure, .pub-head > *, .pub-menu > ul > li { animation: pub-rise 560ms var(--ease) both; }
+  .home-figure, .pub-head h1 { animation-delay: 80ms; }
+  .pub-head > :nth-child(3) { animation-delay: 160ms; }
+  @supports (animation-timeline: view()) {
+    :is(.home-body, .pub-body, .pub-foot-in, .pub-rich) > *, .pub-domains > li, .pub-list > li, .pub-cards > li, .pub-dossier-pieces > li { animation: pub-reveal linear both; animation-timeline: view(); animation-range: entry 0% entry 60%; }
+  }
 }
-.pub-foot img { mix-blend-mode: multiply; } /* le logo est sur fond blanc : il se fond dans le papier */
 
+/* Tablette */
+@media (min-width: 768px) {
+  body.public { --gutter: var(--s6); }
+  .pub-logo { display: block; }
+  .pub-emblem { display: none; }
+  .pub-top { flex-wrap: nowrap; }
+  html.js .pub-menu-btn { display: none; }
+  .pub-menu, html.js .pub-menu { display: block; flex-basis: auto; }
+  .pub-menu > ul { flex-direction: row; flex-wrap: wrap; justify-content: flex-end; gap: 0 var(--s5); padding: 0; }
+  .pub-menu li { position: relative; }
+  .pub-menu li ul { padding-left: 0; display: flex; flex-wrap: wrap; gap: 0 var(--s3); font-size: var(--text-sm); }
+  html.js .pub-menu[data-open] > ul > li + li { border-top: 0; }
+  .home-hero { padding-top: var(--s7); padding-bottom: var(--s7); }
+  .home-card-in { padding: var(--s6) var(--s6) var(--s7); }
+  .home-body > :is(.pub-list, .pub-dossier, .pub-cta, .pub-articles, .pub-events, .pub-docs) { padding: var(--s6); }
+  .home-body .pub-domains { padding: var(--s6); }
+  .pub-head { padding-top: var(--s6); padding-bottom: var(--s7); }
+  .pub-lost { grid-template-columns: 1fr auto; }
+  .pub-lost-art { width: 200px; }
+  .pub-foot-in { grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s6); padding: var(--s6); }
+  .pub-foot-in > * { grid-column: 1; }
+  .pub-foot-in > .pub-foot-logo { grid-column: 2; grid-row: 1 / span 3; align-self: start; }
+  .pub-dossier { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); column-gap: var(--s6); align-items: start; }
+  .pub-dossier > :is(h2, .pub-dossier-intro, .pub-dossier-count) { grid-column: 1 / -1; }
+  .pub-dossier:not(:has(.pub-dossier-choices)) .pub-dossier-pieces, html:not(.js) .pub-dossier-pieces { grid-column: 1 / -1; }
+}
+
+/* Ordinateur */
+@media (min-width: 1100px) {
+  .home-hero { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: var(--s7); padding-top: var(--s7); padding-bottom: var(--s7); }
+  .home-card-in { padding: var(--s7); }
+  .home-body { gap: var(--s7); }
+  .home-body > :is(.pub-title, .pub-intro) { margin-top: var(--s8); }
+  .home-body > .pub-intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--s6); align-items: end; }
+  .home-body > .pub-intro p { margin: 0; }
+  .home-body .pub-domains { grid-template-columns: 1fr 1fr; gap: var(--s5) var(--s8); padding: var(--s7); }
+  .home-body > .pub-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); padding: var(--s6); }
+  .home-body > .pub-list { column-gap: var(--s6); }
+  .home-body > .pub-list li { padding: 0; background: none; font-family: var(--font-display); font-size: var(--text-xl); color: var(--navy-900); }
+  .home-body > .pub-cta { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: var(--s7); align-items: end; padding: var(--s7); }
+  .home-body > .pub-cta > :not(.btn) { grid-column: 1; }
+  .home-body > .pub-cta .btn { grid-column: 2; grid-row: 1 / span 2; align-self: center; margin: 0; }
+  .home-body > .pub-dossier { padding: var(--s7); }
+  .home-body > :is(.pub-articles, .pub-events, .pub-docs) .pub-cards { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+}
 /* Vérification publique d'une carte de membre */
 .verify { padding: var(--s7) var(--s4); background: var(--paper); }
 .verify-card { max-width: 480px; margin: 0 auto; padding: var(--s6); background: var(--sheet); border-radius: var(--r-lg); }
@@ -76,33 +281,3 @@ main:focus { outline: none; }
 .preview-placeholder { padding: var(--s4); border: 1px dashed var(--line-strong); border-radius: var(--r-md); color: var(--ink-2); background: var(--sheet); }
 .preview-cta { margin: var(--s6) 0; padding: var(--s5); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }
 
-/* Pages publiques (L4, tâche 1) : mise en page sobre ; la direction artistique vient en tâche 2. */
-.pub-page { width: 100%; max-width: 760px; margin: 0 auto; padding: var(--s6) var(--s4) var(--s8); }
-.pub-page h1 { margin-bottom: var(--s5); max-width: 24ch; }
-.pub-page h2 { margin: var(--s6) 0 var(--s3); }
-.pub-page h3 { margin: 0 0 var(--s2); font-size: var(--text-lg); }
-.pub-block { margin: var(--s5) 0; }
-.pub-rich p, .pub-rich ul, .pub-rich ol, .pub-rich blockquote { margin: 0 0 var(--s4); max-width: 68ch; }
-.pub-rich img, .pub-figure img { max-width: 100%; height: auto; border-radius: var(--r-md); }
-.pub-figure { margin: var(--s5) 0; }
-.pub-figure figcaption { margin-top: var(--s2); font-size: var(--text-sm); color: var(--ink-2); }
-.pub-credit { color: var(--ink-3); }
-.pub-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--s3); }
-.pub-facts div, .pub-card, .pub-cta { padding: var(--s4); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }
-.pub-facts dd { margin: 0; font-size: var(--text-xl); color: var(--navy-900); }
-.pub-domains, .pub-cards { list-style: none; margin: var(--s5) 0; padding: 0; display: grid; gap: var(--s3); }
-.pub-domains li { padding: var(--s4) 0; border-bottom: 1px solid var(--line); }
-.pub-domain-nature, .pub-meta { color: var(--ink-2); font-size: var(--text-sm); }
-.pub-card a, .pub-back a, .pub-foot a { display: inline-flex; align-items: center; min-height: var(--control-h); }
-.pub-card-title { font-size: var(--text-lg); margin: 0; }
-.pub-cta h2 { margin-top: 0; }
-.pub-cta .btn { margin-top: var(--s3); }
-.pub-empty { padding: var(--s4); border: 1px dashed var(--line-strong); border-radius: var(--r-md); color: var(--ink-2); background: var(--sheet); }
-.pub-facts-inline { display: grid; grid-template-columns: auto 1fr; gap: var(--s2) var(--s4); margin: 0 0 var(--s5); }
-.pub-facts-inline div { display: contents; }
-.pub-facts-inline dt { color: var(--ink-2); }
-.pub-facts-inline dd { margin: 0; font-weight: 600; }
-.pub-gallery { list-style: none; margin: var(--s5) 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--s4); }
-.pub-gallery .pub-figure { margin: 0; }
-.pub-contacts { font-style: normal; flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0 var(--s5); color: var(--ink-2); }
-.pub-foot-menu { flex-basis: 100%; }

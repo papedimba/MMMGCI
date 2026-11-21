@@ -170,9 +170,18 @@ final class SiteController
     private function renderPage(array $page): Response
     {
         $image = $page['og_file_id'] === null ? null : $this->content()->fileUrl((int) $page['og_file_id']);
-        $view = $page['template'] === 'accueil' ? 'public/pages/accueil' : 'public/pages/standard';
-        return $this->html($this->view->render($view, ['title' => (string) ($page['seo_title'] ?: $page['title']), 'description' => $page['seo_description'] ?: $page['excerpt'],
-            'page' => $page, 'body' => (new PageRenderer($this->view, $this->content()))->render($page), 'ogImage' => $image, 'site' => $this->site()], 'layouts/public'));
+        $home = $page['template'] === 'accueil';
+        $extra = [];
+        if ($home) {
+            // Héro : image à la une réelle (image publique avec texte alternatif) sinon dessin ; bouton d'adhésion seulement si la page « adhesion » est en ligne.
+            $hero = $page['featured_file_id'] === null ? null : $this->content()->fileUrl((int) $page['featured_file_id']);
+            $adhesion = $this->content()->page('/adhesion');
+            $extra = ['hero' => $hero !== null && plain($hero['alt'] ?? '') !== '' && preg_match('~\.(?:jpe?g|png|webp|gif)$~i', $hero['url']) === 1 ? $hero : null,
+                'adhesion' => $adhesion !== null && !isset($adhesion['redirect']) ? '/adhesion' : null,
+                'aides' => array_filter(is_array($page['blocks'] ?? null) ? $page['blocks'] : [], static fn ($b): bool => is_array($b) && ($b['type'] ?? '') === 'domaines' && !empty($b['items'])) !== []];
+        }
+        return $this->html($this->view->render($home ? 'public/pages/accueil' : 'public/pages/standard', ['title' => (string) ($page['seo_title'] ?: $page['title']), 'description' => $page['seo_description'] ?: $page['excerpt'],
+            'page' => $page, 'body' => (new PageRenderer($this->view, $this->content()))->render($page), 'ogImage' => $image, 'site' => $this->site()] + $extra, 'layouts/public'));
     }
 
     /** @param list<array<string,mixed>> $items */

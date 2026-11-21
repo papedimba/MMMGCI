@@ -5,7 +5,11 @@
  */
 ?>
 <article class="pub-page">
+<header class="pub-head">
+<?= ui('breadcrumbs', ['items' => [['Accueil', '/'], [$title]]]) ?>
 <h1><?= e($title) ?></h1>
+</header>
+<div class="pub-body">
 <?php if ($kind === 'galeries'): ?>
 <section class="pub-block">
 <?php if ($items === []): ?>
@@ -31,4 +35,5 @@
 <?php else: ?>
 <?php include __DIR__ . '/../blocks/' . ($kind === 'documents' ? 'documents' : 'articles') . '.php'; ?>
 <?php endif; ?>
+</div>
 </article>

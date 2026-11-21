@@ -46,6 +46,13 @@ $lines = static fn (string $s): string => nl2br(e($s), false);
             }
             echo '</ul>';
             break;
+        case 'dossier':
+            echo '<section class="preview-cta"><h2>' . e((string) $b['title']) . '</h2>' . ((string) $b['intro'] !== '' ? '<p>' . $lines((string) $b['intro']) . '</p>' : '') . '<ul class="preview-list">';
+            foreach ($b['pieces'] as $it) {
+                echo '<li>' . e((string) $it['label']) . '</li>';
+            }
+            echo '</ul></section>';
+            break;
         case 'appel':
             $href = $b['page_id'] !== null ? (isset($refs['pages'][$b['page_id']]) ? '/' . $refs['pages'][$b['page_id']] : null) : (string) $b['url'];
             echo '<section class="preview-cta"><h2>' . e((string) $b['title']) . '</h2>' . ((string) $b['text'] !== '' ? '<p>' . $lines((string) $b['text']) . '</p>' : '')

@@ -6,8 +6,11 @@ $when = date_long_fr(plain($event['starts_at'] ?? ''), true);
 $until = date_long_fr(plain($event['ends_at'] ?? ''), true);
 ?>
 <article class="pub-page">
-<p class="pub-back"><a href="/evenements">Tous les évènements</a></p>
+<header class="pub-head">
+<?= ui('breadcrumbs', ['items' => [['Accueil', '/'], ['Évènements', '/evenements'], [plain($event['title'])]]]) ?>
 <h1><?= e(plain($event['title'])) ?></h1>
+</header>
+<div class="pub-body">
 <dl class="pub-facts-inline">
 <div><dt>Date</dt><dd><?= e($until !== '' ? $when . ' au ' . $until : $when) ?></dd></div>
 <?php if (plain($event['location'] ?? '') !== ''): ?><div><dt>Lieu</dt><dd><?= e(plain($event['location'])) ?></dd></div>
@@ -17,4 +20,5 @@ $until = date_long_fr(plain($event['ends_at'] ?? ''), true);
 <?php endif; ?>
 <?php if (plain($event['description'] ?? '') !== ''): ?><div class="pub-rich"><?= RichText::sanitize(plain($event['description'])) ?></div>
 <?php endif; ?>
+</div>
 </article>

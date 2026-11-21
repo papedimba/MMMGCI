@@ -143,3 +143,7 @@ Composants disponibles (`ui('nom', [...])`) : `button`, `field` (saisie, liste, 
 - Libellés : « Nouvelle bannière » (nom féminin) ; historique des formulaires avec états en toutes lettres et noms d'utilisateur.
 - Contrôle de qualité L3 : `inspect.mjs --app` sur 23 écrans à 1440/768/390 (0 échec sur les écrans ; le sélecteur de médias est un fragment de boîte de dialogue, non un écran), 360 px sans défilement horizontal, `bin/check-contrast.php` conforme.
 
+
+### Site public (L4, tâche 2)
+
+Direction « La page est l'objet » appliquée (`public/assets/css/public.css`, gabarits `app/views/public/`) : accueil sur fond marine où chaque bloc est un objet en papier (`--paper`) à bande de cordage tressé (`public/assets/img/art/cordage.svg`) et coin coupé ; carte de menu des domaines (pointillés de 3 px) ; liste en rangées de feuille imprimée ; faits en rangée sans boîtes ; carte-réponse ; pied de page « dos de la carte » (nom en entier, devise, logo). Pages intérieures : bandeau marine (fil d'Ariane, titre), colonne de lecture de 68 caractères centrée. Un seul rayon (`--r-sm`), aucun dégradé ni ombre au repos, Marcellus et Source Sans 3. Dessins originaux servis comme fichiers (`art/livret.svg`, `art/ancre.svg`), toujours étiquetés « Illustration ». Bloc `dossier` et `public/assets/js/site.js` (filtre des pièces, sans JS la liste complète). Critique Taste : `taste/critique-site-public.md`.

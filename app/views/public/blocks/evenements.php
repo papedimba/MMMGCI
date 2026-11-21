@@ -4,8 +4,13 @@ use App\Modules\Cms\PublishedContent;
 
 $items ??= $content->events(['when' => 'upcoming', 'limit' => max(1, min(12, (int) plain($b['count'] ?? 3)))]);
 $empty ??= 'Aucun évènement à venir pour le moment.';
+if ($items === [] && !empty($home)) {
+    return; // accueil : rien de publié, section omise
+}
 ?>
 <section class="pub-block pub-events">
+<?php if (!empty($home)): ?><h2><a href="/evenements">Prochains évènements</a></h2>
+<?php endif; ?>
 <?php if ($items === []): ?>
 <p class="pub-empty"><?= e($empty) ?></p>
 <?php else: ?>

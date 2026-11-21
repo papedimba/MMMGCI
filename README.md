@@ -277,6 +277,7 @@ Une page est une suite ordonnée (60 au plus) de blocs ; chaque bloc est stocké
 | `documents` | `category` (vide = toutes) |
 | `articles`, `evenements` | `count` (1 à 12) |
 | `formulaire` | `form_key` : `contact`, `partenariat`, `adhesion` (**`adhesion` n'est pas un formulaire de la boîte de réception : le rendu L4 l'oriente vers `/adhesion-en-ligne`** ; le formulaire `information` n'a pas de bloc) |
+| `dossier` | « Préparer mon dossier » (L4) : `title`, `intro`, `situations` : `[{key, label}]` (clé en minuscules et tirets, unique), `pieces` : `[{label, situations}]` (`situations` : clés déclarées séparées par des virgules, vide = pièce toujours demandée). Le visiteur coche sa situation et la liste se filtre (`site.js`) ; sans JavaScript, toute la liste reste affichée avec « (selon votre situation) » ; rien n'est envoyé ni stocké. Éditeur : chaque liste a ses boutons (`item-add:i:champ`, `item-del:i:j:champ`) |
 
 **Contrat des références de médias** : seules les clés `media_id` (un média), `media_ids` (liste de médias, galeries) et `file_id` désignent un média dans un bloc ; la médiathèque s'en sert pour refuser la suppression d'un média encore utilisé (aussi dans le texte riche : images `/media/...`). Toute nouvelle clé de média doit être ajoutée à ce contrat (`MediaService::usages`).
 

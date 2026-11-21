@@ -488,6 +488,30 @@ final class PageWorkflowTest extends AdminTestCase
         $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_pages'));
     }
 
+    public function test_dossier_block_has_two_editable_lists_in_the_admin_editor(): void
+    {
+        $this->actingAs($this->author);
+        $html = $this->request('POST', '/admin/site/pages/nouvelle', ['title' => 'Adhésion', 'op' => 'add', 'add_type' => 'dossier', 'blocs' => []])->body();
+        $this->assertStringContainsString('name="blocs[0][type]" value="dossier"', $html);
+        foreach (['[situations][0][key]', '[situations][0][label]', '[pieces][0][label]', '[pieces][0][situations]', '[title]', '[intro]'] as $f) {
+            $this->assertStringContainsString('name="blocs[0]' . $f . '"', $html);
+        }
+        $this->assertStringContainsString('value="item-add:0:situations"', $html);
+        $this->assertStringContainsString('value="item-add:0:pieces"', $html);
+        $post = ['title' => 'Adhésion', 'slug' => '', 'template' => 'standard', 'blocs' => [['type' => 'dossier', 'title' => 'Préparer mon dossier', 'intro' => '',
+            'situations' => [['key' => 'livret', 'label' => 'Livret maritime disponible']], 'pieces' => [['label' => 'Copie du livret', 'situations' => 'livret']]]]];
+        $html = $this->request('POST', '/admin/site/pages/nouvelle', $post + ['op' => 'item-add:0:pieces'])->body();
+        $this->assertStringContainsString('name="blocs[0][pieces][1][label]"', $html);
+        $this->assertStringNotContainsString('name="blocs[0][situations][1][key]"', $html, 'seule la liste visée grandit');
+        $bad = $post;
+        $bad['blocs'][0]['pieces'][0]['situations'] = 'inconnue';
+        $res = $this->request('POST', '/admin/site/pages/nouvelle', $bad + ['op' => 'save']);
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString('Situation inconnue : inconnue.', $res->body());
+        $this->assertSame(302, $this->request('POST', '/admin/site/pages/nouvelle', $post + ['op' => 'save'])->status());
+        $this->assertStringContainsString('"situations":"livret"', (string) $this->db->fetchValue('SELECT blocks FROM cms_pages'));
+    }
+
     public function test_block_editor_operations_keep_unsaved_input_without_javascript(): void
     {
         $this->actingAs($this->author);

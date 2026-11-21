@@ -22,14 +22,15 @@ final class Blocks
         'texte' => 'Texte', 'titre' => 'Titre de section', 'intro' => 'Introduction', 'faits' => 'Chiffres clés',
         'domaines' => "Domaines d'intervention", 'liste' => 'Liste', 'appel' => "Appel à l'action", 'image' => 'Image',
         'documents' => 'Documents', 'articles' => 'Dernières actualités', 'evenements' => 'Prochains évènements', 'formulaire' => 'Formulaire',
+        'dossier' => 'Préparer mon dossier',
     ];
 
     public const FORMS = ['contact' => 'Contact', 'partenariat' => 'Partenariat', 'adhesion' => 'Adhésion'];
 
     /**
      * type => champ => [nature, libellé, obligatoire, paramètre] ; nature : line (une ligne), text (plusieurs lignes), html (riche),
-     * media (id cms_media), page (id cms_pages), url, int ([min, max]), enum (options), items (sous-champs de chaque élément).
-     * Paramètre : longueur maximale pour line/text/url.
+     * media (id cms_media), page (id cms_pages), url, int ([min, max]), enum (options), items (sous-champs de chaque élément),
+     * key (identifiant : minuscules, chiffres, tirets). Paramètre : longueur maximale pour line/text/url/key.
      */
     public const FIELDS = [
         'texte' => ['html' => ['html', 'Texte', true, null]],
@@ -46,6 +47,11 @@ final class Blocks
         'articles' => ['count' => ['int', 'Nombre', true, [1, 12]]],
         'evenements' => ['count' => ['int', 'Nombre', true, [1, 12]]],
         'formulaire' => ['form_key' => ['enum', 'Formulaire', true, self::FORMS]],
+        // « Préparer mon dossier » : le visiteur coche sa situation, la liste des pièces se filtre (site.js) ; rien n'est envoyé.
+        'dossier' => ['title' => ['line', 'Titre', true, 200], 'intro' => ['text', 'Introduction', false, 1000],
+            'situations' => ['items', 'Situations', false, ['key' => ['key', 'Clé (minuscules et tirets)', true, 40], 'label' => ['line', 'Libellé', true, 160]]],
+            'pieces' => ['items', 'Pièces', true, ['label' => ['line', 'Pièce', true, 300],
+                'situations' => ['line', 'Clés des situations concernées, séparées par des virgules (vide : toujours)', false, 400]]]],
     ];
 
     /**
@@ -78,6 +84,9 @@ final class Blocks
                     $clean[$name] = null;
                 }
             }
+            if ($type === 'dossier') {
+                self::checkDossier($clean, $path, $errors);
+            }
             if ($type === 'appel' && !isset($errors["$path.url"]) && !isset($errors["$path.page_id"]) && ($clean['page_id'] === null) === ($clean['url'] === null)) {
                 $errors["$path.url"] = 'Choisissez une page du site ou saisissez une adresse (l\'une ou l\'autre).';
             }
@@ -87,6 +96,33 @@ final class Blocks
             throw new BlockInvalid((string) array_key_first($errors), (string) reset($errors), $errors);
         }
         return $out;
+    }
+
+    /**
+     * Dossier : clés de situation uniques ; chaque pièce ne cite que des clés déclarées, normalisées en « a,b ».
+     * @param array<string,mixed> $clean @param array<string,string> $errors
+     */
+    private static function checkDossier(array &$clean, string $path, array &$errors): void
+    {
+        $keys = [];
+        foreach ($clean['situations'] ?? [] as $j => $s) {
+            $k = $s['key'] ?? null;
+            if (!is_string($k)) {
+                continue;
+            }
+            if (isset($keys[$k])) {
+                $errors["$path.situations[$j].key"] = 'Clé déjà utilisée.';
+            }
+            $keys[$k] = true;
+        }
+        foreach ($clean['pieces'] ?? [] as $j => $p) {
+            $cited = array_values(array_unique(array_filter(array_map('trim', explode(',', (string) ($p['situations'] ?? ''))), 'strlen')));
+            $unknown = array_diff($cited, array_keys($keys));
+            if ($unknown !== []) {
+                $errors["$path.pieces[$j].situations"] = 'Situation inconnue : ' . implode(', ', $unknown) . '.';
+            }
+            $clean['pieces'][$j]['situations'] = implode(',', $cited);
+        }
     }
 
     /**
@@ -155,7 +191,7 @@ final class Blocks
             }
             return $html;
         }
-        if ($kind === 'line' || $kind === 'text' || $kind === 'url') {
+        if ($kind === 'line' || $kind === 'text' || $kind === 'url' || $kind === 'key') {
             $s = self::text($s, $kind === 'text');
         }
         if ($s === '') {
@@ -164,11 +200,12 @@ final class Blocks
             }
             return $kind === 'line' || $kind === 'text' ? '' : null;
         }
-        if (in_array($kind, ['line', 'text', 'url'], true) && mb_strlen($s) > $param) {
+        if (in_array($kind, ['line', 'text', 'url', 'key'], true) && mb_strlen($s) > $param) {
             throw new BlockInvalid($path, "$param caractères au maximum.");
         }
         return match ($kind) {
             'line', 'text' => $s,
+            'key' => preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/D', $s) === 1 ? $s : throw new BlockInvalid($path, 'Minuscules, chiffres et tirets seulement.'),
             'url' => self::isSafeUrl($s) ? $s : throw new BlockInvalid($path, 'Adresse refusée (https://…, mailto:, tel: ou chemin du site commençant par /).'),
             'media', 'page' => ctype_digit($s) && (int) $s > 0 && strlen($s) < 19 ? (int) $s : throw new BlockInvalid($path, 'Choix invalide.'),
             'int' => ctype_digit($s) && (int) $s >= $param[0] && (int) $s <= $param[1] ? (int) $s
@@ -257,7 +294,8 @@ final class Blocks
     }
 
     /**
-     * Applique une opération de l'éditeur sans JS : up:i, down:i, del:i, add (type $addType), item-add:i, item-del:i:j.
+     * Applique une opération de l'éditeur sans JS : up:i, down:i, del:i, add (type $addType), item-add:i[:champ], item-del:i:j[:champ]
+     * (champ : liste visée quand le bloc en a plusieurs ; par défaut la première).
      * @param list<array<string,mixed>> $blocks saisis (fromRequest) @return array{0:list<array<string,mixed>>,1:?string} blocs, erreur
      */
     public static function apply(array $blocks, string $op, string $addType = ''): array
@@ -294,7 +332,8 @@ final class Blocks
                 return [$blocks, null];
             case 'item-add':
             case 'item-del':
-                $field = $i >= 0 && $i < $n ? self::itemsField((string) $blocks[$i]['type']) : null;
+                $named = $parts[0] === 'item-add' ? ($parts[2] ?? null) : ($parts[3] ?? null);
+                $field = $i >= 0 && $i < $n ? self::itemsField((string) $blocks[$i]['type'], $named) : null;
                 if ($field === null) {
                     return [$blocks, null];
                 }
@@ -312,11 +351,12 @@ final class Blocks
         return [$blocks, null];
     }
 
-    public static function itemsField(string $type): ?string
+    /** Liste (champ « items ») d'un type : celle nommée, sinon la première. */
+    public static function itemsField(string $type, ?string $name = null): ?string
     {
-        foreach (self::FIELDS[$type] ?? [] as $name => [$kind]) {
-            if ($kind === 'items') {
-                return $name;
+        foreach (self::FIELDS[$type] ?? [] as $field => [$kind]) {
+            if ($kind === 'items' && ($name === null || $name === $field)) {
+                return $field;
             }
         }
         return null;
