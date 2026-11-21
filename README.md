@@ -249,6 +249,10 @@ Le CMS gère le contenu du futur site public (lot L4 : le rendu public et l'adh�
 
 Le rédacteur soumet, il ne publie jamais. Chaque transition de publication est auditée (sans donnée personnelle de visiteur).
 
+### Contenu initial issu du cahier des charges (L4)
+
+`php bin/seed-site.php --actor=<courriel d'un administrateur>` crée **en brouillon** les pages du site tirées du cahier des charges 2026–2027 (texte copié, réserves conservées) et les menus s'ils sont vides ; idempotent par adresse (une page existante, même modifiée, n'est jamais touchée). Le script refuse `--publish` : **le cahier n'étant pas encore adopté (art. 21–23), un humain relit chaque page (champ interne « Source » de chaque bloc, jamais affiché au public) puis la publie.** Rubriques non créées faute de source : mot du Président, historique, mentions légales, confidentialité, galerie (liste « À fournir par la Mutuelle » sur l'écran Pages).
+
 ### Circuit de publication
 
 États : `brouillon` → `en_relecture` → `publie` (ou `programme`, publié à l'heure par le cron) → `archive`. Un brouillon, un contenu en relecture ou archivé n'est **jamais public** (hors fichiers de la médiathèque : voir plus bas).

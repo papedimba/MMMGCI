@@ -1,5 +1,5 @@
 <?php declare(strict_types=1);
-/** @var list<array<string,mixed>> $rows @var string $csrfToken */
+/** @var list<array<string,mixed>> $rows @var string $csrfToken @var callable $can */
 $base = '/admin/site/pages';
 $kinds = ['brouillon' => 'neutral', 'en_relecture' => 'warn', 'publie' => 'ok', 'programme' => 'info', 'archive' => 'neutral'];
 $labels = \App\Modules\Cms\PageService::STATUS_LABELS;
@@ -26,3 +26,4 @@ $order = static fn (array $row, string $dir, string $label): string => '<form me
     ],
     'row_actions' => static fn (array $p): string => $order($p, 'up', 'Monter') . $order($p, 'down', 'Descendre'),
 ]) ?>
+<?php include __DIR__ . '/_a-fournir.php'; ?>

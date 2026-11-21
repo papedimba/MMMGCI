@@ -14,6 +14,7 @@ final class Blocks
 {
     public const MAX_BLOCKS = 60;
     public const MAX_ITEMS = 50;
+    public const MAX_SOURCE = 80;
     /** Champs de blocs par envoi : avec la vingtaine de champs de la page, reste sous max_input_vars = 1000 (défaut PHP / cPanel). */
     public const MAX_FIELDS = 800;
     public const TOO_LONG = 'Le formulaire est trop long : enregistrez moins de blocs ou de lignes à la fois.';
@@ -83,6 +84,13 @@ final class Blocks
                     $errors[$e->path] = $e->getMessage();
                     $clean[$name] = null;
                 }
+            }
+            // Source interne (ex. « CDC art. 9 ») : pour la relecture, hors FIELDS, jamais rendue au public.
+            $source = self::text(is_scalar($block['source'] ?? null) ? (string) $block['source'] : '', false);
+            if (mb_strlen($source) > self::MAX_SOURCE) {
+                $errors["$path.source"] = self::MAX_SOURCE . ' caractères au maximum.';
+            } elseif ($source !== '') {
+                $clean['source'] = $source;
             }
             if ($type === 'dossier') {
                 self::checkDossier($clean, $path, $errors);
@@ -266,6 +274,9 @@ final class Blocks
                 continue;
             }
             $b = ['type' => $type];
+            if (is_scalar($block['source'] ?? null) && (string) $block['source'] !== '') {
+                $b['source'] = (string) $block['source'];
+            }
             foreach (self::FIELDS[$type] as $name => [$kind, , , $param]) {
                 if ($kind === 'items') {
                     $b[$name] = [];

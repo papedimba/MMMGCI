@@ -107,6 +107,30 @@ final class MenuService
         });
     }
 
+    /**
+     * Chemin interne du semis du site (bin/seed-site.php) : sans droits d'utilisateur, mêmes validations, JAMAIS d'écrasement :
+     * n'insère que dans un menu VIDE (retourne false sinon). Journal : cms.menu_seeded.
+     * @param list<array<string,mixed>> $items
+     */
+    public function seed(string $location, array $items, int $actor): bool
+    {
+        return $this->db->atomic(function () use ($location, $items, $actor): bool {
+            $menu = $this->db->fetch('SELECT id FROM cms_menus WHERE location = ? FOR UPDATE', [$location]) ?? throw new NotFound('Menu introuvable.');
+            if ((int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_menu_items WHERE menu_id = ?', [(int) $menu['id']]) > 0) {
+                return false;
+            }
+            $rows = $this->validate($location, array_values($items));
+            $top = null;
+            foreach ($rows as $i => $row) {
+                $id = $this->db->insert('cms_menu_items', ['menu_id' => (int) $menu['id'], 'parent_id' => $row['depth'] === 0 ? null : $top, 'label' => $row['label'],
+                    'page_id' => $row['page_id'], 'url' => $row['url'], 'target' => $row['target'], 'sort_order' => $i, 'is_active' => $row['is_active']]);
+                $top = $row['depth'] === 0 ? $id : $top;
+            }
+            $this->audit->log($actor, 'cms.menu_seeded', 'cms_menus', (int) $menu['id'], ['items' => 0], ['location' => $location, 'items' => count($rows)]);
+            return true;
+        });
+    }
+
     /** @param list<array<string,mixed>> $items @return list<array<string,mixed>> */
     private function validate(string $location, array $items): array
     {

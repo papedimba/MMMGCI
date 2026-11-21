@@ -124,6 +124,9 @@ if ($locked) {
         }
         $inner .= $opButton("item-add:$i:$name", 'Ajouter une ligne', ' (' . $spec[1] . ') au bloc ' . ($i + 1), $i) . '</div>';
     }
+    $inner .= ui('field', ['name' => "blocs[$i][source]", 'label' => 'Source interne (jamais affichée au public)', 'value' => (string) ($b['source'] ?? ''),
+        'error' => $errors["blocs[$i].source"] ?? '', 'attrs' => ['maxlength' => Blocks::MAX_SOURCE]]);
+    $used["blocs[$i].source"] = true;
     // Erreurs du bloc sans champ propre (type, liste vide…)
     $rest = '';
     foreach ($errors as $key => $msg) {
