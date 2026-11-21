@@ -27,6 +27,9 @@ use App\Modules\Contributions\ReceiptService;
 use App\Modules\Disbursements\DisbursementController;
 use App\Modules\Disbursements\DisbursementGate;
 use App\Modules\Disbursements\DisbursementService;
+use App\Modules\Cms\ArticleController;
+use App\Modules\Cms\ArticleService;
+use App\Modules\Cms\TaxonomyService;
 use App\Modules\Cms\MediaController;
 use App\Modules\Cms\MenuController;
 use App\Modules\Cms\MenuService;
@@ -98,6 +101,7 @@ return static function (Router $r, array $deps): void {
     $solidarity = static fn (): SolidarityController => new SolidarityController($view, $csrf, $session, $gate(), new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))), new AccountService($db(), $audit()));
     $media = static fn (): MediaController => new MediaController($view, $csrf, $session, $gate(), new MediaService($db(), $audit(), $uploads()));
     $pages = static fn (): PageController => new PageController($view, $csrf, $session, $gate(), new PageService($db(), $audit(), $gate()));
+    $articles = static fn (): ArticleController => new ArticleController($view, $csrf, $session, $gate(), new ArticleService($db(), $audit(), $gate()), new TaxonomyService($db(), $audit()));
     $menus = static fn (): MenuController => new MenuController($view, $csrf, $session, $gate(), new MenuService($db(), $audit(), $gate(), new PageService($db(), $audit(), $gate())), new PageService($db(), $audit(), $gate()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
@@ -288,6 +292,23 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/site/pages/{id:\d+}/etat', static fn (Request $q): Response => $pages()->transition($q), $editPages);
     $r->post('/admin/site/pages/{id:\d+}/ordre', static fn (Request $q): Response => $pages()->reorder($q), $editPages);
     $r->post('/admin/site/pages/{id:\d+}/suppression', static fn (Request $q): Response => $pages()->delete($q), $editPages);
+
+    // Articles : mêmes droits que les pages ; catégories et étiquettes : cms.pages.manage. Publier exige cms.publish (ArticleService::transition).
+    $manageTaxonomy = [$requireAuth, $permission('cms.pages.manage')];
+    $r->get('/admin/site/articles', static fn (Request $q): Response => $articles()->index($q), $editPages);
+    $r->get('/admin/site/articles/nouveau', static fn (Request $q): Response => $articles()->createForm($q), $editPages);
+    $r->post('/admin/site/articles/nouveau', static fn (Request $q): Response => $articles()->create($q), $editPages);
+    foreach (['categories', 'etiquettes'] as $kind) { // le type est lu dans l'adresse par ArticleController
+        $r->get("/admin/site/articles/$kind", static fn (Request $q): Response => $articles()->taxonomyPage($q), $manageTaxonomy);
+        $r->post("/admin/site/articles/$kind", static fn (Request $q): Response => $articles()->taxonomySave($q), $manageTaxonomy);
+        $r->post("/admin/site/articles/$kind/{id:\d+}", static fn (Request $q): Response => $articles()->taxonomySave($q), $manageTaxonomy);
+        $r->post("/admin/site/articles/$kind/{id:\d+}/suppression", static fn (Request $q): Response => $articles()->taxonomyDelete($q), $manageTaxonomy);
+    }
+    $r->get('/admin/site/articles/{id:\d+}', static fn (Request $q): Response => $articles()->editForm($q), $editPages);
+    $r->post('/admin/site/articles/{id:\d+}', static fn (Request $q): Response => $articles()->update($q), $editPages);
+    $r->get('/admin/site/articles/{id:\d+}/apercu', static fn (Request $q): Response => $articles()->preview($q), $editPages);
+    $r->post('/admin/site/articles/{id:\d+}/etat', static fn (Request $q): Response => $articles()->transition($q), $editPages);
+    $r->post('/admin/site/articles/{id:\d+}/suppression', static fn (Request $q): Response => $articles()->delete($q), $editPages);
 
     // Menus : enregistrement publié immédiatement ; le service exige cms.pages.manage ET cms.publish.
     $manageMenus = [$requireAuth, $permission('cms.publish')];

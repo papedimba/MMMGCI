@@ -36,7 +36,7 @@ use PDOException;
  * - unpublish() retire tout du site en une action : transition vers brouillon ET suppression de la version conservée.
  * Lecture publique (tâche 8) : liveVersion() uniquement.
  */
-final class PageService
+final class PageService implements ScheduledContent
 {
     public const TEMPLATES = ['standard' => 'Standard', 'accueil' => 'Accueil', 'liste' => 'Liste'];
     public const STATUS_LABELS = ['brouillon' => 'Brouillon', 'en_relecture' => 'En relecture', 'publie' => 'Publiée', 'programme' => 'Programmée', 'archive' => 'Archivée'];
@@ -157,6 +157,30 @@ final class PageService
                 default => 'cms.page_unpublished',
             };
             $this->audit->log($actor, $action, 'cms_pages', $id, ['status' => $from], ['status' => $to, 'slug' => $p['slug']] + $extra);
+        });
+    }
+
+    public function scheduledTable(): string
+    {
+        return 'cms_pages';
+    }
+
+    public function dueIds(DateTimeImmutable $now): array
+    {
+        return array_map('intval', array_column($this->db->fetchAll("SELECT id FROM cms_pages WHERE status = 'programme' AND published_at <= ? ORDER BY id", [$now->format('Y-m-d H:i:s')]), 'id'));
+    }
+
+    /** Cron : la copie de travail devient la version en ligne (version conservée vidée) ; date et publicateur de la programmation conservés. */
+    public function publishDue(int $id, DateTimeImmutable $now): void
+    {
+        $this->db->atomic(function () use ($id, $now): void {
+            $p = $this->lock($id);
+            if ($p['status'] !== 'programme' || $p['published_at'] === null || $p['published_at'] > $now->format('Y-m-d H:i:s')) {
+                return;
+            }
+            $this->db->update('cms_pages', ['status' => 'publie', 'published_blocks' => null, 'published_title' => null, 'published_excerpt' => null, 'published_seo_title' => null,
+                'published_seo_description' => null, 'published_featured_file_id' => null, 'published_og_file_id' => null, 'published_canonical_url' => null, 'published_version_at' => null], ['id' => $id]);
+            $this->audit->log(null, 'cms.scheduled_published', 'cms_pages', $id, ['status' => 'programme'], ['status' => 'publie', 'slug' => $p['slug']]);
         });
     }
 

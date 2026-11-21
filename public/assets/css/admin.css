@@ -180,6 +180,11 @@
 .transition-form .field { margin-bottom: 0; }
 .history-list { margin: 0; padding-left: var(--s5); }
 .history-list li { margin-bottom: var(--s1); }
+.taxonomy-list { list-style: none; margin: var(--s4) 0 0; padding: 0; display: grid; gap: var(--s3); }
+.taxonomy-list li { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s3); padding: var(--s3); border: 1px solid var(--line); border-radius: var(--r-md); }
+.taxonomy-list .field { flex: 1 1 14rem; margin: 0; }
+.filter-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s3); margin-bottom: var(--s4); }
+.filter-form .field { flex: 1 1 12rem; margin: 0; }
 @media (max-width: 639.98px) {
   .block-editor { padding: var(--s2) var(--s3) var(--s1); }
   .block-tools .btn { flex: 1 1 0; }
