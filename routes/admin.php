@@ -28,6 +28,16 @@ use App\Modules\Disbursements\DisbursementController;
 use App\Modules\Disbursements\DisbursementGate;
 use App\Modules\Disbursements\DisbursementService;
 use App\Modules\Cms\ArticleController;
+use App\Modules\Cms\BannerController;
+use App\Modules\Cms\BannerService;
+use App\Modules\Cms\OfficialDocumentController;
+use App\Modules\Cms\DocumentService;
+use App\Modules\Cms\EventController;
+use App\Modules\Cms\EventService;
+use App\Modules\Cms\GalleryController;
+use App\Modules\Cms\GalleryService;
+use App\Modules\Cms\TestimonialController;
+use App\Modules\Cms\TestimonialService;
 use App\Modules\Cms\ArticleService;
 use App\Modules\Cms\TaxonomyService;
 use App\Modules\Cms\MediaController;
@@ -103,6 +113,11 @@ return static function (Router $r, array $deps): void {
     $pages = static fn (): PageController => new PageController($view, $csrf, $session, $gate(), new PageService($db(), $audit(), $gate()));
     $articles = static fn (): ArticleController => new ArticleController($view, $csrf, $session, $gate(), new ArticleService($db(), $audit(), $gate()), new TaxonomyService($db(), $audit()));
     $menus = static fn (): MenuController => new MenuController($view, $csrf, $session, $gate(), new MenuService($db(), $audit(), $gate(), new PageService($db(), $audit(), $gate())), new PageService($db(), $audit(), $gate()));
+    $events = static fn (): EventController => new EventController($view, $csrf, $session, $gate(), new EventService($db(), $audit(), $gate()));
+    $officialDocuments = static fn (): OfficialDocumentController => new OfficialDocumentController($view, $csrf, $session, $gate(), new DocumentService($db(), $audit(), $gate()));
+    $galleries = static fn (): GalleryController => new GalleryController($view, $csrf, $session, $gate(), new GalleryService($db(), $audit(), $gate()));
+    $banners = static fn (): BannerController => new BannerController($view, $csrf, $session, $gate(), new BannerService($db(), $audit(), $gate()));
+    $testimonials = static fn (): TestimonialController => new TestimonialController($view, $csrf, $session, $gate(), new TestimonialService($db(), $audit(), $gate(), new Settings($db()), $uploads()), new SensitiveAccess($db()));
     $requireAuth = static fn (): RequireAuth => new RequireAuth($auth());
 
     /** Middleware d'autorisation d'une route : $r->get(..., [$requireAuth, $permission('users.manage')]) */
@@ -315,6 +330,24 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/site/menus', static fn (Request $q): Response => Response::redirect('/admin/site/menus/header'), $manageMenus);
     $r->get('/admin/site/menus/{location:\w+}', static fn (Request $q): Response => $menus()->show($q), $manageMenus);
     $r->post('/admin/site/menus/{location:\w+}', static fn (Request $q): Response => $menus()->save($q), $manageMenus);
+
+    // Évènements (circuit complet), documents, galeries, bannières, témoignages : mêmes droits que les pages ; publier exige cms.publish (contrôlé par les services).
+    foreach (['evenements' => [$events, 'evenement'], 'documents' => [$officialDocuments, 'document'], 'galeries' => [$galleries, 'galerie'], 'bannieres' => [$banners, 'banniere'], 'temoignages' => [$testimonials, 'temoignage']] as $seg => [$ctl]) {
+        $b = "/admin/site/$seg";
+        $r->get($b, static fn (Request $q): Response => $ctl()->index($q), $editPages);
+        $r->get("$b/nouveau", static fn (Request $q): Response => $ctl()->createForm($q), $editPages);
+        $r->post("$b/nouveau", static fn (Request $q): Response => $ctl()->create($q), $editPages);
+        $r->get("$b/{id:\d+}", static fn (Request $q): Response => $ctl()->editForm($q), $editPages);
+        $r->post("$b/{id:\d+}", static fn (Request $q): Response => $ctl()->update($q), $editPages);
+        $r->post("$b/{id:\d+}/etat", static fn (Request $q): Response => $ctl()->transition($q), $editPages);
+        $r->post("$b/{id:\d+}/suppression", static fn (Request $q): Response => $ctl()->delete($q), $editPages);
+    }
+    $r->post('/admin/site/galeries/{id:\d+}/elements', static fn (Request $q): Response => $galleries()->item($q), $editPages);
+    foreach (['legende', 'monter', 'descendre', 'retrait'] as $op) {
+        $r->post("/admin/site/galeries/{id:\d+}/elements/{item:\d+}/$op", static fn (Request $q): Response => $galleries()->item($q), $editPages);
+    }
+    // Pièce de consentement (privée) : publicateurs seulement, consultation journalisée ; jamais sous /media.
+    $r->get('/admin/site/temoignages/{id:\d+}/consentement', static fn (Request $q): Response => $testimonials()->download($q), [$requireAuth, $permission('cms.publish')]);
 
     // Galerie du kit et page d'exemple d'impression : outils de développement, routes non enregistrées en production (404).
     if ($config->get('APP_ENV', 'production') !== 'production') {

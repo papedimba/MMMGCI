@@ -5,7 +5,7 @@ namespace App\Modules\Cms;
 
 use DateTimeImmutable;
 
-/** Contenu à publication programmée (pages, articles ; évènements en tâche 7) : sert à CmsScheduler. */
+/** Contenu à publication programmée (pages, articles, évènements) : sert à CmsScheduler. */
 interface ScheduledContent
 {
     /** Nom de la table (journal d'audit). */

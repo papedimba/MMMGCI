@@ -14,7 +14,7 @@ use Throwable;
 /** Chaque minute : bin/cron.php (toutes les 5 min) démarre avec une gigue, un intervalle de 5 min sauterait un cycle. Tâche cron « cms.publish_scheduled » : publie les contenus programmés échus ; un échec n'empêche pas les autres. */
 final class CmsScheduler
 {
-    /** @param list<ScheduledContent> $sources tâche 7 : y ajouter les évènements */
+    /** @param list<ScheduledContent> $sources */
     public function __construct(private Audit $audit, private array $sources)
     {
     }
@@ -49,7 +49,7 @@ final class CmsScheduler
     {
         $scheduler->register('cms.publish_scheduled', 1, static function () use ($db, $audit): void {
             $gate = new Gate($db);
-            (new self($audit, [new PageService($db, $audit, $gate), new ArticleService($db, $audit, $gate)]))
+            (new self($audit, [new PageService($db, $audit, $gate), new ArticleService($db, $audit, $gate), new EventService($db, $audit, $gate)]))
                 ->publishDue(new DateTimeImmutable('now', new DateTimeZone('Africa/Abidjan')));
         });
     }
