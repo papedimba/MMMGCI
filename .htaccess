@@ -1,0 +1,16 @@
+# Repli si l'hébergeur impose la racine du site sur le dossier du projet (normalement : racine = public/).
+# Ignoré par `php -S -t public`.
+Options -Indexes
+
+# Fichiers cachés (.env, .git…) et dossiers internes : interdits, avec ou sans mod_rewrite.
+# /.well-known reste accessible (validation des certificats AutoSSL de cPanel).
+<If "%{REQUEST_URI} =~ m#(^|/)\.(?!well-known(/|$))# || %{REQUEST_URI} =~ m#^/(app|bin|config|database|storage|tests|vendor|docs|routes)(/|$)#">
+    Require all denied
+</If>
+
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteRule ^\.well-known(/|$) - [L]
+    RewriteRule ^public/ - [L]
+    RewriteRule ^(.*)$ public/$1 [L]
+</IfModule>

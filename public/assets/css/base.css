@@ -1,0 +1,54 @@
+/* Base : remise à zéro, polices, typographie, accessibilité. Dépend de tokens.css. */
+@font-face {
+  font-family: "Marcellus"; font-style: normal; font-weight: 400; font-display: swap;
+  src: url("../fonts/marcellus-regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "Source Sans 3"; font-style: normal; font-weight: 400 700; font-display: swap;
+  src: url("../fonts/source-sans-3-var.woff2") format("woff2");
+}
+/* Replis aux métriques proches, pour limiter le saut de mise en page au chargement. */
+@font-face { font-family: "Marcellus Fallback"; src: local("Times New Roman"); size-adjust: 98%; ascent-override: 96%; descent-override: 28%; }
+@font-face { font-family: "Source Sans 3 Fallback"; src: local("Arial"); size-adjust: 94%; ascent-override: 104%; descent-override: 29%; }
+
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; scrollbar-color: var(--line-strong) transparent; }
+body {
+  margin: 0; font: 400 var(--text-md)/var(--leading-body) var(--font-body);
+  color: var(--ink); background: var(--frame); -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4 { margin: 0; font-family: var(--font-display); font-weight: 400; color: var(--navy-900); text-wrap: balance; }
+h1 { font-size: var(--text-2xl); line-height: var(--leading-tight); }
+h2 { font-size: var(--text-xl); line-height: var(--leading-snug); }
+h3 { font-size: var(--text-lg); line-height: var(--leading-snug); }
+h4 { font-size: var(--text-md); line-height: var(--leading-snug); font-family: var(--font-body); font-weight: 700; }
+p { margin: 0; text-wrap: pretty; }
+img, svg { max-width: 100%; }
+small { font-size: var(--text-xs); }
+strong, b { font-weight: 700; }
+
+a { color: var(--ocean-600); text-decoration: underline; text-underline-offset: .2em; text-decoration-thickness: 1px; }
+a:hover { text-decoration-thickness: 2px; }
+
+:focus-visible { outline: var(--focus-ring); outline-offset: 2px; border-radius: var(--r-sm); }
+::selection { background: var(--navy-800); color: #fff; }
+
+::-webkit-scrollbar { width: 12px; height: 12px; }
+::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: 999px; border: 3px solid var(--frame); }
+::-webkit-scrollbar-track { background: transparent; }
+
+.num { font-variant-numeric: tabular-nums; }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden;
+  clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+}
+
+.skip-link { position: absolute; left: var(--s2); top: -100px; z-index: 30; padding: var(--s3) var(--s4); background: var(--navy-900); color: #fff; border-radius: var(--r-sm); }
+.skip-link:focus { top: var(--s2); outline: var(--focus-ring-on-dark); }
+
+/* Icônes : dans base.css car le gabarit d'impression ne charge pas components.css. */
+.icon { width: 18px; height: 18px; flex: none; }

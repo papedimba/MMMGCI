@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Démarre MariaDB (idempotent) et prépare l'utilisateur/bases de dev et de test.
+set -euo pipefail
+
+command -v mariadbd >/dev/null || { apt-get update -qq && apt-get install -y mariadb-server; }
+
+if ! mariadb-admin ping --silent 2>/dev/null; then
+    mkdir -p /run/mysqld && chown mysql:mysql /run/mysqld
+    [ -d /var/lib/mysql/mysql ] || mariadb-install-db --user=mysql >/dev/null
+    nohup su -s /bin/bash mysql -c mariadbd >/var/log/mariadbd.out 2>&1 &
+    for _ in $(seq 1 30); do mariadb-admin ping --silent 2>/dev/null && break; sleep 1; done
+    mariadb-admin ping --silent
+fi
+
+mariadb <<SQL
+CREATE DATABASE IF NOT EXISTS mmmgci CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS mmmgci_test CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS 'mmmgci'@'localhost' IDENTIFIED BY 'mmmgci';
+GRANT ALL PRIVILEGES ON mmmgci.* TO 'mmmgci'@'localhost';
+GRANT ALL PRIVILEGES ON mmmgci_test.* TO 'mmmgci'@'localhost';
+FLUSH PRIVILEGES;
+SQL
+echo "MariaDB prête (utilisateur mmmgci, bases mmmgci et mmmgci_test)."

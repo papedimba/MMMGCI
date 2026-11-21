@@ -1,0 +1,74 @@
+/* Site public : gabarit (en-tête, filet national, pied « dos de la carte »). Dépend de tokens.css, base.css, components.css. */
+body.public { background: var(--paper); display: flex; flex-direction: column; min-height: 100svh; }
+body.public main { flex: 1; display: flex; flex-direction: column; }
+main:focus { outline: none; }
+
+.pub-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--s4); padding: 10px var(--s5); background: var(--sheet); }
+.pub-brand { display: block; line-height: 0; }
+.pub-logo { height: 104px; width: auto; display: block; }
+.pub-emblem { display: none; border-radius: 50%; }
+.pub-menu { display: flex; gap: var(--s5); font-weight: 600; font-size: var(--text-sm); }
+.pub-menu a { color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; min-height: var(--control-h); }
+.pub-menu a[href]:hover { text-decoration: underline; }
+.pub-menu a[aria-disabled="true"] { color: var(--ink-3); cursor: default; }
+.pub-menu-btn { display: none; align-items: center; gap: var(--s2); min-height: var(--control-h); padding: 0 var(--s3); border: 1px solid var(--control-border); border-radius: var(--r-sm); background: var(--sheet); color: var(--navy-900); font: 600 var(--text-sm)/1 var(--font-body); cursor: pointer; }
+
+/* Filet national : orange / blanc / vert de Côte d'Ivoire. */
+.flag { display: flex; height: 4px; }
+.flag i { flex: 1; }
+.flag-orange { background: var(--ci-orange); }
+.flag-white { background: var(--sheet); box-shadow: inset 0 1px 0 var(--line-strong), inset 0 -1px 0 var(--line-strong); } /* liseré : le blanc reste visible sur l'en-tête blanc */ /* taste-skill-ignore */
+.flag-green { background: var(--ci-green); }
+
+/* Cordage : barres marine / papier en alternance, en CSS seul. */
+.cordage { height: 28px; background: url("/assets/img/cordage.svg") repeat-x left top / 64px 28px; } /* image et non dégradé : barres marine / papier à bords nets */
+
+.pub-hero { flex: 1; display: flex; align-items: center; background: var(--navy-950); padding: var(--s8) var(--s4); }
+.card-paper { width: 100%; max-width: 560px; margin: 0 auto; background: var(--paper); border-radius: var(--r-lg); overflow: hidden; }
+.card-paper .in { padding: var(--s6) var(--s6) var(--s7); display: grid; justify-items: center; gap: var(--s4); text-align: center; }
+.card-emblem { width: 96px; height: 96px; border-radius: 50%; }
+.card-paper h1 { font-size: clamp(1.75rem, 1.2rem + 2vw, 2.5rem); line-height: var(--leading-tight); max-width: 24ch; }
+.card-paper p { max-width: 68ch; font-size: var(--text-lg); color: var(--ink-2); }
+.card-paper .btn { margin-top: var(--s2); }
+
+.pub-foot { background: var(--paper); }
+.pub-foot-in { max-width: 1100px; margin: 0 auto; padding: var(--s6) var(--s4); display: flex; flex-wrap: wrap; align-items: center; gap: var(--s5); }
+.pub-foot-motto { font-family: var(--font-display); font-size: var(--text-xl); color: var(--navy-900); }
+.pub-credits { flex-basis: 100%; font-size: var(--text-xs); color: var(--ink-3); }
+
+@media (max-width: 767.98px) {
+  .pub-top { padding: var(--s2) var(--s4); flex-wrap: wrap; }
+  .pub-logo { display: none; }
+  .pub-emblem { display: block; }
+  .pub-hero { padding: var(--s6) var(--s4); }
+  .card-paper .in { padding: var(--s5) var(--s4) var(--s6); }
+  .pub-menu { flex-basis: 100%; flex-direction: column; gap: 0; }
+  /* Sans JS : le menu reste affiché sous l'en-tête. Avec JS : bouton « Menu », panneau replié. */
+  html.js .pub-menu-btn { display: inline-flex; }
+  html.js .pub-menu { display: none; }
+  html.js .pub-menu[data-open] { display: flex; }
+}
+.pub-foot img { mix-blend-mode: multiply; } /* le logo est sur fond blanc : il se fond dans le papier */
+
+/* Vérification publique d'une carte de membre */
+.verify { padding: var(--s7) var(--s4); background: var(--paper); }
+.verify-card { max-width: 480px; margin: 0 auto; padding: var(--s6); background: var(--sheet); border-radius: var(--r-lg); }
+.verify-card h1 { font-size: var(--text-2xl); margin-bottom: var(--s4); }
+.verify-card p { color: var(--ink-2); }
+.verify-list { display: grid; grid-template-columns: auto 1fr; gap: var(--s2) var(--s4); margin: 0; }
+.verify-list dt { color: var(--ink-3); }
+.verify-list dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+
+/* Aperçu d'une page (admin) : bandeau et rendu générique des blocs, en attendant les gabarits publics (L4). */
+.preview-banner { display: flex; flex-wrap: wrap; gap: var(--s3); align-items: center; justify-content: center; padding: var(--s3) var(--s4); background: var(--warn-bg); color: var(--warn); border-bottom: 2px solid var(--warn); }
+.preview-banner a { color: inherit; font-weight: 600; display: inline-flex; align-items: center; min-height: var(--control-h); }
+.preview-page { width: 100%; max-width: 760px; margin: 0 auto; padding: var(--s6) var(--s4) var(--s8); }
+.preview-page h1 { margin-bottom: var(--s5); }
+.preview-page h2 { margin: var(--s6) 0 var(--s3); }
+.preview-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--s3); }
+.preview-facts div { padding: var(--s3); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }
+.preview-facts dd { margin: 0; font-size: var(--text-xl); color: var(--navy-900); }
+.preview-figure { margin: var(--s5) 0; }
+.preview-figure img { max-width: 100%; height: auto; border-radius: var(--r-md); }
+.preview-placeholder { padding: var(--s4); border: 1px dashed var(--line-strong); border-radius: var(--r-md); color: var(--ink-2); background: var(--sheet); }
+.preview-cta { margin: var(--s6) 0; padding: var(--s5); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }

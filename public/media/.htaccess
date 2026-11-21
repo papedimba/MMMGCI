@@ -1,0 +1,18 @@
+# Sous nginx ce fichier est ignoré : le déploiement doit interdire l'exécution de PHP sous /media.
+Options -Indexes -ExecCGI
+<IfModule mod_php.c>
+    php_flag engine off
+</IfModule>
+<IfModule mod_php7.c>
+    php_flag engine off
+</IfModule>
+RemoveHandler .php .phtml .phar
+<FilesMatch "\.(php|phtml|phar)$">
+    Require all denied
+</FilesMatch>
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options nosniff
+    <FilesMatch "\.pdf$">
+        Header set Content-Disposition attachment
+    </FilesMatch>
+</IfModule>
