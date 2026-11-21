@@ -36,7 +36,7 @@ $lock = $locked ? ['hint' => 'Album publié : modifiable par un publicateur seul
 <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
 <div class="field"><label for="caption-<?= (int) $it['id'] ?>">Légende (image <?= $n ?>)</label><input class="control" type="text" id="caption-<?= (int) $it['id'] ?>" name="caption" value="<?= e((string) $it['caption']) ?>" maxlength="200"></div>
 <div class="field"><label for="credit-<?= (int) $it['id'] ?>">Crédit (image <?= $n ?>)</label><input class="control" type="text" id="credit-<?= (int) $it['id'] ?>" name="credit" value="<?= e((string) $it['credit']) ?>" maxlength="120"></div>
-<button class="btn btn-secondary btn-sm" type="submit" formnovalidate><span>Enregistrer la légende<span class="visually-hidden"> de l'image <?= $n ?></span></span></button>
+<button class="btn btn-secondary" type="submit" formnovalidate><span>Enregistrer la légende<span class="visually-hidden"> de l'image <?= $n ?></span></span></button>
 </form>
 <div class="block-tools">
 <?php foreach (['monter' => ['Monter', $i === 0], 'descendre' => ['Descendre', $i === count($items) - 1], 'retrait' => ['Retirer', false]] as $op => [$label, $off]): ?>
