@@ -117,7 +117,7 @@ final class PageService implements ScheduledContent
 
     /**
      * Point d'entrée unique des transitions de ContentWorkflow ; $at : date de publication programmée (heure d'Abidjan) ;
-     * $seenVersion : content_version relue par le publicateur (écran) — publier ou programmer une autre version est refusé.
+     * $seenVersion : content_version relue par le publicateur (écran) — OBLIGATOIRE pour publier ou programmer (absent ou différent : refusé).
      */
     public function transition(int $id, string $to, int $actor, ?DateTimeImmutable $at = null, ?int $seenVersion = null): void
     {
@@ -125,7 +125,7 @@ final class PageService implements ScheduledContent
             $p = $this->lock($id);
             $from = (string) $p['status'];
             ContentWorkflow::assertCan($from, $to, $this->gate->allows($actor, 'cms.publish'));
-            if (in_array($to, ['publie', 'programme'], true) && $seenVersion !== null && $seenVersion !== (int) $p['content_version']) {
+            if (in_array($to, ['publie', 'programme'], true) && $seenVersion !== (int) $p['content_version']) {
                 throw new ContentTransitionInvalid('La page a été modifiée depuis votre lecture, relisez-la.');
             }
             $set = ['status' => $to];

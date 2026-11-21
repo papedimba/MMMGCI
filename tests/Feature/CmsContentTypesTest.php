@@ -224,11 +224,11 @@ final class CmsContentTypesTest extends AdminTestCase
         $sched = $mk('Programmé', '+8 days');
         $due = $mk('Échu', '+9 days');
         foreach ([$up, $past, $arch] as $i) {
-            $svc->transition($i, 'publie', $this->publisher);
+            $svc->transition($i, 'publie', $this->publisher, null, (int) $svc->get($i)['content_version']);
         }
         $svc->transition($arch, 'archive', $this->publisher);
-        $svc->transition($sched, 'programme', $this->publisher, $this->future('+1 day'));
-        $svc->transition($due, 'programme', $this->publisher, $this->future('+1 hour'));
+        $svc->transition($sched, 'programme', $this->publisher, $this->future('+1 day'), (int) $svc->get($sched)['content_version']);
+        $svc->transition($due, 'programme', $this->publisher, $this->future('+1 hour'), (int) $svc->get($due)['content_version']);
         $this->assertSame(['À venir'], array_column($svc->liveList(['when' => 'upcoming']), 'title'));
         $this->assertSame(['Passé'], array_column($svc->liveList(['when' => 'past']), 'title'));
         $this->assertSame(['À venir', 'Passé'], array_column($svc->liveList(), 'title'));

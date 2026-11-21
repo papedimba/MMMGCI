@@ -5,6 +5,7 @@ namespace App\Modules\Cms;
 
 use App\Core\Audit;
 use App\Core\Database;
+use App\Core\Gate;
 use App\Core\NotFound;
 use DomainException;
 use PDOException;
@@ -18,7 +19,7 @@ final class TaxonomyService
         'etiquettes' => ['cms_tags', 'étiquette', 'tag'],
     ];
 
-    public function __construct(private Database $db, private Audit $audit)
+    public function __construct(private Database $db, private Audit $audit, private Gate $gate)
     {
     }
 
@@ -43,8 +44,26 @@ final class TaxonomyService
 
     public function update(string $kind, int $id, string $name, string $slug, int $actor): void
     {
-        $this->get($kind, $id);
+        $old = $this->get($kind, $id);
+        if (($old['name'] !== trim($name) || $old['slug'] !== trim($slug)) && !$this->gate->allows($actor, 'cms.publish') && $this->usedByLiveArticle($kind, $id)) {
+            throw new PageInvalid(['name' => 'Cette ' . self::KINDS[$kind][1] . ' est utilisée par un article en ligne : seul un publicateur peut changer son nom ou son adresse.']);
+        }
         $this->save($kind, $id, $name, $slug, $actor, 'cms.' . self::KINDS[$kind][2] . '_updated');
+    }
+
+    /** Un article qui utilise le terme a une version en ligne (même règle que la lecture publique). */
+    private function usedByLiveArticle(string $kind, int $id): bool
+    {
+        $ids = $kind === 'categories'
+            ? $this->db->fetchAll('SELECT id FROM cms_articles WHERE category_id = ?', [$id])
+            : $this->db->fetchAll('SELECT article_id AS id FROM cms_article_tag WHERE tag_id = ?', [$id]);
+        $articles = new ArticleService($this->db, $this->audit, $this->gate);
+        foreach ($ids as $r) {
+            if ($articles->liveVersion((int) $r['id']) !== null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     public function delete(string $kind, int $id, int $actor): void

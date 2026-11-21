@@ -393,6 +393,17 @@ final class MediaLibraryTest extends AdminTestCase
         $this->assertSame(['Quai de Vridi', 'Pirogue', 'ab', 'cd'], array_values($row));
     }
 
+    public function test_kept_live_article_images_count_as_usage(): void
+    {
+        $id = $this->add($this->png());
+        $fileId = (int) $this->db->fetchValue('SELECT file_id FROM cms_media WHERE id = ?', [$id]);
+        $art = $this->db->insert('cms_articles', ['title' => 'Conservé', 'slug' => 'conserve', 'published_featured_file_id' => $fileId]);
+        $this->assertSame([['type' => 'article', 'id' => $art, 'label' => 'Conservé']], $this->service()->usages($id));
+        $this->db->query('UPDATE cms_articles SET published_featured_file_id = NULL, published_og_file_id = ? WHERE id = ?', [$fileId, $art]);
+        $this->assertCount(1, $this->service()->usages($id));
+        $this->db->query('DELETE FROM cms_articles WHERE id = ?', [$art]);
+    }
+
     public function test_tabs_and_newlines_become_spaces_and_zwj_is_kept(): void
     {
         $id = $this->add($this->png(), ['title' => "Quai\tde\nVridi", 'alt' => "Famille \u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}"]);

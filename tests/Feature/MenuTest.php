@@ -53,7 +53,7 @@ final class MenuTest extends AdminTestCase
         $pages = new PageService($this->db, $this->services['audit'](), $this->services['gate']());
         $id = $pages->create(['title' => $title, 'blocks' => [['type' => 'titre', 'text' => $title, 'level' => '2']]], $this->author);
         if ($publish) {
-            $pages->publish($id, $this->publisher);
+            $pages->publish($id, $this->publisher, null, (int) $pages->get($id)['content_version']);
         }
         return $id;
     }

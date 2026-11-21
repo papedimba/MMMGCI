@@ -39,7 +39,7 @@ final class CmsEndToEndTest extends AdminTestCase
         $this->db->query('UPDATE cms_pages SET parent_id = NULL');
         $this->db->query('DELETE FROM cms_pages');
         $this->db->query('DELETE FROM cms_media');
-        $this->db->query("DELETE FROM login_attempts WHERE succeeded = 5");
+        $this->db->query("DELETE FROM login_attempts WHERE succeeded IN (5, 6)");
         $this->db->query("UPDATE settings SET value = NULL, status = 'non_configure', validated_by = NULL, validated_at = NULL, decision_ref = NULL WHERE `group` = 'site'");
         $this->db->query('DELETE FROM users');
         $this->writer = $this->createUser('redac@x.test', ['redacteur']);
@@ -84,7 +84,7 @@ final class CmsEndToEndTest extends AdminTestCase
         $this->assertNull($fresh()->page("/$slug"));
 
         // 2. Le publicateur publie : la lecture publique la renvoie.
-        $pages->publish($id, $this->publisher);
+        $pages->publish($id, $this->publisher, null, (int) $pages->get($id)['content_version']);
         $this->assertStringContainsString('Version un', json_encode($fresh()->page("/$slug"), JSON_UNESCAPED_UNICODE));
 
         // 3. Modification : la version publiée reste servie ; la republication met à jour.
@@ -93,7 +93,7 @@ final class CmsEndToEndTest extends AdminTestCase
         $this->assertStringContainsString('Version un', $served);
         $this->assertStringNotContainsString('Version deux', $served);
         $pages->submit($id, $this->writer);
-        $pages->publish($id, $this->publisher);
+        $pages->publish($id, $this->publisher, null, (int) $pages->get($id)['content_version']);
         $this->assertStringContainsString('Version deux', json_encode($fresh()->page("/$slug"), JSON_UNESCAPED_UNICODE));
 
         // 4. Menu : le publicateur (les deux droits) l'enregistre ; le rédacteur seul ne le peut pas.
@@ -108,7 +108,7 @@ final class CmsEndToEndTest extends AdminTestCase
         // 5. Article programmé : publié par le cron seulement une fois l'échéance passée.
         $art = $articles->create(['title' => 'Assemblée générale', 'body' => '<p>Texte</p>'], $this->writer);
         $articles->transition($art, 'en_relecture', $this->writer);
-        $articles->transition($art, 'programme', $this->publisher, $this->future('+1 day'));
+        $articles->transition($art, 'programme', $this->publisher, $this->future('+1 day'), (int) $articles->get($art)['content_version']);
         $cron = new CmsScheduler($a, [$pages, $articles, $events]);
         $this->assertSame(0, $cron->publishDue($this->future('+1 hour')));
         $this->assertSame([], $fresh()->articles());
@@ -140,6 +140,32 @@ final class CmsEndToEndTest extends AdminTestCase
         $this->assertSame('traite', $inbox->get($sid)['status']);
         $this->assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE auditable_type = 'cms_form_submissions' AND (new_values LIKE '%awa@exemple.ci%' OR new_values LIKE '%Bonjour%')"));
         $this->assertGreaterThan(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE action = 'cms.page_published' OR action LIKE 'cms.page_%'"));
+    }
+
+    public function test_publishing_without_the_seen_version_is_refused_for_pages_articles_events(): void
+    {
+        $this->app();
+        $a = $this->services['audit']();
+        $g = $this->services['gate']();
+        $pages = new PageService($this->db, $a, $g);
+        $articles = new ArticleService($this->db, $a, $g);
+        $events = new EventService($this->db, $a, $g);
+        $ids = [
+            [$pages, $pages->create(['title' => 'P', 'blocks' => [['type' => 'titre', 'text' => 'T', 'level' => '2']]], $this->writer)],
+            [$articles, $articles->create(['title' => 'A', 'body' => '<p>x</p>'], $this->writer)],
+            [$events, $events->create(['title' => 'E', 'starts_at' => $this->future('+3 days')->format('Y-m-d\TH:i')], $this->writer)],
+        ];
+        foreach ($ids as [$svc, $id]) {
+            foreach ([['publie', null], ['programme', $this->future('+1 day')]] as [$to, $at]) {
+                try {
+                    $svc->transition($id, $to, $this->publisher, $at);
+                    $this->fail($svc::class . " $to sans version");
+                } catch (\App\Modules\Cms\ContentTransitionInvalid) {
+                    $this->addToAssertionCount(1);
+                }
+            }
+            $svc->transition($id, 'publie', $this->publisher, null, (int) $svc->get($id)['content_version']);
+        }
     }
 
     /** Mesure (affichée) avec 1 000 pages et 1 000 articles en ligne ; garde-fous larges pour ne pas être fragile. */

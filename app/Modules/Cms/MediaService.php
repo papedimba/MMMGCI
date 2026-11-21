@@ -221,7 +221,7 @@ final class MediaService
                 $this->db->fetchAll($sql, array_fill(0, substr_count($sql, '?'), $ref['file_id'])));
         };
         $this->registerUsageProvider('page_fichier', $byFile('page', 'SELECT id, title AS label FROM cms_pages WHERE featured_file_id = ? OR og_file_id = ? OR published_featured_file_id = ? OR published_og_file_id = ?'));
-        $this->registerUsageProvider('article', $byFile('article', 'SELECT id, title AS label FROM cms_articles WHERE featured_file_id = ? OR og_file_id = ?'));
+        $this->registerUsageProvider('article', $byFile('article', 'SELECT id, title AS label FROM cms_articles WHERE featured_file_id = ? OR og_file_id = ? OR published_featured_file_id = ? OR published_og_file_id = ?'));
         $this->registerUsageProvider('evenement', $byFile('evenement', 'SELECT id, title AS label FROM cms_events WHERE featured_file_id = ?'));
         $this->registerUsageProvider('banniere', $byFile('banniere', 'SELECT id, title AS label FROM cms_banners WHERE file_id = ?'));
         $this->registerUsageProvider('document', $byFile('document', 'SELECT id, title AS label FROM cms_documents WHERE file_id = ?'));

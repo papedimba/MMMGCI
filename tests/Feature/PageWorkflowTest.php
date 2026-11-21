@@ -111,7 +111,7 @@ final class PageWorkflowTest extends AdminTestCase
         $id = $s->create(['title' => 'Nos missions', 'excerpt' => 'Extrait v1', 'seo_title' => 'SEO v1', 'featured_media_id' => (string) $img,
             'blocks' => [['type' => 'intro', 'title' => 'Version 1', 'note' => '']]], $this->author);
         $s->submit($id, $this->author);
-        $s->publish($id, $this->publisher);
+        $s->publish($id, $this->publisher, null, (int) $s->get($id)['content_version']);
         $this->assertSame('Version 1', $s->liveVersion($id)['blocks'][0]['title']);
 
         $s->update($id, ['title' => 'Nos missions (v2)', 'slug' => 'nos-missions', 'excerpt' => 'Extrait v2', 'blocks' => [['type' => 'intro', 'title' => 'Version 2', 'note' => '']]], $this->author);
@@ -154,21 +154,21 @@ final class PageWorkflowTest extends AdminTestCase
         $this->assertNull($s->liveVersion($draft), 'en relecture : rien');
 
         $pub = $this->page('Publiée');
-        $s->publish($pub, $this->publisher);
+        $s->publish($pub, $this->publisher, null, (int) $s->get($pub)['content_version']);
         $this->assertSame('Publiée', $s->liveVersion($pub)['blocks'][0]['text'], 'publie : blocks');
 
         $s->update($pub, ['title' => 'Publiée', 'slug' => 'publiee', 'blocks' => [['type' => 'titre', 'text' => 'Reprise', 'level' => '2']]], $this->author);
         $this->assertSame('Publiée', $s->liveVersion($pub)['blocks'][0]['text'], 'brouillon avec version conservée : published_blocks');
 
         // Republication programmée d'une page en ligne : l'ancienne version reste jusqu'à l'échéance.
-        $s->publish($pub, $this->publisher, $this->future());
+        $s->publish($pub, $this->publisher, $this->future(), (int) $s->get($pub)['content_version']);
         $this->assertSame('programme', $this->stateOf($pub));
         $this->assertSame('Publiée', $s->liveVersion($pub)['blocks'][0]['text']);
         $this->db->query("UPDATE cms_pages SET published_at = '2020-01-01 00:00:00' WHERE id = ?", [$pub]);
         $this->assertSame('Reprise', $s->liveVersion($pub)['blocks'][0]['text'], 'programme échu : copie de travail');
 
         $sched = $this->page('Programmée');
-        $s->publish($sched, $this->publisher, $this->future());
+        $s->publish($sched, $this->publisher, $this->future(), (int) $s->get($sched)['content_version']);
         $this->assertNull($s->liveVersion($sched), 'programme non échu jamais publié : rien');
 
         $s->transition($sched, 'archive', $this->publisher);
@@ -176,7 +176,7 @@ final class PageWorkflowTest extends AdminTestCase
 
         // Retirer la version conservée d'un brouillon en reprise.
         $p3 = $this->page('Trois');
-        $s->publish($p3, $this->publisher);
+        $s->publish($p3, $this->publisher, null, (int) $s->get($p3)['content_version']);
         $s->update($p3, ['title' => 'Trois bis', 'slug' => 'trois', 'blocks' => []], $this->author);
         $this->assertNotNull($s->liveVersion($p3));
         try {
@@ -195,7 +195,7 @@ final class PageWorkflowTest extends AdminTestCase
         $id = $this->page('Assemblée');
         foreach ([null, $this->future('-1 minute')] as $at) {
             try {
-                $s->transition($id, 'programme', $this->publisher, $at);
+                $s->transition($id, 'programme', $this->publisher, $at, (int) $s->get($id)['content_version']);
                 $this->fail('date refusée attendue');
             } catch (ContentTransitionInvalid $e) {
                 $this->assertStringContainsString('futures', $e->getMessage());
@@ -280,7 +280,7 @@ final class PageWorkflowTest extends AdminTestCase
         $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_page_redirects'), 'aucune redirection pour une page jamais en ligne');
 
         $id = $this->page('Adhésion', ['slug' => 'adhesion']);
-        $s->publish($id, $this->publisher);
+        $s->publish($id, $this->publisher, null, (int) $s->get($id)['content_version']);
         $s->update($id, ['title' => 'Adhésion', 'slug' => 'adherer', 'blocks' => [['type' => 'titre', 'text' => 'Adhésion', 'level' => '2']]], $this->publisher);
         $this->assertSame('publie', $this->stateOf($id), 'changer d\'adresse seule ne dépublie pas');
         $this->assertSame($id, (int) $this->db->fetchValue("SELECT page_id FROM cms_page_redirects WHERE old_slug = 'adhesion'"));
@@ -390,7 +390,7 @@ final class PageWorkflowTest extends AdminTestCase
         $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_pages'));
         // Une page déjà publiée ne se supprime pas (même redevenue brouillon) : on l'archive.
         $pub = $this->page('Publiée');
-        $s->publish($pub, $this->publisher);
+        $s->publish($pub, $this->publisher, null, (int) $s->get($pub)['content_version']);
         $s->transition($pub, 'brouillon', $this->publisher);
         $res = $this->request('POST', "/admin/site/pages/$pub/suppression");
         $this->assertSame(422, $res->status());
@@ -405,11 +405,11 @@ final class PageWorkflowTest extends AdminTestCase
         $s->submit($id, $this->author);
         $s->withdraw($id, $this->author);
         $s->submit($id, $this->author);
-        $s->publish($id, $this->publisher);
+        $s->publish($id, $this->publisher, null, (int) $s->get($id)['content_version']);
         $s->unpublish($id, $this->publisher);
-        $s->publish($id, $this->publisher, $this->future());
+        $s->publish($id, $this->publisher, $this->future(), (int) $s->get($id)['content_version']);
         $s->transition($id, 'brouillon', $this->publisher);
-        $s->publish($id, $this->publisher);
+        $s->publish($id, $this->publisher, null, (int) $s->get($id)['content_version']);
         $s->archive($id, $this->publisher);
         $s->restore($id, $this->publisher);
         $rows = $this->db->fetchAll("SELECT action, old_values, new_values, user_id FROM audit_logs WHERE auditable_type = 'cms_pages' AND auditable_id = ? ORDER BY id", [$id]);
@@ -447,7 +447,7 @@ final class PageWorkflowTest extends AdminTestCase
                 $id = $s->create(['title' => "Contrat $type", 'blocks' => [$block]], $this->author);
                 $this->assertSame([$id], array_column($media->usages($img), 'id'), "$type dans blocks");
                 // Après reprise : la référence n'est plus que dans published_blocks.
-                $s->publish($id, $this->publisher);
+                $s->publish($id, $this->publisher, null, (int) $s->get($id)['content_version']);
                 $s->update($id, ['title' => "Contrat $type", 'slug' => (string) $s->get($id)['slug'], 'blocks' => []], $this->author);
                 $this->assertSame('[]', $this->db->fetchValue('SELECT blocks FROM cms_pages WHERE id = ?', [$id]));
                 $this->assertSame([$id], array_column($media->usages($img), 'id'), "$type dans published_blocks");
@@ -555,7 +555,7 @@ final class PageWorkflowTest extends AdminTestCase
         $parent = $this->page('Rubrique');
         $sister = $this->page('Sœur');
         $id = $this->page('Statuts', ['slug' => 'statuts']);
-        $s->publish($id, $this->publisher);
+        $s->publish($id, $this->publisher, null, (int) $s->get($id)['content_version']);
         $base = ['title' => 'Statuts', 'slug' => 'statuts', 'template' => 'standard', 'blocks' => [['type' => 'titre', 'text' => 'Statuts', 'level' => '2']]];
         foreach ([['slug' => 'statuts-x'], ['template' => 'accueil'], ['parent_id' => (string) $parent]] as $change) {
             try {
@@ -659,9 +659,9 @@ final class PageWorkflowTest extends AdminTestCase
     {
         $s = $this->service();
         $id = $this->page('Programmée en ligne');
-        $s->publish($id, $this->publisher);
+        $s->publish($id, $this->publisher, null, (int) $s->get($id)['content_version']);
         $s->update($id, ['title' => 'V2', 'slug' => (string) $s->get($id)['slug'], 'blocks' => []], $this->author);
-        $s->publish($id, $this->publisher, $this->future());
+        $s->publish($id, $this->publisher, $this->future(), (int) $s->get($id)['content_version']);
         $this->assertNotNull($s->liveVersion($id));
         $this->actingAs($this->publisher);
         $this->assertSame(302, $this->request('POST', "/admin/site/pages/$id/etat", ['to' => 'retirer'])->status());

@@ -75,6 +75,21 @@ final class UploadsTest extends DatabaseTestCase
         $this->assertSame(0640, fileperms($this->uploads->path($b)) & 0777);
     }
 
+    public function test_modes_depend_on_the_disk(): void
+    {
+        $old = umask(077); // le mode demandé ne doit pas dépendre du umask du serveur
+        try {
+            $priv = $this->uploads->store($this->upload('a.pdf', $this->pdf()), 'document', false, 1);
+            $pub = $this->uploads->store($this->upload('b.jpg', $this->jpeg()), 'image', true, 1);
+        } finally {
+            umask($old);
+        }
+        $p = $this->uploads->path($priv);
+        $q = $this->uploads->path($pub);
+        $this->assertSame([0640, 0750, 0750], [fileperms($p) & 0777, fileperms(dirname($p)) & 0777, fileperms(dirname($p, 2)) & 0777]);
+        $this->assertSame([0644, 0755, 0755], [fileperms($q) & 0777, fileperms(dirname($q)) & 0777, fileperms(dirname($q, 2)) & 0777]);
+    }
+
     public function test_php_disguised_as_jpg_is_refused(): void
     {
         $this->refused('x.jpg', '<?php system($_GET["c"]);', 'Format non accepté : PDF, JPG ou PNG uniquement.');

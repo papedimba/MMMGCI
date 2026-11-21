@@ -21,7 +21,7 @@ final class FormInboxTest extends AdminTestCase
     {
         parent::setUp();
         $this->db->query('DELETE FROM cms_form_submissions');
-        $this->db->query("DELETE FROM login_attempts WHERE succeeded = 5");
+        $this->db->query("DELETE FROM login_attempts WHERE succeeded IN (5, 6)");
         $this->db->query("UPDATE settings SET value = NULL, status = 'non_configure', validated_by = NULL, validated_at = NULL, decision_ref = NULL WHERE `group` = 'site'");
         $this->db->query('DELETE FROM users');
         $this->manager = $this->createUser('gest@x.test', ['gest_cms']);
@@ -46,6 +46,32 @@ final class FormInboxTest extends AdminTestCase
     private function sent(): array
     {
         return array_map(static fn (array $m): array => ['to' => $m['to'], 'subject' => $m['subject'], 'text' => base64_decode(str_replace("\r\n", '', $m['body']))], $this->mail->messages);
+    }
+
+    public function test_notifications_are_capped_globally_per_hour_but_submissions_are_kept(): void
+    {
+        $in = $this->inbox();
+        $before = count($this->sent());
+        $n = FormInbox::MAX_NOTIFICATIONS_PER_HOUR + 5;
+        for ($i = 0; $i < $n; $i++) {
+            $in->submit('contact', $this->contact(), '10.20.' . intdiv($i, 250) . '.' . ($i % 250)); // une adresse par envoi : le plafond par IP ne joue pas
+        }
+        $this->assertSame($n, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_form_submissions'));
+        $recipients = max(1, count(array_unique(array_column($this->sent(), 'to'))));
+        $this->assertSame(FormInbox::MAX_NOTIFICATIONS_PER_HOUR, count(array_unique(array_column($this->sent(), 'subject'))) - $before);
+        $this->assertGreaterThan(0, $recipients);
+    }
+
+    public function test_ipv6_is_throttled_by_slash_64_and_ipv4_unchanged(): void
+    {
+        $in = $this->inbox();
+        for ($i = 0; $i < FormInbox::MAX_PER_WINDOW; $i++) {
+            $in->submit('contact', $this->contact(), '2001:db8:1:2:' . dechex($i + 1) . '::1'); // 5 adresses d'une même /64
+        }
+        $this->expectRejected(fn () => $in->submit('contact', $this->contact(), '2001:db8:1:2:ffff::9'));
+        $in->submit('contact', $this->contact(), '2001:db8:1:3::1'); // autre /64
+        $in->submit('contact', $this->contact(), '10.8.0.1');
+        $this->assertSame(FormInbox::MAX_PER_WINDOW + 2, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_form_submissions'));
     }
 
     public function test_invisible_characters_are_stripped_and_history_is_readable(): void
@@ -90,7 +116,7 @@ final class FormInboxTest extends AdminTestCase
         $this->expectRejected(fn () => $in->submit('contact', $this->contact(), '10.0.0.9'));
         $in->submit('contact', $this->contact(), '10.0.0.10');
         // Champs invalides : erreurs par champ, rien d'enregistré, champs inconnus ignorés.
-        $this->db->query('DELETE FROM login_attempts WHERE succeeded = 5'); // chaque envoi refusé compte : on repart d'une fenêtre vide
+        $this->db->query('DELETE FROM login_attempts WHERE succeeded IN (5, 6)'); // chaque envoi refusé compte : on repart d'une fenêtre vide
         $before = (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_form_submissions');
         foreach ([['email' => 'x'], ['message' => ''], ['name' => str_repeat('a', 121)], ['message' => self::EVIL], ['phone' => 'abc'], ['email' => "a@b.ci\nBcc: z@z.z"]] as $bad) {
             try {
@@ -101,7 +127,7 @@ final class FormInboxTest extends AdminTestCase
             }
         }
         $this->assertSame($before, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_form_submissions'));
-        $this->db->query('DELETE FROM login_attempts WHERE succeeded = 5');
+        $this->db->query('DELETE FROM login_attempts WHERE succeeded IN (5, 6)');
         $id = $in->submit('contact', $this->contact(['admin' => 'ignoré', 'message' => "a\x00b\x07c\nd"]), '10.0.0.30');
         $p = $in->get($id)['payload'];
         $this->assertArrayNotHasKey('admin', $p);

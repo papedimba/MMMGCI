@@ -5,7 +5,7 @@ namespace App\Modules\Cms;
 
 use DateTimeImmutable;
 
-/** Documents officiels : fichier de la médiathèque (PDF, JPG, PNG), jamais public avant publication par un publicateur. Lecture publique (tâche 8) : publishedList(). */
+/** Documents officiels : fichier de la médiathèque (PDF, JPG, PNG), jamais LISTÉ publiquement avant publication par un publicateur. Le fichier lui-même, lui, est public par son URL dès son téléversement (nom aléatoire de 128 bits) : ne jamais y déposer de document confidentiel. Lecture publique (tâche 8) : publishedList(). */
 final class DocumentService extends SimpleContent
 {
     protected const TABLE = 'cms_documents';

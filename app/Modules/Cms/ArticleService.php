@@ -103,7 +103,7 @@ final class ArticleService implements ScheduledContent
             $a = $this->lock($id);
             $from = (string) $a['status'];
             ContentWorkflow::assertCan($from, $to, $this->gate->allows($actor, 'cms.publish'));
-            if (in_array($to, ['publie', 'programme'], true) && $seenVersion !== null && $seenVersion !== (int) $a['content_version']) {
+            if (in_array($to, ['publie', 'programme'], true) && $seenVersion !== (int) $a['content_version']) {
                 throw new ContentTransitionInvalid('L\'article a été modifié depuis votre lecture, relisez-le.');
             }
             $set = ['status' => $to];

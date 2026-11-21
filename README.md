@@ -240,22 +240,22 @@ Le CMS gère le contenu du futur site public (lot L4 : le rendu public et l'adh�
 
 | Besoin | Permission | Rôles prévus |
 |---|---|---|
-| Rédiger, modifier, **soumettre à relecture** pages, articles, évènements, documents, galeries, bannières, témoignages ; catégories et étiquettes | `cms.pages.manage` | `redacteur` (seul droit), `editeur`, `gest_cms`, `admin_site`, `admin_general`, `resp_communication`, `secretaire_general` |
-| **Publier, programmer, archiver, retirer** ; enregistrer les menus (avec `cms.pages.manage`) | `cms.publish` | `editeur`, `gest_cms`, `admin_site`, `admin_general`, `resp_communication` |
-| Médiathèque | `cms.media.manage` | `gest_medias`, `editeur`, `gest_cms`, `admin_site`, `resp_communication` |
-| Formulaires reçus (boîte de réception, export) | `cms.forms.manage` | `gest_cms`, `admin_site`, `admin_general`, `resp_communication` |
-| **Saisir** les réglages du site | `cms.settings.manage` | `admin_site`, `admin_general`, `resp_communication` |
+| Rédiger, modifier, **soumettre à relecture** pages, articles, évènements, documents, galeries, bannières, témoignages ; catégories et étiquettes | `cms.pages.manage` | `redacteur` (seul droit), `editeur`, `gest_cms`, `admin_site`, `admin_general`, `resp_communication`, `secretaire_general`, `super_admin` |
+| **Publier, programmer, archiver, retirer** ; enregistrer les menus (avec `cms.pages.manage`) | `cms.publish` | `editeur`, `gest_cms`, `admin_site`, `admin_general`, `resp_communication`, `super_admin` |
+| Médiathèque | `cms.media.manage` | `gest_medias`, `editeur`, `gest_cms`, `admin_site`, `admin_general`, `resp_communication`, `super_admin` |
+| Formulaires reçus (boîte de réception, export) | `cms.forms.manage` | `gest_cms`, `admin_site`, `admin_general`, `resp_communication`, `super_admin` |
+| **Saisir** les réglages du site | `cms.settings.manage` | `admin_site`, `admin_general`, `resp_communication`, `super_admin` |
 | **Valider** un réglage (coordonnées, décisions) | `settings.validate` | `pca` |
 
 Le rédacteur soumet, il ne publie jamais. Chaque transition de publication est auditée (sans donnée personnelle de visiteur).
 
 ### Circuit de publication
 
-États : `brouillon` → `en_relecture` → `publie` (ou `programme`, publié à l'heure par le cron) → `archive`. Un brouillon, un contenu en relecture ou archivé n'est **jamais public**.
+États : `brouillon` → `en_relecture` → `publie` (ou `programme`, publié à l'heure par le cron) → `archive`. Un brouillon, un contenu en relecture ou archivé n'est **jamais public** (hors fichiers de la médiathèque : voir plus bas).
 
 - **Version relue** : le publicateur publie ou programme la version qu'il a lue. Si le contenu change entre la lecture et le clic (nouvelle sauvegarde), la publication est refusée (« relisez-le »). Les contenus simples (documents, galeries, bannières, témoignages) exigent aussi la version affichée.
 - **Version en ligne conservée** : modifier une page ou un article **publié** le repasse en brouillon, mais la dernière version publiée reste servie au public jusqu'à la republication. « Retirer du site » supprime aussi cette version conservée. Une publication programmée échue remplace la version conservée.
-- Un article déjà publié : seul un publicateur change son adresse, sa catégorie, son auteur affiché ou ses étiquettes. Un auteur qui modifie ces champs sur un article en relecture le renvoie en brouillon.
+- Renommer une catégorie ou une étiquette (ou changer son adresse) utilisée par un article en ligne exige `cms.publish`. Un article déjà publié : seul un publicateur change son adresse, sa catégorie, son auteur affiché ou ses étiquettes. Un auteur qui modifie ces champs sur un article en relecture le renvoie en brouillon.
 - Un évènement déjà en ligne est modifié en direct par un publicateur (pas de version conservée) ; l'auteur ne le modifie plus.
 - Changer l'adresse (slug) d'une page déjà publiée conserve l'ancienne en redirection simple ; une page publiée ne peut pas être supprimée (l'archiver).
 - Adresses : `[a-z0-9-]`, 1 à 80 caractères, uniques ; réservées : `admin`, `verifier`, `espace`, `assets`, `media`, `sante`, `adhesion-en-ligne`, `sitemap.xml`, `robots.txt`, `favicon.ico`.
@@ -276,17 +276,17 @@ Une page est une suite ordonnée (60 au plus) de blocs ; chaque bloc est stocké
 | `image` | `media_id` (id de la médiathèque, **chaîne ou entier**), `caption` |
 | `documents` | `category` (vide = toutes) |
 | `articles`, `evenements` | `count` (1 à 12) |
-| `formulaire` | `form_key` : `contact`, `partenariat`, `adhesion` |
+| `formulaire` | `form_key` : `contact`, `partenariat`, `adhesion` (**`adhesion` n'est pas un formulaire de la boîte de réception : le rendu L4 l'oriente vers `/adhesion-en-ligne`** ; le formulaire `information` n'a pas de bloc) |
 
 **Contrat des références de médias** : seules les clés `media_id` (un média), `media_ids` (liste de médias, galeries) et `file_id` désignent un média dans un bloc ; la médiathèque s'en sert pour refuser la suppression d'un média encore utilisé (aussi dans le texte riche : images `/media/...`). Toute nouvelle clé de média doit être ajoutée à ce contrat (`MediaService::usages`).
 
-Texte riche : éditeur limité (titres 2 et 3, gras, italique, listes, citation, lien, image de la médiathèque), nettoyé à l'enregistrement **et** à l'affichage : aucun script, gestionnaire `on*`, style ni URL `javascript:` ou `data:` ; liens externes en `rel="noopener noreferrer"` ; images limitées aux médias du site (`/media/...`) avec texte alternatif. Sans JavaScript, le champ reste un champ de saisie du HTML autorisé.
+Texte riche : éditeur limité (titres 2 à 4, gras, italique, listes, citation, lien, image de la médiathèque), nettoyé à l'enregistrement **et** à l'affichage : aucun script, gestionnaire `on*`, style ni URL `javascript:` ou `data:` ; liens externes en `rel="noopener noreferrer"` ; images limitées aux médias du site (`/media/...`) avec texte alternatif. Sans JavaScript, le champ reste un champ de saisie du HTML autorisé.
 
 `max_input_vars` : un formulaire de page peut envoyer jusqu'à 800 champs de blocs ; **PHP doit autoriser `max_input_vars` ≥ 1000** (défaut PHP et cPanel : 1000). Au-delà, le formulaire est refusé avec un message clair plutôt que tronqué.
 
 ### Médiathèque
 
-JPG, PNG, WebP et PDF seulement ; **pas de SVG** (ni HTML, ni PHP, ni double extension) ; texte alternatif obligatoire pour une image ; le nom du fichier téléversé n'est jamais conservé (nom aléatoire) ; tailles et nombre de pixels bornés. Un média utilisé (page, article, bannière, texte riche…) ne peut pas être supprimé : l'écran liste les usages. `public/media` ne doit **jamais exécuter de code** : le `.htaccess` fourni l'impose sous Apache ; **sous nginx il est ignoré** : le déploiement doit interdire PHP sous `/media` (voir `public/media/.htaccess`).
+JPG, PNG, WebP et PDF seulement ; **pas de SVG** (ni HTML, ni PHP, ni double extension) ; texte alternatif obligatoire pour une image ; le nom du fichier téléversé n'est jamais conservé (nom aléatoire) ; tailles et nombre de pixels bornés. **Les fichiers de la médiathèque sont publics par leur URL dès le téléversement** (nom aléatoire de 128 bits, pas de liste de répertoire), y compris ceux d'un brouillon : « aucun brouillon public » vaut pour les pages, listes et menus, pas pour le fichier lui-même. **Ne jamais déposer de document confidentiel dans la médiathèque.** Un média utilisé (page, article, bannière, texte riche…) ne peut pas être supprimé : l'écran liste les usages. `public/media` ne doit **jamais exécuter de code** : le `.htaccess` fourni l'impose sous Apache ; **sous nginx il est ignoré** : le déploiement doit interdire PHP sous `/media` (voir `public/media/.htaccess`).
 
 ### Menus
 
@@ -306,11 +306,11 @@ Coordonnées (e-mail, téléphone, adresse), Facebook (https sur `facebook.com`,
 
 ### Formulaires reçus et notifications
 
-Trois formulaires (contact, information, partenariat) déposés via `FormInbox::submit` (appelé par le lot L4) : champs en liste blanche, texte brut sans balises, caractères de contrôle et invisibles retirés, champ piège `website`, 5 envois au plus par adresse IP et 10 minutes. Boîte de réception `/admin/site/formulaires` : références `MSG-AAAA-NNNNN`, états nouveau → en cours → traité → archivé, affectation, notes internes, historique en ajout seulement, export CSV neutralisé. L'audit et l'e-mail de notification ne contiennent **que la référence et le type de formulaire**, jamais le message ni les coordonnées du visiteur ; le destinataire est l'adresse de contact validée, sinon les titulaires de `cms.forms.manage`. Aucune purge automatique (durée à fixer par les instances).
+Trois formulaires (contact, information, partenariat) déposés via `FormInbox::submit` (appelé par le lot L4) : champs en liste blanche, texte brut sans balises, caractères de contrôle et invisibles retirés, champ piège `website`, 5 envois au plus par adresse IP et 10 minutes. Boîte de réception `/admin/site/formulaires` : références `MSG-AAAA-NNNNN`, états nouveau → en cours → traité → archivé, affectation, notes internes, historique en ajout seulement, export CSV neutralisé. L'audit et l'e-mail de notification ne contiennent **que la référence et le type de formulaire**, jamais le message ni les coordonnées du visiteur ; le destinataire est l'adresse de contact validée, sinon les titulaires de `cms.forms.manage`. Notifications : **20 e-mails par heure au plus** pour l'ensemble des formulaires (au-delà, l'envoi reste dans la boîte de réception sans e-mail) ; limite de 5 envois par IP et 10 minutes, les adresses IPv6 étant regroupées par /64. Aucune purge automatique (durée à fixer par les instances).
 
 ### Adresses publiques (pour le lot L4)
 
-Le schéma d'URL public est défini **une seule fois** dans `App\Modules\Cms\PublishedContent` : pages `/{slug}` (la forme hiérarchique `/parent/enfant` n'est honorée que si tous les parents sont en ligne et redirige vers `/{slug}`), articles `/actualites/{slug}`, évènements `/evenements/{slug}`, plan du site `sitemapUrls()`. Le rendu public (L4) ne lit que `PublishedContent` (jamais un brouillon).
+Le schéma d'URL public est défini **une seule fois** dans `App\Modules\Cms\PublishedContent` : pages `/{slug}` (la forme hiérarchique `/parent/enfant` n'est honorée que si tous les parents sont en ligne et redirige vers `/{slug}`), articles `/actualites/{slug}`, évènements `/evenements/{slug}`, plan du site `sitemapUrls()`. Le rendu public (L4) ne lit que `PublishedContent` (jamais un brouillon), qui fournit aussi les résolveurs `mediaUrl()`, `fileUrl()`, `pagePath()` (pages en ligne seulement) et `category()` pour les identifiants qu'il renvoie.
 
 ### Limites connues
 

@@ -66,9 +66,9 @@ final class PublishedContentTest extends AdminTestCase
         $p = $this->pages();
         $id = $p->create(['title' => $title, 'blocks' => [['type' => 'titre', 'text' => $title, 'level' => '2']]], $this->author);
         match ($state) {
-            'publie' => $p->publish($id, $this->publisher),
-            'archive' => [$p->publish($id, $this->publisher), $p->archive($id, $this->publisher)],
-            'futur' => $p->publish($id, $this->publisher, $this->future('+2 days')),
+            'publie' => $p->publish($id, $this->publisher, null, (int) $p->get($id)['content_version']),
+            'archive' => [$p->publish($id, $this->publisher, null, (int) $p->get($id)['content_version']), $p->archive($id, $this->publisher)],
+            'futur' => $p->publish($id, $this->publisher, $this->future('+2 days'), (int) $p->get($id)['content_version']),
             default => null,
         };
         return [$id, (string) $this->db->fetchValue('SELECT slug FROM cms_pages WHERE id = ?', [$id])];
@@ -98,21 +98,25 @@ final class PublishedContentTest extends AdminTestCase
         // Articles.
         $art = new ArticleService($this->db, $audit, $gate);
         $mk = fn (string $t): int => $art->create(['title' => $t, 'body' => '<p>' . $t . '</p>'], $this->author);
-        $art->transition($mk('Article en ligne'), 'publie', $this->publisher);
+        $i = $mk('Article en ligne');
+        $art->transition($i, 'publie', $this->publisher, null, (int) $art->get($i)['content_version']);
         $mk('Article brouillon');
         $x = $mk('Article archivé');
-        $art->transition($x, 'publie', $this->publisher);
+        $art->transition($x, 'publie', $this->publisher, null, (int) $art->get($x)['content_version']);
         $art->transition($x, 'archive', $this->publisher);
-        $art->transition($mk('Article programmé'), 'programme', $this->publisher, $this->future('+2 days'));
+        $i = $mk('Article programmé');
+        $art->transition($i, 'programme', $this->publisher, $this->future('+2 days'), (int) $art->get($i)['content_version']);
         // Évènements.
         $ev = new EventService($this->db, $audit, $gate);
         $e = fn (string $t): int => $ev->create(['title' => $t, 'starts_at' => $this->future('+3 days')->format('Y-m-d\TH:i')], $this->author);
-        $ev->transition($e('Évènement en ligne'), 'publie', $this->publisher);
+        $i = $e('Évènement en ligne');
+        $ev->transition($i, 'publie', $this->publisher, null, (int) $ev->get($i)['content_version']);
         $e('Évènement brouillon');
         $y = $e('Évènement archivé');
-        $ev->transition($y, 'publie', $this->publisher);
+        $ev->transition($y, 'publie', $this->publisher, null, (int) $ev->get($y)['content_version']);
         $ev->transition($y, 'archive', $this->publisher);
-        $ev->transition($e('Évènement programmé'), 'programme', $this->publisher, $this->future('+2 days'));
+        $i = $e('Évènement programmé');
+        $ev->transition($i, 'programme', $this->publisher, $this->future('+2 days'), (int) $ev->get($i)['content_version']);
         // Documents.
         $docs = new DocumentService($this->db, $audit, $gate);
         $d = fn (string $t): int => $docs->create(['title' => $t, 'category' => 'Statuts', 'document_date' => '2026-03-03', 'media_id' => (string) $this->pdf()], $this->author);
@@ -231,13 +235,45 @@ final class PublishedContentTest extends AdminTestCase
         $this->assertNull($this->content()->page("/$old"));
     }
 
+    public function test_public_resolvers_for_l4(): void
+    {
+        $file = fn (string $disk, string $mime, string $path): int => $this->db->insert('files', ['disk' => $disk, 'path' => $path, 'original_name' => 'x', 'mime' => $mime, 'size' => 1, 'sha256' => str_repeat('0', 64)]);
+        $pubImg = $file('public', 'image/png', '2026/11/a.png');
+        $pubPdf = $file('public', 'application/pdf', '2026/11/b.pdf');
+        $private = $file('private', 'image/png', '2026/11/c.png');
+        $html = $file('public', 'text/html', '2026/11/d.html');
+        $mImg = $this->db->insert('cms_media', ['file_id' => $pubImg, 'title' => 'A', 'alt' => 'Quai']);
+        $mPdf = $this->db->insert('cms_media', ['file_id' => $pubPdf, 'title' => 'B']);
+        $mPriv = $this->db->insert('cms_media', ['file_id' => $private, 'title' => 'C', 'alt' => 'Secret']);
+        $mHtml = $this->db->insert('cms_media', ['file_id' => $html, 'title' => 'D', 'alt' => 'x']);
+        $c = $this->content();
+        $this->assertSame(['url' => '/media/2026/11/a.png', 'alt' => 'Quai', 'width' => null, 'height' => null], $c->mediaUrl($mImg));
+        $this->assertSame('/media/2026/11/b.pdf', $c->mediaUrl($mPdf)['url']);
+        $this->assertNull($c->mediaUrl($mPriv), 'disque privé');
+        $this->assertNull($c->mediaUrl($mHtml), 'ni image ni PDF');
+        $this->assertNull($c->mediaUrl(999999));
+        $this->assertSame('Quai', $c->fileUrl($pubImg)['alt']);
+        $this->assertSame('/media/2026/11/b.pdf', $c->fileUrl($pubPdf)['url']);
+        $this->assertNull($c->fileUrl($private));
+        $this->assertNull($c->fileUrl(999999));
+        [$live] = $this->page('Page en ligne');
+        [$draft] = $this->page('Page brouillon', 'brouillon');
+        $slug = (string) $this->db->fetchValue('SELECT slug FROM cms_pages WHERE id = ?', [$live]);
+        $this->assertSame('/' . $slug, $c->pagePath($live));
+        $this->assertNull($c->pagePath($draft), 'jamais l\'adresse d\'un brouillon');
+        $this->assertNull($c->pagePath(999999));
+        $cat = $this->db->insert('cms_categories', ['name' => 'Vie', 'slug' => 'vie']);
+        $this->assertSame(['name' => 'Vie', 'slug' => 'vie'], $c->category($cat));
+        $this->assertNull($c->category(999999));
+    }
+
     public function test_hierarchical_path_needs_live_parents(): void
     {
         [$parent, $pslug] = $this->page('Parent brouillon', 'brouillon');
         [$child, $cslug] = $this->page('Enfant en ligne');
         $this->db->query('UPDATE cms_pages SET parent_id = ? WHERE id = ?', [$parent, $child]);
         $this->assertNull($this->content()->page("/$pslug/$cslug"), 'le slug d\'un brouillon n\'est pas confirmable');
-        $this->pages()->publish($parent, $this->publisher);
+        $this->pages()->publish($parent, $this->publisher, null, (int) $this->pages()->get($parent)['content_version']);
         $this->assertSame(['redirect' => "/$cslug"], $this->content()->page("/$pslug/$cslug"));
     }
 

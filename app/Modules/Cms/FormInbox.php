@@ -26,6 +26,8 @@ final class FormInbox
     public const HONEYPOT = 'website';
     public const MAX_PER_WINDOW = 5;
     public const WINDOW_SECONDS = 600;
+    public const MAX_NOTIFICATIONS_PER_HOUR = 20; // plafond global : protège le quota d'e-mails sortants de l'hébergement
+    private const NOTIFY_MARK = 6; // login_attempts.succeeded : compteur des notifications envoyées
     private const THROTTLE_MARK = 5; // login_attempts.succeeded : jamais compté par LoginThrottle (0) ni par /verifier (4)
     public const STATUS_LABELS = ['nouveau' => 'Nouveau', 'en_cours' => 'En cours', 'traite' => 'Traité', 'archive' => 'Archivé'];
     public const TRANSITIONS = ['nouveau' => ['en_cours'], 'en_cours' => ['traite'], 'traite' => ['archive', 'en_cours'], 'archive' => []];
@@ -54,10 +56,12 @@ final class FormInbox
         $ip = mb_substr($ip, 0, 45);
         $now = time();
         $since = gmdate('Y-m-d H:i:s', $now - self::WINDOW_SECONDS);
-        if ((int) $this->db->fetchValue('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND succeeded = ? AND created_at >= ?', [$ip, self::THROTTLE_MARK, $since]) >= self::MAX_PER_WINDOW) {
+        $key = self::throttleKey($ip);
+        // Insérer d'abord, compter ensuite (envoi refusé s'il dépasse) : deux envois simultanés ne passent plus tous deux sous la limite.
+        $this->db->insert('login_attempts', ['email' => 'formulaire', 'ip' => $key, 'succeeded' => self::THROTTLE_MARK, 'created_at' => gmdate('Y-m-d H:i:s', $now)]);
+        if ((int) $this->db->fetchValue('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND succeeded = ? AND created_at >= ?', [$key, self::THROTTLE_MARK, $since]) > self::MAX_PER_WINDOW) {
             throw new FormRejected('Trop d\'envois depuis votre connexion : réessayez dans quelques minutes.');
         }
-        $this->db->insert('login_attempts', ['email' => 'formulaire', 'ip' => $ip, 'succeeded' => self::THROTTLE_MARK, 'created_at' => gmdate('Y-m-d H:i:s', $now)]);
         if (!isset(self::FORMS[$formKey])) {
             throw new FormRejected('Envoi impossible.');
         }
@@ -113,6 +117,13 @@ final class FormInbox
         return $out;
     }
 
+    /** Clé du compteur : IPv4 telle quelle ; IPv6 regroupée par /64 (une personne dispose de 2^64 adresses). */
+    private static function throttleKey(string $ip): string
+    {
+        $bin = str_contains($ip, ':') ? @inet_pton($ip) : false;
+        return $bin !== false && strlen($bin) === 16 ? bin2hex(substr($bin, 0, 8)) . '/64' : $ip;
+    }
+
     /** Retire les caractères de mise en forme invisibles (bidi, largeur nulle…), sauf la jonction U+200D des émojis. */
     private static function noInvisible(string $v): string
     {
@@ -127,6 +138,11 @@ final class FormInbox
             'SELECT DISTINCT u.email FROM users u JOIN user_roles ur ON ur.user_id = u.id JOIN role_permissions rp ON rp.role_id = ur.role_id
              JOIN permissions p ON p.id = rp.permission_id WHERE p.name = ? AND u.is_active = 1 ORDER BY u.email', ['cms.forms.manage']), 'email');
         if ($recipients === []) {
+            return;
+        }
+        // Plafond horaire global : au-delà, l'envoi reste dans la boîte de réception mais aucun e-mail n'est émis.
+        $this->db->insert('login_attempts', ['email' => 'notification', 'ip' => '-', 'succeeded' => self::NOTIFY_MARK, 'created_at' => gmdate('Y-m-d H:i:s')]);
+        if ((int) $this->db->fetchValue('SELECT COUNT(*) FROM login_attempts WHERE succeeded = ? AND created_at >= ?', [self::NOTIFY_MARK, gmdate('Y-m-d H:i:s', time() - 3600)]) > self::MAX_NOTIFICATIONS_PER_HOUR) {
             return;
         }
         $link = preg_match('#^https?://[^/\s]+#i', $this->appUrl) === 1 ? "\n\nConsulter : " . rtrim($this->appUrl, '/') . '/admin/site/formulaires/' . $id : '';

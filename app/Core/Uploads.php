@@ -68,13 +68,20 @@ final class Uploads
         $dir = dirname($target);
         $part = $dir . '/.' . bin2hex(random_bytes(8)) . '.part';
         try {
-            if (!is_dir($dir) && !mkdir($dir, 0750, true) && !is_dir($dir)) {
-                throw new \RuntimeException('mkdir');
+            // Disque public : servi par le serveur web (autre utilisateur sous cPanel) → 0755/0644 ; privé : 0750/0640.
+            $dirMode = $public ? 0755 : 0750;
+            $fileMode = $public ? 0644 : 0640;
+            if (!is_dir($dir)) {
+                if (!mkdir($dir, $dirMode, true) && !is_dir($dir)) {
+                    throw new \RuntimeException('mkdir');
+                }
+                chmod($dir, $dirMode);
+                chmod(dirname($dir), $dirMode); // année : créée avec le mois, indépendamment du umask
             }
             if (file_put_contents($part, $content) !== strlen($content)) {
                 throw new \RuntimeException('write');
             }
-            chmod($part, 0640);
+            chmod($part, $fileMode);
             if (!rename($part, $target)) {
                 throw new \RuntimeException('rename');
             }

@@ -31,7 +31,8 @@ final class PublishedContent
 
     /** @param Closure(): int $clock horloge du noyau (secondes Unix) */
     public function __construct(private Database $db, private PageService $pages, private MenuService $menus, private ArticleService $articles, private EventService $events,
-        private DocumentService $documents, private BannerService $banners, private GalleryService $galleries, private TestimonialService $testimonials, private Closure $clock)
+        private DocumentService $documents, private BannerService $banners, private GalleryService $galleries, private TestimonialService $testimonials, private Closure $clock,
+        private ?\App\Core\Uploads $uploads = null)
     {
     }
 
@@ -77,6 +78,60 @@ final class PublishedContent
             $parent = $row['parent_id'];
         }
         return $parent === null;
+    }
+
+    /**
+     * Média de la médiathèque (id lu dans un bloc ou un champ) : image ou PDF du disque public seulement ; les dimensions exigent $uploads.
+     * Texte brut à échapper par le rendu.
+     * @return array{url:string,alt:?string,width:?int,height:?int}|null
+     */
+    public function mediaUrl(int $mediaId): ?array
+    {
+        return $this->memo('media:' . $mediaId, function () use ($mediaId): ?array {
+            $r = $this->db->fetch("SELECT f.id, f.path, f.mime, m.alt FROM cms_media m JOIN files f ON f.id = m.file_id
+                WHERE m.id = ? AND f.disk = 'public' AND (f.mime LIKE 'image/%' OR f.mime = 'application/pdf')", [$mediaId]);
+            return $r === null ? null : $this->fileRow($r);
+        });
+    }
+
+    /**
+     * Fichier (ex. featured_file_id, og_file_id) : disque public seulement ; le texte alternatif vient de la médiathèque quand le fichier y figure.
+     * @return array{url:string,alt?:?string,width?:?int,height?:?int}|null
+     */
+    public function fileUrl(int $fileId): ?array
+    {
+        return $this->memo('file:' . $fileId, function () use ($fileId): ?array {
+            $r = $this->db->fetch("SELECT f.id, f.path, f.mime, m.alt FROM files f LEFT JOIN cms_media m ON m.file_id = f.id WHERE f.id = ? AND f.disk = 'public'", [$fileId]);
+            return $r === null ? null : $this->fileRow($r);
+        });
+    }
+
+    /** Chemin public d'une page EN LIGNE (jamais l'adresse d'un brouillon). */
+    public function pagePath(int $pageId): ?string
+    {
+        $slug = $this->pages->liveSlugs([$pageId])[$pageId] ?? null;
+        return $slug === null ? null : '/' . $slug;
+    }
+
+    /** @return array{name:string,slug:string}|null */
+    public function category(int $id): ?array
+    {
+        $r = $this->db->fetch('SELECT name, slug FROM cms_categories WHERE id = ?', [$id]);
+        return $r === null ? null : ['name' => (string) $r['name'], 'slug' => (string) $r['slug']];
+    }
+
+    /** @param array<string,mixed> $r @return array{url:string,alt:?string,width:?int,height:?int} */
+    private function fileRow(array $r): array
+    {
+        $w = $h = null;
+        if ($this->uploads !== null && str_starts_with((string) $r['mime'], 'image/')) {
+            try {
+                $info = @getimagesize($this->uploads->path((int) $r['id']));
+                [$w, $h] = $info === false ? [null, null] : [$info[0], $info[1]];
+            } catch (\InvalidArgumentException) {
+            }
+        }
+        return ['url' => '/media/' . $r['path'], 'alt' => $r['alt'] === null ? null : (string) $r['alt'], 'width' => $w, 'height' => $h];
     }
 
     /** @return list<array<string,mixed>> */

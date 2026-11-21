@@ -62,7 +62,7 @@ final class EventService extends CmsContent implements ScheduledContent
             $e = $this->lock($id);
             $from = (string) $e['status'];
             ContentWorkflow::assertCan($from, $to, $this->gate->allows($actor, 'cms.publish'));
-            if (in_array($to, ['publie', 'programme'], true) && $seenVersion !== null && $seenVersion !== (int) $e['content_version']) {
+            if (in_array($to, ['publie', 'programme'], true) && $seenVersion !== (int) $e['content_version']) {
                 throw new ContentTransitionInvalid('L\'évènement a été modifié depuis votre lecture, relisez-le.');
             }
             $set = ['status' => $to];

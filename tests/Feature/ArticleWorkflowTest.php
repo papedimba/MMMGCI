@@ -76,7 +76,7 @@ final class ArticleWorkflowTest extends AdminTestCase
 
     private function publish(int $id): void
     {
-        $this->service()->transition($id, 'publie', $this->publisher);
+        $this->service()->transition($id, 'publie', $this->publisher, null, (int) $this->service()->get($id)['content_version']);
     }
 
     private function seen(int $id): string
@@ -95,7 +95,7 @@ final class ArticleWorkflowTest extends AdminTestCase
     {
         $id = $this->article('Programmé');
         $at = $this->future('+1 day')->setTime(10, 0);
-        $this->service()->transition($id, 'programme', $this->publisher, $at);
+        $this->service()->transition($id, 'programme', $this->publisher, $at, (int) $this->service()->get($id)['content_version']);
         $cron = new CmsScheduler($this->audit(), [$this->service()]);
         $this->assertSame(0, $cron->publishDue($at->modify('-1 minute')));
         $this->assertSame('programme', $this->row($id)['status']);
@@ -110,9 +110,9 @@ final class ArticleWorkflowTest extends AdminTestCase
     {
         $draft = $this->article('Brouillon');
         $later = $this->article('Plus tard');
-        $this->service()->transition($later, 'programme', $this->publisher, $this->future('+3 days'));
+        $this->service()->transition($later, 'programme', $this->publisher, $this->future('+3 days'), (int) $this->service()->get($later)['content_version']);
         $due = $this->article('Échu');
-        $this->service()->transition($due, 'programme', $this->publisher, $this->future('+1 day'));
+        $this->service()->transition($due, 'programme', $this->publisher, $this->future('+1 day'), (int) $this->service()->get($due)['content_version']);
         $now = $this->future('+2 days');
         $cron = new CmsScheduler($this->audit(), [$this->service()]);
         $this->assertSame(1, $cron->publishDue($now));
@@ -126,13 +126,13 @@ final class ArticleWorkflowTest extends AdminTestCase
     {
         $pages = new PageService($this->db, $this->audit(), $this->services['gate']());
         $p = $pages->create(['title' => 'Page', 'blocks' => [['type' => 'titre', 'text' => 'V1', 'level' => '2']]], $this->author);
-        $pages->transition($p, 'publie', $this->publisher);
+        $pages->transition($p, 'publie', $this->publisher, null, (int) $pages->get($p)['content_version']);
         $pages->update($p, ['title' => 'Page', 'blocks' => [['type' => 'titre', 'text' => 'V2', 'level' => '2']]], $this->author);
-        $pages->transition($p, 'programme', $this->publisher, $this->future('+1 day'));
+        $pages->transition($p, 'programme', $this->publisher, $this->future('+1 day'), (int) $pages->get($p)['content_version']);
         $a = $this->article('Art V1');
         $this->publish($a);
         $this->service()->update($a, ['title' => 'Art V2', 'body' => '<p>V2</p>'], $this->author);
-        $this->service()->transition($a, 'programme', $this->publisher, $this->future('+1 day'));
+        $this->service()->transition($a, 'programme', $this->publisher, $this->future('+1 day'), (int) $this->service()->get($a)['content_version']);
         $this->assertNotNull($this->row($a)['published_body']);
         $this->assertNotNull($this->db->fetchValue('SELECT published_blocks FROM cms_pages WHERE id = ?', [$p]));
         $n = (new CmsScheduler($this->audit(), [$pages, $this->service()]))->publishDue($this->future('+2 days'));
@@ -148,7 +148,7 @@ final class ArticleWorkflowTest extends AdminTestCase
     public function test_cron_failure_on_one_item_does_not_block_others(): void
     {
         $ok = $this->article('Bon');
-        $this->service()->transition($ok, 'programme', $this->publisher, $this->future('+1 day'));
+        $this->service()->transition($ok, 'programme', $this->publisher, $this->future('+1 day'), (int) $this->service()->get($ok)['content_version']);
         $real = $this->service();
         $bad = new class implements ScheduledContent {
             public function scheduledTable(): string { return 'cms_pages'; }
@@ -168,7 +168,7 @@ final class ArticleWorkflowTest extends AdminTestCase
     {
         $this->app();
         $id = $this->article('Cron');
-        $this->service()->transition($id, 'programme', $this->publisher, $this->future('+1 hour'));
+        $this->service()->transition($id, 'programme', $this->publisher, $this->future('+1 hour'), (int) $this->service()->get($id)['content_version']);
         $this->db->query("UPDATE cms_articles SET published_at = '2000-01-01 00:00:00' WHERE id = ?", [$id]);
         $this->db->query("DELETE FROM scheduled_runs WHERE task = 'cms.publish_scheduled'");
         $s = new Scheduler($this->db);
@@ -201,7 +201,7 @@ final class ArticleWorkflowTest extends AdminTestCase
     public function test_publisher_structural_edit_keeps_scheduled_state_and_date(): void
     {
         $id = $this->article('Programmé structurel');
-        $this->service()->transition($id, 'programme', $this->publisher, $this->future('+3 days'));
+        $this->service()->transition($id, 'programme', $this->publisher, $this->future('+3 days'), (int) $this->service()->get($id)['content_version']);
         $before = $this->row($id);
         $this->service()->update($id, ['title' => 'Programmé structurel', 'body' => '<p>Corps Programmé structurel</p>', 'author_label' => 'Le bureau'], $this->publisher);
         $after = $this->row($id);
@@ -222,7 +222,7 @@ final class ArticleWorkflowTest extends AdminTestCase
         $this->db->query("UPDATE cms_articles SET published_at = '2026-03-01 10:00:00' WHERE id = ?", [$mid]);
         $this->service()->update($old, ['title' => 'Ancien v2', 'body' => '<p>v2</p>'], $this->author);
         $this->db->query("UPDATE cms_articles SET published_version_at = '2026-01-01 10:00:00' WHERE id = ?", [$old]);
-        $this->service()->transition($old, 'programme', $this->publisher, $this->future('+30 days'));
+        $this->service()->transition($old, 'programme', $this->publisher, $this->future('+30 days'), (int) $this->service()->get($old)['content_version']);
         $new = $this->article('Récent');
         $this->publish($new);
         $this->db->query("UPDATE cms_articles SET published_at = '2026-06-01 10:00:00' WHERE id = ?", [$new]);
@@ -276,7 +276,7 @@ final class ArticleWorkflowTest extends AdminTestCase
         $this->assertSame('brouillon', $this->row($id)['status']);
         $this->assertSame('V1', $s->liveVersion($id)['title'], 'la version en ligne reste servie');
         $this->assertStringContainsString('V1', $s->liveVersion($id)['body']);
-        $s->transition($id, 'programme', $this->publisher, $this->future('+1 day'));
+        $s->transition($id, 'programme', $this->publisher, $this->future('+1 day'), (int) $s->get($id)['content_version']);
         $this->assertSame('V1', $s->liveVersion($id)['title'], 'programmé non échu : version conservée');
         $this->db->query("UPDATE cms_articles SET published_at = '2000-01-01 00:00:00' WHERE id = ?", [$id]);
         $this->assertSame('V2', $s->liveVersion($id)['title'], 'programmé échu : copie de travail');
@@ -378,7 +378,7 @@ final class ArticleWorkflowTest extends AdminTestCase
 
     public function test_category_and_tag_slugs_are_unique(): void
     {
-        $t = new TaxonomyService($this->db, $this->audit());
+        $t = new TaxonomyService($this->db, $this->audit(), $this->services['gate']());
         foreach (['categories', 'etiquettes'] as $kind) {
             $t->create($kind, 'Actualités', '', $this->author);
             foreach ([['Autre nom', 'actualites'], ['Actualités', 'autre'], ['X', 'admin'], ['Y', 'Mauvais Slug']] as [$name, $slug]) {
@@ -414,7 +414,7 @@ final class ArticleWorkflowTest extends AdminTestCase
 
     public function test_deleting_a_used_category_is_refused(): void
     {
-        $t = new TaxonomyService($this->db, $this->audit());
+        $t = new TaxonomyService($this->db, $this->audit(), $this->services['gate']());
         $c = $t->create('categories', 'Vie associative', '', $this->author);
         $unused = $t->create('categories', 'Vide', '', $this->author);
         $tag = $t->create('etiquettes', 'Fête', '', $this->author);
@@ -432,6 +432,30 @@ final class ArticleWorkflowTest extends AdminTestCase
         $this->assertSame($c, (int) $this->row($a)['category_id']);
     }
 
+    public function test_renaming_a_term_used_by_a_live_article_needs_publish_right(): void
+    {
+        $t = new TaxonomyService($this->db, $this->audit(), $this->services['gate']());
+        $live = $t->create('categories', 'En ligne', '', $this->author);
+        $quiet = $t->create('categories', 'Discrète', '', $this->author);
+        $tag = $t->create('etiquettes', 'Marque', '', $this->author);
+        $a = $this->article('Visible', ['category_id' => (string) $live, 'tags' => 'Marque']);
+        $this->article('Brouillon', ['category_id' => (string) $quiet]);
+        $this->publish($a);
+        foreach ([['categories', $live], ['etiquettes', $tag]] as [$kind, $id]) {
+            try {
+                $t->update($kind, $id, 'Autre nom', '', $this->author);
+                $this->fail("rédacteur : $kind");
+            } catch (PageInvalid) {
+            }
+            $t->update($kind, $id, 'Nom ' . $kind, '', $this->publisher);
+            $this->assertSame('Nom ' . $kind, $t->get($kind, $id)['name']);
+        }
+        $t->update('categories', $quiet, 'Renommée', '', $this->author); // utilisée par un brouillon jamais publié : permis
+        $this->assertSame('Renommée', $t->get('categories', $quiet)['name']);
+        $t->update('categories', $live, 'Nom categories', 'nom-categories', $this->author); // sans changement : permis
+        $this->addToAssertionCount(1);
+    }
+
     public function test_body_is_sanitised(): void
     {
         $id = $this->article('Corps', ['body' => '<p onclick="x()">Salut</p><script>alert(1)</script><a href="javascript:alert(1)">l</a><img src="https://evil.test/a.png" alt="x"><h1>T</h1>']);
@@ -445,7 +469,7 @@ final class ArticleWorkflowTest extends AdminTestCase
     public function test_hostile_text_is_escaped_everywhere(): void
     {
         $this->actingAs($this->author);
-        $t = new TaxonomyService($this->db, $this->audit());
+        $t = new TaxonomyService($this->db, $this->audit(), $this->services['gate']());
         $c = $t->create('categories', self::EVIL, 'hostile', $this->author);
         $id = $this->article(self::EVIL, ['excerpt' => self::EVIL, 'author_label' => self::EVIL, 'seo_title' => self::EVIL, 'category_id' => (string) $c, 'body' => '<p>' . self::EVIL . '</p>']);
         foreach (['/admin/site/articles', "/admin/site/articles/$id", "/admin/site/articles/$id/apercu", '/admin/site/articles/categories', '/admin/site/articles?q=' . urlencode(self::EVIL)] as $url) {

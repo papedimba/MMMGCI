@@ -115,7 +115,7 @@ return static function (Router $r, array $deps): void {
     $solidarity = static fn (): SolidarityController => new SolidarityController($view, $csrf, $session, $gate(), new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))), new AccountService($db(), $audit()));
     $media = static fn (): MediaController => new MediaController($view, $csrf, $session, $gate(), new MediaService($db(), $audit(), $uploads()));
     $pages = static fn (): PageController => new PageController($view, $csrf, $session, $gate(), new PageService($db(), $audit(), $gate()));
-    $articles = static fn (): ArticleController => new ArticleController($view, $csrf, $session, $gate(), new ArticleService($db(), $audit(), $gate()), new TaxonomyService($db(), $audit()));
+    $articles = static fn (): ArticleController => new ArticleController($view, $csrf, $session, $gate(), new ArticleService($db(), $audit(), $gate()), new TaxonomyService($db(), $audit(), $gate()));
     $menus = static fn (): MenuController => new MenuController($view, $csrf, $session, $gate(), new MenuService($db(), $audit(), $gate(), new PageService($db(), $audit(), $gate())), new PageService($db(), $audit(), $gate()));
     $events = static fn (): EventController => new EventController($view, $csrf, $session, $gate(), new EventService($db(), $audit(), $gate()));
     $officialDocuments = static fn (): OfficialDocumentController => new OfficialDocumentController($view, $csrf, $session, $gate(), new DocumentService($db(), $audit(), $gate()));

@@ -39,3 +39,27 @@ Commits d9d1d55 (base de la tâche 9) et suivants ; lot livré en 9 tâches. Sui
 
 ## Mesures de performance (1 000 pages et 1 000 articles publiés, base de test)
 `PublishedContent::page` 0,5 ms ; `menu('header')` (7 éléments) 0,6 ms ; `articles(['limit' => 20])` 4,9 ms ; `sitemapUrls()` (2 000 adresses) environ 210 à 240 ms (une requête par article : `shortcut` documenté). Mesure rejouée par `CmsEndToEndTest::test_performance_with_a_thousand_pages_and_articles`.
+
+## Dernière vague (revue finale de la branche)
+- Fichiers publics écrits en 0644 et dossiers en 0755 (disque privé inchangé : 0640/0750), indépendamment du umask.
+- Formulaires : plafond global de 20 e-mails de notification par heure (les envois sont toujours enregistrés) ; compteur par IP regroupant l'IPv6 par /64 ; l'enregistrement du passage est inséré avant le comptage (refus si dépassement).
+- Taxonomie : renommer ou changer l'adresse d'un terme utilisé par un article en ligne exige `cms.publish`.
+- Usages des médias : les images conservées d'un article en ligne (`published_featured_file_id`, `published_og_file_id`) comptent.
+- Publier ou programmer exige la version lue pour les pages, articles et évènements (comme le circuit simple) : `seenVersion` absent = refus.
+- `PublishedContent` : `mediaUrl()`, `fileUrl()`, `pagePath()`, `category()` pour résoudre les identifiants renvoyés (disque public seulement ; jamais l'adresse d'un brouillon).
+- **Fichiers publics par URL (I3)** : tout fichier de la médiathèque est joignable par son URL dès le téléversement, y compris pour un brouillon (nom aléatoire de 128 bits, pas de liste de répertoire). Modèle « URL capacité » accepté : **rien de confidentiel dans la médiathèque**. Disque privé jusqu'à la première publication : amélioration possible plus tard.
+- **Contrat des formulaires (M4, pour L4)** : le bloc `formulaire` propose `contact`, `partenariat`, `adhesion` ; `adhesion` n'est pas un formulaire de `FormInbox` et doit être orienté vers `/adhesion-en-ligne` ; le formulaire `information` n'a aucun bloc. Les POST publics de L4 passent par le jeton CSRF global (session nécessaire).
+- Texte riche : le serveur garde les titres h2 à h4 (la barre d'outils propose 2 et 3).
+
+## Champs pour L4 : HTML ou texte brut
+**HTML** (nettoyé par `RichText` à l'enregistrement ; L4 l'affiche sans `e()` et repasse `RichText::sanitize` au rendu, défense en profondeur) : `page()['blocks'][i]['html']` (bloc `texte`), `article()['body']`, `articles()[i]['body']`, `events()[i]['description']`, `galleries()[i]['description']`.
+
+**Tout le reste est du texte brut : L4 l'échappe (`e()`, attributs entre guillemets)** :
+- page : `title`, `slug`, `path`, `redirect`, `excerpt`, `seo_title`, `seo_description`, `canonical_url` (attribut), `template`, `published_at` ; ids `featured_file_id`, `og_file_id` (à résoudre par `fileUrl`).
+- blocs : `titre.text` ; `intro.title`, `intro.note` (multiligne : `nl2br(e())`) ; `faits.items[].label/value` ; `domaines.items[].name/nature/description` ; `liste.items[].text` ; `appel.title`, `.text` (multiligne), `.button_label`, `.url` (attribut ; `https://x"onx=1` est accepté par `Blocks::isSafeUrl` : échapper), `.page_id` (à résoudre par `pagePath`, page en ligne seulement) ; `image.media_id` (`mediaUrl` : url + `alt` brut), `.caption` ; `documents.category` ; `articles`/`evenements` `.count` (entier) ; `formulaire.form_key` (énumération).
+- menu : `label`, `href` (attribut), `target`, `rel`, `children[]`.
+- article : `title`, `slug`, `excerpt`, `seo_*`, `canonical_url`, `author_name`, `category_id` (`category()`), `published_at`, ids d'images.
+- évènement : `title`, `slug`, `location`, `starts_at`, `ends_at`, `published_at`, `featured_file_id`.
+- documents : `title`, `category`, `document_date`, `mime`, `size`, `url`. Bannières : `text`, `link_url` (attribut), `starts_at`, `ends_at`. Galeries : `title`, `slug`, `item_count` ; `galleryItems` : `caption`, `credit`, `alt`, `url`. Témoignages : `quote` (multiligne), `author_name`, `author_role`.
+- `SiteSettings::publicValue` : `contact_email`, `contact_phone`, `address`, `social_facebook` (attribut), `social_whatsapp`, `consent_text` (multiligne) ; booléens et entier.
+- **`RichText::toText()`** (extraits, SEO) renvoie du **texte brut** : à échapper.
