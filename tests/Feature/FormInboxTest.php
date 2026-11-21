@@ -74,6 +74,19 @@ final class FormInboxTest extends AdminTestCase
         $this->assertSame(FormInbox::MAX_PER_WINDOW + 2, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_form_submissions'));
     }
 
+    public function test_throttle_keys_do_not_merge_mapped_or_loopback_addresses(): void
+    {
+        $key = (new \ReflectionMethod(FormInbox::class, 'throttleKey'))->getClosure();
+        $this->assertSame('1.2.3.4', $key('::ffff:1.2.3.4'));
+        $this->assertSame('5.6.7.8', $key('::ffff:5.6.7.8'));
+        $this->assertSame($key('::ffff:1.2.3.4'), $key('::ffff:102:304'));
+        $this->assertSame($key('1.2.3.4'), $key('::ffff:1.2.3.4'));
+        $this->assertNotSame($key('2001:db8:1:2::1'), $key('2001:db8:1:3::1'));
+        $this->assertSame($key('2001:db8:1:2::1'), $key('2001:db8:1:2:ffff::9'));
+        $this->assertNotSame($key('::1'), $key('::ffff:0.0.0.0'));
+        $this->assertNotSame($key('::1'), $key('::'));
+    }
+
     public function test_invisible_characters_are_stripped_and_history_is_readable(): void
     {
         $in = $this->inbox();
