@@ -14,12 +14,13 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **Paramètres L6 à valider par les instances** : politique de solde insuffisant, payeur = initiateur, règle « à jour », génération automatique des appels, début d'exercice, tranches d'approbation (`approval_rules`), montants, périodicités et autorisations des types de cotisation, population des appels en lot
 - [ ] **Décisions L6 à trancher** : approbation d'un utilisateur désactivé ensuite ; rejet depuis `approuve_2` ; contre-passation pouvant rendre un solde négatif ; double contrôle des annulations et contre-passations ; dépenses courantes hors décaissement
 - [ ] **Reports de L6** : budgets et engagements (T6.9) ; rapports financiers → L11 ; exports en flux ; purge des fichiers orphelins ; pagination du filtre « à approuver par moi »
+- [ ] **Décisions L3 à trancher par les instances** : textes et coordonnées publics à valider (`site.*`), consentement des témoignages et durée de conservation des formulaires/pièces, séparation saisie/validation d'un réglage, hébergement : interdire PHP sous `/media` si nginx
+- [ ] **Reports de L3** : SEO avancé (T3.8) → L4 ; rendu public et adhésion en ligne → L4 ; slash final et double slash, 301 des variantes de casse, version relue sur écran des menus (dernier enregistrement gagne) ; images du texte riche non verrouillées dans tous les cas ; listes d'administration plafonnées à 200
 - [ ] **C38 Dépôt de demandes d'assistance en ligne par l'adhérent : oui/non** - commanditaire
 - [ ] **D4 Domaine, hébergeur cPanel, SMTP** - commanditaire (pas encore d'hébergement)
 - [ ] **Logo horizontal + version SVG/PNG transparente** - commanditaire
 
 ## Someday
-- [ ] **L3 CMS** (T3.1–T3.9)
 - [ ] **L4 Site public + adhésion en ligne** (T4.1–T4.6) → V0.2
 - [ ] **L7 Demandes sociales** (T7.1–T7.5) → V0.3
 - [ ] **L9 Partenariats** (T9.1–T9.3)
@@ -32,6 +33,7 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **L14 Recette** (T14.1–T14.6) → V1.0
 
 ## Done
+- [x] ~~L3 CMS (T3.1 schéma, T3.2 médiathèque, T3.3 texte riche, T3.4 pages à blocs et circuit de publication, T3.5 menus, T3.6 articles, catégories et étiquettes, T3.7 évènements, documents, galeries, bannières, témoignages, T3.8 lectures publiques et réglages/formulaires reçus (le SEO avancé passe au lot L4), T3.9 parcours de bout en bout, contrôle qualité, documentation)~~ (21/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-16-l3-decisions-et-reports.md
 - [x] ~~L6 Cotisations, finances, double validation, fonds (T6.1–T6.10 : schéma financier, grand livre, types et appels, encaissements et reçus, impayés, circuit de décaissement, écrans, fonds de solidarité, contrôle, parcours de bout en bout et documentation ; T6.9 budgets/engagements reportés)~~ (15/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-15-l6-decisions-et-reports.md
 - [x] ~~L5 Adhérents (T5.1–T5.9 : schéma et référentiels, service et doublons, liste et recherche, fiche, création/modification/ayants droit/pièces, instruction des demandes saisies, changements de statut, exports, carte et vérification publique, contrôle qualité)~~ (15/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-15-l5-decisions-et-reports.md
 - [x] ~~L2 Design system et gabarits (7 tâches : jetons, kit ui(), gabarit d'administration, écrans restylés, gabarit public, gabarit d'impression, contrôle qualité ; noms français des modules et rôles protégés en lecture seule inclus)~~ (15/11/2026) — documentation : docs/conception/05-design-system.md §8

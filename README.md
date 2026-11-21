@@ -101,6 +101,8 @@ Une seule entrée cPanel, toutes les 5 minutes :
 */5 * * * * php /home/USER/mmmgci/bin/cron.php
 ```
 
+Publication programmée du site (lot L3) : la tâche `cms.publish_scheduled` est prévue **toutes les minutes** ; avec l'entrée ci-dessus, une publication programmée peut donc avoir jusqu'à 5 minutes de retard. Pour la minute exacte, utiliser `* * * * * php /home/USER/mmmgci/bin/cron.php`.
+
 Tâches enregistrées (lot L1) : `login_attempts.purge` et `password_resets.purge`, chacune toutes les 60 minutes (suppression des tentatives de connexion et des jetons de réinitialisation ou d'invitation de plus de 24 h).
 
 ## Premier administrateur
@@ -229,6 +231,90 @@ Matrice complète : [`docs/conception/03-architecture.md`](docs/conception/03-ar
 
 **Rôles protégés** : seul un super administrateur peut désigner les approbateurs et les décideurs, attribuer les rôles les plus élevés ou modifier les comptes qui les détiennent
 (ou un administrateur qui détient lui-même toutes les permissions du rôle concerné). La ligne de commande `bin/create-admin.php` en est exemptée.
+
+## Site web (CMS, lot L3)
+
+Le CMS gère le contenu du futur site public (lot L4 : le rendu public et l'adhésion en ligne). **Aucun contenu n'est inventé par le code** : pages, textes, images, coordonnées et réseaux sociaux sont saisis par la Mutuelle. Écrans : menu « Site web » de l'administration (`/admin/site/...`).
+
+### Rôles
+
+| Besoin | Permission | Rôles prévus |
+|---|---|---|
+| Rédiger, modifier, **soumettre à relecture** pages, articles, évènements, documents, galeries, bannières, témoignages ; catégories et étiquettes | `cms.pages.manage` | `redacteur` (seul droit), `editeur`, `gest_cms`, `admin_site`, `admin_general`, `resp_communication`, `secretaire_general` |
+| **Publier, programmer, archiver, retirer** ; enregistrer les menus (avec `cms.pages.manage`) | `cms.publish` | `editeur`, `gest_cms`, `admin_site`, `admin_general`, `resp_communication` |
+| Médiathèque | `cms.media.manage` | `gest_medias`, `editeur`, `gest_cms`, `admin_site`, `resp_communication` |
+| Formulaires reçus (boîte de réception, export) | `cms.forms.manage` | `gest_cms`, `admin_site`, `admin_general`, `resp_communication` |
+| **Saisir** les réglages du site | `cms.settings.manage` | `admin_site`, `admin_general`, `resp_communication` |
+| **Valider** un réglage (coordonnées, décisions) | `settings.validate` | `pca` |
+
+Le rédacteur soumet, il ne publie jamais. Chaque transition de publication est auditée (sans donnée personnelle de visiteur).
+
+### Circuit de publication
+
+États : `brouillon` → `en_relecture` → `publie` (ou `programme`, publié à l'heure par le cron) → `archive`. Un brouillon, un contenu en relecture ou archivé n'est **jamais public**.
+
+- **Version relue** : le publicateur publie ou programme la version qu'il a lue. Si le contenu change entre la lecture et le clic (nouvelle sauvegarde), la publication est refusée (« relisez-le »). Les contenus simples (documents, galeries, bannières, témoignages) exigent aussi la version affichée.
+- **Version en ligne conservée** : modifier une page ou un article **publié** le repasse en brouillon, mais la dernière version publiée reste servie au public jusqu'à la republication. « Retirer du site » supprime aussi cette version conservée. Une publication programmée échue remplace la version conservée.
+- Un article déjà publié : seul un publicateur change son adresse, sa catégorie, son auteur affiché ou ses étiquettes. Un auteur qui modifie ces champs sur un article en relecture le renvoie en brouillon.
+- Un évènement déjà en ligne est modifié en direct par un publicateur (pas de version conservée) ; l'auteur ne le modifie plus.
+- Changer l'adresse (slug) d'une page déjà publiée conserve l'ancienne en redirection simple ; une page publiée ne peut pas être supprimée (l'archiver).
+- Adresses : `[a-z0-9-]`, 1 à 80 caractères, uniques ; réservées : `admin`, `verifier`, `espace`, `assets`, `media`, `sante`, `adhesion-en-ligne`, `sitemap.xml`, `robots.txt`, `favicon.ico`.
+
+### Blocs d'une page (registre fixe, pas de constructeur libre)
+
+Une page est une suite ordonnée (60 au plus) de blocs ; chaque bloc est stocké en JSON (`cms_pages.blocks`, copie publiée dans `published_blocks`) avec une clé `type` :
+
+| Type | Clés JSON |
+|---|---|
+| `texte` | `html` (texte riche nettoyé) |
+| `titre` | `text`, `level` (2 ou 3) |
+| `intro` | `title`, `note` |
+| `faits` | `items` : `[{label, value}]` |
+| `domaines` | `items` : `[{name, description, nature}]` |
+| `liste` | `items` : `[{text}]` |
+| `appel` | `title`, `text`, `button_label`, `page_id` ou `url` |
+| `image` | `media_id` (id de la médiathèque, **chaîne ou entier**), `caption` |
+| `documents` | `category` (vide = toutes) |
+| `articles`, `evenements` | `count` (1 à 12) |
+| `formulaire` | `form_key` : `contact`, `partenariat`, `adhesion` |
+
+**Contrat des références de médias** : seules les clés `media_id` (un média), `media_ids` (liste de médias, galeries) et `file_id` désignent un média dans un bloc ; la médiathèque s'en sert pour refuser la suppression d'un média encore utilisé (aussi dans le texte riche : images `/media/...`). Toute nouvelle clé de média doit être ajoutée à ce contrat (`MediaService::usages`).
+
+Texte riche : éditeur limité (titres 2 et 3, gras, italique, listes, citation, lien, image de la médiathèque), nettoyé à l'enregistrement **et** à l'affichage : aucun script, gestionnaire `on*`, style ni URL `javascript:` ou `data:` ; liens externes en `rel="noopener noreferrer"` ; images limitées aux médias du site (`/media/...`) avec texte alternatif. Sans JavaScript, le champ reste un champ de saisie du HTML autorisé.
+
+`max_input_vars` : un formulaire de page peut envoyer jusqu'à 800 champs de blocs ; **PHP doit autoriser `max_input_vars` ≥ 1000** (défaut PHP et cPanel : 1000). Au-delà, le formulaire est refusé avec un message clair plutôt que tronqué.
+
+### Médiathèque
+
+JPG, PNG, WebP et PDF seulement ; **pas de SVG** (ni HTML, ni PHP, ni double extension) ; texte alternatif obligatoire pour une image ; le nom du fichier téléversé n'est jamais conservé (nom aléatoire) ; tailles et nombre de pixels bornés. Un média utilisé (page, article, bannière, texte riche…) ne peut pas être supprimé : l'écran liste les usages. `public/media` ne doit **jamais exécuter de code** : le `.htaccess` fourni l'impose sous Apache ; **sous nginx il est ignoré** : le déploiement doit interdire PHP sous `/media` (voir `public/media/.htaccess`).
+
+### Menus
+
+Deux emplacements : `header` (7 éléments de premier niveau au plus) et `footer` (12) ; deux niveaux, 40 éléments au plus. Chaque élément pointe vers une page **ou** une adresse (https, mailto, tel, chemin du site). Enregistrer un menu le publie immédiatement : il faut donc **les deux droits** `cms.pages.manage` et `cms.publish` (la route et le service l'exigent). Un élément dont la page n'a pas de version en ligne est masqué au public avec ses sous-éléments ; un élément de premier niveau qui a des sous-éléments ne peut pas être supprimé tant qu'ils existent.
+
+### Articles et évènements
+
+Articles : catégorie, étiquettes, image à la une, extrait, SEO (titre, description, image de partage, adresse canonique) ; évènements : début, fin, lieu. Programmation : le publicateur choisit une date future (heure d'Abidjan) ; la tâche `cms.publish_scheduled` (cron, toutes les minutes — voir « Cron ») publie à l'échéance ; un échec sur un contenu n'empêche pas les autres et est audité.
+
+### Circuit simple (documents, galeries, bannières, témoignages)
+
+Brouillon → publié → archivé, sans version conservée ni programmation : un rédacteur crée, **un publicateur publie** en confirmant la version lue. Documents officiels : un PDF de la médiathèque, catégorie, date. Galeries : photos avec texte alternatif obligatoire. Bannières : trois publiées au plus (période en cours ou à venir), lien sûr. **Témoignages : désactivés par défaut**, publiables seulement si le réglage « Témoignages activés » est validé **et** si la pièce de consentement signée est jointe ; la pièce est stockée sur le disque **privé** et n'est jamais servie publiquement.
+
+### Réglages du site (`site.*`)
+
+Coordonnées (e-mail, téléphone, adresse), Facebook (https sur `facebook.com`, `fb.com` ou `m.facebook.com`), WhatsApp, texte de consentement des formulaires, adhésion en ligne ouverte, témoignages activés, conservation des formulaires (mois) : tous **vides / « non configuré » à l'installation**. Flux : un titulaire de `cms.settings.manage` **saisit** → la valeur est « à valider » → un titulaire de `settings.validate` la **valide** en indiquant la référence de la décision (procès-verbal) en ayant vu la valeur courante (si elle a changé entre-temps, la validation est refusée). Modifier une valeur validée la remet « à valider ». **Tant qu'un réglage n'est pas validé, le site public ne l'utilise pas.** La même personne peut saisir et valider si elle cumule les deux droits : à éviter (décision des instances).
+
+### Formulaires reçus et notifications
+
+Trois formulaires (contact, information, partenariat) déposés via `FormInbox::submit` (appelé par le lot L4) : champs en liste blanche, texte brut sans balises, caractères de contrôle et invisibles retirés, champ piège `website`, 5 envois au plus par adresse IP et 10 minutes. Boîte de réception `/admin/site/formulaires` : références `MSG-AAAA-NNNNN`, états nouveau → en cours → traité → archivé, affectation, notes internes, historique en ajout seulement, export CSV neutralisé. L'audit et l'e-mail de notification ne contiennent **que la référence et le type de formulaire**, jamais le message ni les coordonnées du visiteur ; le destinataire est l'adresse de contact validée, sinon les titulaires de `cms.forms.manage`. Aucune purge automatique (durée à fixer par les instances).
+
+### Adresses publiques (pour le lot L4)
+
+Le schéma d'URL public est défini **une seule fois** dans `App\Modules\Cms\PublishedContent` : pages `/{slug}` (la forme hiérarchique `/parent/enfant` n'est honorée que si tous les parents sont en ligne et redirige vers `/{slug}`), articles `/actualites/{slug}`, évènements `/evenements/{slug}`, plan du site `sitemapUrls()`. Le rendu public (L4) ne lit que `PublishedContent` (jamais un brouillon).
+
+### Limites connues
+
+Pas de glisser-déposer (boutons Monter/Descendre) ; une seule version de travail par page (pas d'historique de versions) ; redirections d'adresse simples (pages seulement, pas d'articles) ; listes d'administration plafonnées à 200 lignes pour les contenus simples ; SEO avancé (T3.8) reporté au lot L4 ; pas de purge des pièces de consentement ni des formulaires ; les images du texte riche ne bloquent pas la suppression d'un média dans tous les cas (voir le plan L3). Détail et décisions : [`docs/superpowers/plans/2026-11-16-l3-decisions-et-reports.md`](docs/superpowers/plans/2026-11-16-l3-decisions-et-reports.md).
 
 ## Site public (lot L3) — points à décider par les instances
 

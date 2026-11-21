@@ -134,3 +134,12 @@ Composants disponibles (`ui('nom', [...])`) : `button`, `field` (saisie, liste, 
 - Skill Taste : `lint.mjs --app` sur vues, CSS et JS, puis `inspect.mjs --app` sur la galerie, la connexion, le tableau de bord, utilisateurs (liste, création), rôles (liste, fiche), journal, changement de mot de passe, page d'erreur, et `inspect.mjs` (page) sur `/` — 1440, 768 et 390 px. 0 échec. Le détail des avertissements justifiés figure dans le rapport de la tâche 7.
 - Détecteur Impeccable, contrôle à 360 px (aucun défilement horizontal, cibles tactiles de 44 px, menu au clavier avec retour du focus), contrastes (toutes les paires déclarées conformes).
 - Écarts assumés : `--control-border` (#7D8AA0) remplace `--line-strong` pour les bordures de champs (3:1 exigé) ; la page publique `/` est une page d'attente et ne porte pas encore les photos ni les animations exigées d'une vraie page (lot L4).
+
+### Ajustements de L3 (CMS)
+
+- **`rich-editor`** (`ui('rich-editor', [name, label, value, hint, error, required])`) : champ de texte riche limité. Sans JavaScript c'est un `<textarea>` (la valeur est échappée) qui reçoit du HTML autorisé ; avec `public/assets/js/editor.js` (externe, différé, ≤ 12 Ko, sans `innerHTML`, `eval` ni style en ligne) une barre d'outils s'ajoute : titres 2 et 3, gras, italique, listes, citation, lien, image de la médiathèque, effacer la mise en forme. Les boutons font 44 px au pointeur tactile ; le contenu collé est analysé (DOMParser) puis reconstruit ; **le serveur reste l'autorité** (`RichText::sanitize` à l'enregistrement et à l'affichage).
+- `.cell-link` appliqué aux titres et références des listes d'administration (pages, articles, formulaires reçus) : cible de 44 px au pointeur tactile.
+- `.block-editor` (fieldset d'un bloc de page, ancre `:target` avec anneau de focus), `.media-grid`/`.media-card` (médiathèque et sélecteur), `.history-list`, `.prewrap` (texte de visiteur ou note, retours à la ligne conservés).
+- Libellés : « Nouvelle bannière » (nom féminin) ; historique des formulaires avec états en toutes lettres et noms d'utilisateur.
+- Contrôle de qualité L3 : `inspect.mjs --app` sur 23 écrans à 1440/768/390 (0 échec sur les écrans ; le sélecteur de médias est un fragment de boîte de dialogue, non un écran), 360 px sans défilement horizontal, `bin/check-contrast.php` conforme.
+
