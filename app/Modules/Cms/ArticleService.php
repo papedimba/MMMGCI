@@ -219,7 +219,7 @@ final class ArticleService implements ScheduledContent
         if ($a === null) {
             return null;
         }
-        $base = ['id' => (int) $a['id'], 'slug' => $a['slug'], 'category_id' => $a['category_id'] === null ? null : (int) $a['category_id'], 'author_name' => $a['author_name']];
+        $base = ['id' => (int) $a['id'], 'slug' => $a['slug'], 'category_id' => $a['category_id'] === null ? null : (int) $a['category_id'], 'author_name' => $a['author_name'], 'author_label' => $a['author_label']];
         $due = $a['status'] === 'programme' && $a['published_at'] !== null && $a['published_at'] <= $this->now()->format('Y-m-d H:i:s');
         if ($a['status'] === 'publie' || $due) {
             return $base + ['title' => $a['title'], 'body' => (string) $a['body'], 'excerpt' => $a['excerpt'], 'seo_title' => $a['seo_title'], 'seo_description' => $a['seo_description'],

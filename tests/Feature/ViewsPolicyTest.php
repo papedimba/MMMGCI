@@ -34,4 +34,42 @@ final class ViewsPolicyTest extends TestCase
         }
         $this->assertSame([], $bad);
     }
+
+    /**
+     * Site public (surface exposée) : tous ses gabarits sont couverts par la règle CSP ci-dessus, et chaque sortie « <?= »
+     * passe par un échappement connu, un HTML déjà nettoyé (RichText::sanitize) ou un fragment rendu par le code (liste fermée).
+     */
+    public function test_public_layout_obeys_csp_policy_rules(): void
+    {
+        $root = dirname(__DIR__, 2);
+        $files = [$root . '/app/views/layouts/public.php', $root . '/app/views/home.php'];
+        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root . '/app/views/public', \FilesystemIterator::SKIP_DOTS)) as $f) {
+            $files[] = $f->getPathname();
+        }
+        foreach (['texte', 'titre', 'intro', 'faits', 'domaines', 'liste', 'appel', 'image', 'documents', 'articles', 'evenements', 'formulaire'] as $type) {
+            $this->assertContains($root . "/app/views/public/blocks/$type.php", $files, "bloc $type");
+        }
+        foreach (['standard', 'accueil', 'liste', 'not-found'] as $page) {
+            $this->assertContains($root . "/app/views/public/pages/$page.php", $files, "gabarit $page");
+        }
+        $this->assertFileDoesNotExist($root . '/app/views/public/_menu.php', 'menu codé en dur supprimé : il vient de PublishedContent::menu');
+        $allowed = '~^<\?=\s*(?:e\(|e_lines\(|ui\(|ui_icon\(|\(int\)|RichText::sanitize\(|\$body\s*\?>|\$content\s*\?>|\$link\(|\$tag\s*\?>|\$external \? \' rel="noopener noreferrer"\' : \'\'|'
+            . '\$m\[\'width\'\] !== null && \$m\[\'height\'\] !== null \? \' width="\' \. \(int\)|\$card\[\'expires_at\'\] === null \?)~';
+        $bad = [];
+        foreach ($files as $file) {
+            $src = (string) file_get_contents($file);
+            foreach (['~<[^>]*\sstyle\s*=~i', '~<style\b~i', '~<script\b(?![^>]*\ssrc=)~i', '~<[^>]*\son[a-z]+\s*=~i', '~javascript:~i'] as $p) {
+                if (preg_match($p, $src) === 1) {
+                    $bad[] = basename($file) . ' : ' . $p;
+                }
+            }
+            preg_match_all('~<\?=.*?(?:\?>|$)~m', $src, $m);
+            foreach ($m[0] as $echo) {
+                if (preg_match($allowed, $echo) !== 1) {
+                    $bad[] = basename($file) . ' : sortie non échappée ' . $echo;
+                }
+            }
+        }
+        $this->assertSame([], $bad);
+    }
 }

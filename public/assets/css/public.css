@@ -10,7 +10,8 @@ main:focus { outline: none; }
 .pub-menu { display: flex; gap: var(--s5); font-weight: 600; font-size: var(--text-sm); }
 .pub-menu a { color: var(--ink); text-decoration: none; display: inline-flex; align-items: center; min-height: var(--control-h); }
 .pub-menu a[href]:hover { text-decoration: underline; }
-.pub-menu a[aria-disabled="true"] { color: var(--ink-3); cursor: default; }
+.pub-menu ul, .pub-foot-menu ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0 var(--s5); }
+.pub-menu li ul { gap: 0 var(--s4); font-weight: 400; }
 .pub-menu-btn { display: none; align-items: center; gap: var(--s2); min-height: var(--control-h); padding: 0 var(--s3); border: 1px solid var(--control-border); border-radius: var(--r-sm); background: var(--sheet); color: var(--navy-900); font: 600 var(--text-sm)/1 var(--font-body); cursor: pointer; }
 
 /* Filet national : orange / blanc / vert de Côte d'Ivoire. */
@@ -43,6 +44,8 @@ main:focus { outline: none; }
   .pub-hero { padding: var(--s6) var(--s4); }
   .card-paper .in { padding: var(--s5) var(--s4) var(--s6); }
   .pub-menu { flex-basis: 100%; flex-direction: column; gap: 0; }
+  .pub-menu ul { flex-direction: column; }
+  .pub-menu li ul { padding-left: var(--s4); }
   /* Sans JS : le menu reste affiché sous l'en-tête. Avec JS : bouton « Menu », panneau replié. */
   html.js .pub-menu-btn { display: inline-flex; }
   html.js .pub-menu { display: none; }
@@ -72,3 +75,34 @@ main:focus { outline: none; }
 .preview-figure img { max-width: 100%; height: auto; border-radius: var(--r-md); }
 .preview-placeholder { padding: var(--s4); border: 1px dashed var(--line-strong); border-radius: var(--r-md); color: var(--ink-2); background: var(--sheet); }
 .preview-cta { margin: var(--s6) 0; padding: var(--s5); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }
+
+/* Pages publiques (L4, tâche 1) : mise en page sobre ; la direction artistique vient en tâche 2. */
+.pub-page { width: 100%; max-width: 760px; margin: 0 auto; padding: var(--s6) var(--s4) var(--s8); }
+.pub-page h1 { margin-bottom: var(--s5); max-width: 24ch; }
+.pub-page h2 { margin: var(--s6) 0 var(--s3); }
+.pub-page h3 { margin: 0 0 var(--s2); font-size: var(--text-lg); }
+.pub-block { margin: var(--s5) 0; }
+.pub-rich p, .pub-rich ul, .pub-rich ol, .pub-rich blockquote { margin: 0 0 var(--s4); max-width: 68ch; }
+.pub-rich img, .pub-figure img { max-width: 100%; height: auto; border-radius: var(--r-md); }
+.pub-figure { margin: var(--s5) 0; }
+.pub-figure figcaption { margin-top: var(--s2); font-size: var(--text-sm); color: var(--ink-2); }
+.pub-credit { color: var(--ink-3); }
+.pub-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--s3); }
+.pub-facts div, .pub-card, .pub-cta { padding: var(--s4); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }
+.pub-facts dd { margin: 0; font-size: var(--text-xl); color: var(--navy-900); }
+.pub-domains, .pub-cards { list-style: none; margin: var(--s5) 0; padding: 0; display: grid; gap: var(--s3); }
+.pub-domains li { padding: var(--s4) 0; border-bottom: 1px solid var(--line); }
+.pub-domain-nature, .pub-meta { color: var(--ink-2); font-size: var(--text-sm); }
+.pub-card a, .pub-back a, .pub-foot a { display: inline-flex; align-items: center; min-height: var(--control-h); }
+.pub-card-title { font-size: var(--text-lg); margin: 0; }
+.pub-cta h2 { margin-top: 0; }
+.pub-cta .btn { margin-top: var(--s3); }
+.pub-empty { padding: var(--s4); border: 1px dashed var(--line-strong); border-radius: var(--r-md); color: var(--ink-2); background: var(--sheet); }
+.pub-facts-inline { display: grid; grid-template-columns: auto 1fr; gap: var(--s2) var(--s4); margin: 0 0 var(--s5); }
+.pub-facts-inline div { display: contents; }
+.pub-facts-inline dt { color: var(--ink-2); }
+.pub-facts-inline dd { margin: 0; font-weight: 600; }
+.pub-gallery { list-style: none; margin: var(--s5) 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: var(--s4); }
+.pub-gallery .pub-figure { margin: 0; }
+.pub-contacts { font-style: normal; flex-basis: 100%; display: flex; flex-wrap: wrap; gap: 0 var(--s5); color: var(--ink-2); }
+.pub-foot-menu { flex-basis: 100%; }

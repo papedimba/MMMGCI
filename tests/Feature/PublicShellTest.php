@@ -26,19 +26,18 @@ final class PublicShellTest extends TestCase
         foreach (['flag-orange', 'flag-white', 'flag-green'] as $c) {
             $this->assertStringContainsString($c, $html);
         }
-        $this->assertStringContainsString('aria-label="Menu principal"', $html);
-        $this->assertStringContainsString('data-menu-toggle', $html);
         $this->assertStringContainsString('<footer class="pub-foot">', $html);
         $this->assertStringContainsString('class="cordage"', $html);
         $this->assertStringContainsString('href="/admin"', $html);
     }
 
-    public function test_menu_items_not_yet_available_are_not_clickable_links(): void
+    public function test_without_published_menu_only_the_logo_is_shown(): void
     {
+        // Le menu vient de PublishedContent::menu('header') (PublicPagesTest) : sans menu publié, aucun lien inventé ni bouton « Menu ».
         $html = $this->home();
-        foreach (['La Mutuelle', 'Adhésion', 'Contact'] as $label) {
-            $this->assertStringContainsString('<a aria-disabled="true">' . $label . '</a>', $html);
-        }
+        $this->assertStringNotContainsString('aria-label="Menu principal"', $html);
+        $this->assertStringNotContainsString('data-menu-toggle', $html);
+        $this->assertStringNotContainsString('aria-disabled="true"', $html);
         $this->assertDoesNotMatchRegularExpression('~href=""|href="#"~', $html);
     }
 

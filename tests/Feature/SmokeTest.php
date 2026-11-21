@@ -17,7 +17,7 @@ final class SmokeTest extends TestCase
         return (require dirname(__DIR__, 2) . '/app/kernel.php')(new Config($env), false);
     }
 
-    public function test_home_returns_200_with_security_headers_and_csrf_cookie(): void
+    public function test_home_returns_200_with_security_headers_and_no_cookie(): void
     {
         $res = self::app()->handle(new Request('GET', '/'));
         $this->assertSame(200, $res->status());
@@ -25,14 +25,16 @@ final class SmokeTest extends TestCase
         $this->assertArrayHasKey('Content-Security-Policy', $res->headers());
         $this->assertSame('nosniff', $res->headers()['X-Content-Type-Options']);
 
-        // Cookie de session (porteur du jeton CSRF) : seulement observable via un vrai serveur HTTP.
+        // Cookies : seulement observables via un vrai serveur HTTP. Le site public n'en pose aucun ; l'administration, si (jeton CSRF).
         self::serve(dirname(__DIR__, 2) . '/public', function (int $port): void {
             [$headers] = self::fetch($port, '/');
             $all = implode("\n", $headers);
             $this->assertStringContainsString('200 OK', $headers[0]);
-            $this->assertMatchesRegularExpression('/^Set-Cookie: mmmgci_sid=\w+;.*HttpOnly; SameSite=Lax/mi', $all);
+            $this->assertStringNotContainsStringIgnoringCase('Set-Cookie', $all);
             $this->assertStringContainsString('Content-Security-Policy:', $all);
             $this->assertStringNotContainsStringIgnoringCase('X-Powered-By', $all);
+            [$headers] = self::fetch($port, '/admin/connexion');
+            $this->assertMatchesRegularExpression('/^Set-Cookie: mmmgci_sid=\w+;.*HttpOnly; SameSite=Lax/mi', implode("\n", $headers));
 
             // Sonde de santé : aucune session ouverte, donc aucun cookie.
             [$headers, $body] = self::fetch($port, '/sante');
@@ -132,10 +134,10 @@ final class SmokeTest extends TestCase
         }
     }
 
-    /** Le jeton vit dans la session de l'App (tableau local en test) : on le lit via la page d'accueil. */
+    /** Le jeton vit dans la session de l'App (tableau local en test) : on le lit via la page de connexion (le site public n'a pas de session). */
     private static function token(App $app): string
     {
-        preg_match('/name="csrf-token" content="(\w+)"/', $app->handle(new Request('GET', '/'))->body(), $m);
+        preg_match('/name="_csrf" value="(\w+)"/', $app->handle(new Request('GET', '/admin/connexion'))->body(), $m);
         return $m[1] ?? '';
     }
 }

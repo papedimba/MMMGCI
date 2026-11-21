@@ -25,4 +25,20 @@ final class StartSessionTest extends TestCase
         $mw->handle(new Request('GET', '/'), $next);
         $this->assertSame(8, $store['user']);
     }
+
+    public function test_only_listed_prefixes_open_a_session(): void
+    {
+        $store = [];
+        $mw = new StartSession(new Session($store, 30), false, [], ['/admin', '/admin/', '/contact']);
+        $next = static fn (Request $r): Response => new Response('ok');
+        foreach (['/', '/statuts', '/administration', '/adminx', '/contact-presse', '/actualites/x'] as $p) {
+            $mw->handle(new Request('GET', $p), $next);
+            $this->assertArrayNotHasKey('_last_activity', $store, $p);
+        }
+        foreach (['/admin', '/admin/adherents', '/contact'] as $p) {
+            $store = [];
+            $mw->handle(new Request('GET', $p), $next);
+            $this->assertArrayHasKey('_last_activity', $store, $p);
+        }
+    }
 }

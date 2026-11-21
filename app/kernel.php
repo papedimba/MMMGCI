@@ -85,13 +85,15 @@ return static function (Config $config, bool $httpSession, array $overrides = []
 
     $router = new Router(null, $errors);
     $services['router'] = $router;
-    (require dirname(__DIR__) . '/routes/web.php')($router, $view, $csrf, $db);
+    // Administration d'abord : le site public se termine par une route attrape-tout (GET /{chemin}) qui doit rester la dernière.
     (require dirname(__DIR__) . '/routes/admin.php')($router, $services);
+    (require dirname(__DIR__) . '/routes/web.php')($router, $view, $csrf, $db, $services);
 
     return new App($config, $router, [
         new ForceHttps((string) $config->get('APP_ENV', 'production')),
         new SecurityHeaders(),
-        new StartSession($session, $httpSession, ['/sante', '/verifier/']),
+        // Session (donc cookie) seulement pour l'administration et les futurs formulaires publics (adhésion, contact, partenariat) : tout le reste du site est sans cookie.
+        new StartSession($session, $httpSession, [], ['/admin', '/admin/', '/adhesion-en-ligne', '/adhesion-en-ligne/', '/contact', '/contact/', '/partenariat', '/partenariat/']),
         new VerifyCsrf($csrf, $view),
         new ShareLayoutData($view, $router),
     ]);

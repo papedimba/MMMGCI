@@ -7,6 +7,7 @@ final class Request
 {
     private array $attributes = [];
     private string $path;
+    private string $rawPath;
 
     public function __construct(
         private string $method,
@@ -17,6 +18,7 @@ final class Request
         private array $server = [],
         private array $cookies = [],
     ) {
+        $this->rawPath = $path;
         $this->path = '/' . trim($path, '/');
     }
 
@@ -24,12 +26,15 @@ final class Request
     {
         // Chemin brut (non décodé) : le routeur décode chaque paramètre, pour que %2F reste dans son segment.
         $uri = explode('?', (string) ($_SERVER['REQUEST_URI'] ?? '/'), 2)[0];
-        return new self($_SERVER['REQUEST_METHOD'] ?? 'GET', preg_replace('#^/+#', '/', $uri), $_GET, $_POST, $_FILES, $_SERVER, $_COOKIE);
+        return new self($_SERVER['REQUEST_METHOD'] ?? 'GET', $uri, $_GET, $_POST, $_FILES, $_SERVER, $_COOKIE);
     }
 
     public function method(): string { return strtoupper($this->method); }
 
     public function path(): string { return $this->path; }
+
+    /** Chemin tel que reçu (barres finales et doubles comprises), pour la normalisation des adresses publiques. */
+    public function rawPath(): string { return $this->rawPath; }
 
     public function input(string $k, mixed $d = null): mixed { return $this->post[$k] ?? $this->query[$k] ?? $d; }
 
