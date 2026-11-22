@@ -354,15 +354,14 @@ final class SocialDisbursementTest extends AdminTestCase
         self::assertStringNotContainsString('/admin/demandes-sociales/', $page);
     }
 
-    public function test_simultaneous_preparations_create_one_disbursement(): void
+    /** Course réelle : $hold tient ses verrous dans une transaction non validée pendant que le fils (seconde connexion) attend $waitingOn ; on valide, puis on lit la sortie du fils. @param list<string> $args */
+    private function race(callable $hold, array $args, string $waitingOn): string
     {
-        $rid = $this->requestIn('accordee');
-        [$proc, $pipes] = $this->db->transaction(function () use ($rid): array {
-            $this->link()->prepare($rid, $this->choice(), $this->prep);
-            $proc = proc_open([PHP_BINARY, dirname(__DIR__) . '/Support/social_worker.php', 'prepare', (string) $rid, (string) $this->prep, (string) $this->account, (string) $this->category],
-                [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+        [$proc, $pipes] = $this->db->transaction(function () use ($hold, $args, $waitingOn): array {
+            $hold();
+            $proc = proc_open([PHP_BINARY, dirname(__DIR__) . '/Support/social_worker.php', ...$args], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
             $observer = Database::connect(self::config(), test: true);
-            for ($i = 0; $i < 400 && (int) $observer->fetchValue('SELECT COUNT(*) FROM information_schema.PROCESSLIST WHERE ID <> CONNECTION_ID() AND INFO LIKE ?', ['SELECT * FROM social_requests WHERE id = ? FOR UPDATE%']) === 0; $i++) {
+            for ($i = 0; $i < 400 && (int) $observer->fetchValue('SELECT COUNT(*) FROM information_schema.PROCESSLIST WHERE ID <> CONNECTION_ID() AND INFO LIKE ?', [$waitingOn . '%']) === 0; $i++) {
                 usleep(25_000);
             }
             self::assertLessThan(400, $i, 'Le processus fils aurait dû attendre le verrou.');
@@ -370,9 +369,89 @@ final class SocialDisbursementTest extends AdminTestCase
         });
         $out = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
         proc_close($proc);
+        return $out;
+    }
+
+    private function liveFor(int $decisionId): int
+    {
+        return (int) $this->db->fetchValue("SELECT COUNT(*) FROM disbursement_requests WHERE social_decision_id = ? AND status NOT IN ('rejete', 'annule')", [$decisionId]);
+    }
+
+    /** @return list<string> arguments du fils : création directe liée à la décision */
+    private function createArgs(int $decisionId): array
+    {
+        return ['create', (string) $decisionId, (string) $this->prep, (string) $this->account, (string) $this->category, (string) $this->memberA];
+    }
+
+    private function directCreate(int $decisionId): int
+    {
+        return $this->svc()->create(['amount' => 5_000_000, 'beneficiary_member_id' => $this->memberA, 'social_decision_id' => $decisionId, 'purpose' => 'Aide sociale'] + $this->choice(), $this->prep);
+    }
+
+    public function test_simultaneous_preparations_create_one_disbursement(): void
+    {
+        $rid = $this->requestIn('accordee');
+        $out = $this->race(fn () => $this->link()->prepare($rid, $this->choice(), $this->prep),
+            ['prepare', (string) $rid, (string) $this->prep, (string) $this->account, (string) $this->category], 'SELECT * FROM social_requests WHERE id = ? FOR UPDATE');
         self::assertStringStartsWith('SocialTransitionInvalid: ', $out);
         self::assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM disbursement_requests WHERE social_decision_id = ?', [$this->decisionOf($rid)]));
         self::assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE action = 'social.disbursement_prepared' AND auditable_id = ?", [$rid]));
+    }
+
+    /** Le filet de la base (index unique sur live_social_decision_id, 0027) : la lecture simple de create() voit un instantané pris avant l'attente du verrou. */
+    public function test_simultaneous_direct_creates_leave_one_live_disbursement(): void
+    {
+        $did = $this->decisionOf($this->requestIn('accordee'));
+        $out = $this->race(fn () => $this->directCreate($did), $this->createArgs($did), 'SELECT id, social_request_id, decision, aid_kind, amount FROM social_decisions WHERE id = ? FOR UPDATE');
+        self::assertSame('DisbursementRuleViolation: Un décaissement est déjà en cours pour cette décision sociale.', $out);
+        self::assertSame(1, $this->liveFor($did));
+    }
+
+    public function test_preparation_against_direct_create_leaves_one_live_disbursement(): void
+    {
+        $rid = $this->requestIn('accordee');
+        $did = $this->decisionOf($rid);
+        $out = $this->race(fn () => $this->link()->prepare($rid, $this->choice(), $this->prep), $this->createArgs($did),
+            'SELECT id, social_request_id, decision, aid_kind, amount FROM social_decisions WHERE id = ? FOR UPDATE');
+        self::assertSame('DisbursementRuleViolation: Un décaissement est déjà en cours pour cette décision sociale.', $out);
+        self::assertSame(1, $this->liveFor($did));
+        self::assertSame('en_paiement', $this->socialState($rid));
+    }
+
+    public function test_dead_disbursements_do_not_block_the_unique_safety_net(): void
+    {
+        $first = $this->prepared($rid);
+        $this->svc()->revise($first, ['add_files' => [$this->file($this->prep) => 'Extrait']], '', $this->prep);
+        $this->svc()->submit($first, $this->prep);
+        $this->rejectNow($first, $this->approverA, 'Incomplet');
+        $this->link()->paymentFailed($rid, $this->prep);
+        $second = $this->link()->prepare($rid, $this->choice(), $this->prep);
+        self::assertNull($this->db->fetchValue('SELECT live_social_decision_id FROM disbursement_requests WHERE id = ?', [$first]));
+        self::assertSame($this->decisionOf($rid), (int) $this->db->fetchValue('SELECT live_social_decision_id FROM disbursement_requests WHERE id = ?', [$second]));
+        try { // filet brut : un second vivant forgé en base est refusé
+            $this->db->query("UPDATE disbursement_requests SET status = 'brouillon' WHERE id = ?", [$first]);
+            self::fail('UNIQUE attendu');
+        } catch (\PDOException $e) {
+            self::assertSame(1062, $e->errorInfo[1]);
+        }
+        self::assertNull($this->db->fetchValue('SELECT live_social_decision_id FROM disbursement_requests WHERE social_decision_id IS NULL LIMIT 1'));
+    }
+
+    public function test_edit_form_of_linked_disbursement_shows_amount_and_member_read_only(): void
+    {
+        $id = $this->prepared();
+        $this->as($this->prep);
+        $html = $this->request('GET', "/admin/decaissements/$id/modifier")->body();
+        self::assertMatchesRegularExpression('/<input type="text"[^>]*name="amount"[^>]*readonly[^>]*value="50000"/', $html);
+        self::assertStringContainsString('Montant fixé par la décision sociale', $html);
+        self::assertStringContainsString('<dt>Adhérent bénéficiaire</dt><dd>SA', $html);
+        $res = $this->request('POST', "/admin/decaissements/$id/modifier", ['amount' => '60 000', 'beneficiary_name' => 'Kouassi Ama', 'account_id' => (string) $this->account,
+            'category_id' => (string) $this->category, 'purpose' => 'x', 'internal_note' => '', 'reason' => '', 'label' => '']);
+        self::assertSame(422, $res->status(), 'le serveur refuse toujours');
+        self::assertSame('50000.00', $this->db->fetchValue('SELECT amount FROM disbursement_requests WHERE id = ?', [$id]));
+        $plain = $this->draft();
+        $this->as($this->initiator);
+        self::assertDoesNotMatchRegularExpression('/name="amount"[^>]*readonly/', $this->request('GET', "/admin/decaissements/$plain/modifier")->body());
     }
 
     public function test_link_actions_lock_first_and_audit_last(): void

@@ -319,10 +319,12 @@ final class DisbursementController
     {
         $id = (int) $r->attribute('id');
         $d = $this->db->fetch('SELECT d.*, a.name AS account_name, c.name AS category_name, ui.name AS initiator_name, ur.name AS rejected_by_name,
-                sr.id AS social_request_id, sr.reference AS social_reference
+                sr.id AS social_request_id, sr.reference AS social_reference, bm.member_number AS beneficiary_member_number,
+                CONCAT_WS(CHAR(32 USING utf8mb4), bm.last_name, bm.first_names) AS beneficiary_member_name
             FROM disbursement_requests d JOIN financial_accounts a ON a.id = d.account_id JOIN financial_categories c ON c.id = d.category_id
             LEFT JOIN users ui ON ui.id = d.initiated_by LEFT JOIN users ur ON ur.id = d.rejected_by
-            LEFT JOIN social_decisions sd ON sd.id = d.social_decision_id LEFT JOIN social_requests sr ON sr.id = sd.social_request_id WHERE d.id = ?', [$id]);
+            LEFT JOIN social_decisions sd ON sd.id = d.social_decision_id LEFT JOIN social_requests sr ON sr.id = sd.social_request_id
+            LEFT JOIN members bm ON bm.id = d.beneficiary_member_id WHERE d.id = ?', [$id]);
         $uid = $this->actor($r);
         if ($d === null || ((int) $d['initiated_by'] !== $uid && !$this->readsAll($uid))) {
             throw new NotFound("Demande $id introuvable.");

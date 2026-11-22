@@ -14,9 +14,20 @@ foreach ($attachments as $a) {
 <?php if ($error !== null): ?><?= ui('alert', ['kind' => 'danger', 'message' => $error]) ?><?php endif; ?>
 <form method="post" enctype="multipart/form-data" action="<?= e($action) ?>">
 <input type="hidden" name="_csrf" value="<?= e($csrfToken) ?>">
+<?php
+// Décaissement lié à une aide sociale : montant et adhérent bénéficiaire fixés par la décision (le service refuse toute modification au POST).
+$social = $d !== null && ($d['social_reference'] ?? null) !== null;
+$fixed = $social ? '<dl class="detail-list"><dt>Origine</dt><dd>' . e('Aide sociale ' . $d['social_reference']) . '</dd>'
+    . '<dt>Adhérent bénéficiaire</dt><dd>' . e(trim($d['beneficiary_member_number'] . ' ' . $d['beneficiary_member_name'])) . '</dd></dl>' : '';
+$amountField = ['name' => 'amount', 'label' => 'Montant (XOF)', 'value' => $values['amount'], 'required' => true, 'inputmode' => 'decimal', 'hint' => 'Par exemple 150 000 ou 150 000,50.'];
+if ($social) {
+    $amountField = ['attrs' => ['readonly' => true], 'hint' => 'Montant fixé par la décision sociale : il ne peut pas être modifié.'] + $amountField;
+}
+?>
 <?= ui('panel', ['title' => 'Demande'],
-    ui('field', ['name' => 'amount', 'label' => 'Montant (XOF)', 'value' => $values['amount'], 'required' => true, 'inputmode' => 'decimal', 'hint' => 'Par exemple 150 000 ou 150 000,50.'])
-    . ui('field', ['name' => 'beneficiary_name', 'label' => 'Bénéficiaire', 'value' => $values['beneficiary_name'], 'required' => true, 'attrs' => ['maxlength' => 160]])
+    $fixed . ui('field', $amountField)
+    . ui('field', ['name' => 'beneficiary_name', 'label' => 'Bénéficiaire', 'value' => $values['beneficiary_name'], 'required' => true, 'attrs' => ['maxlength' => 160]]
+        + ($social ? ['hint' => 'Nom de l\'adhérent ou de l\'ayant droit qui reçoit l\'aide ; l\'adhérent bénéficiaire reste celui de la décision.'] : []))
     . ui('field', ['name' => 'purpose', 'label' => 'Motif', 'type' => 'textarea', 'value' => $values['purpose'], 'required' => true, 'attrs' => ['maxlength' => 2000],
         'hint' => 'Objet de la dépense. N\'indiquez aucune donnée médicale.'])
     . ui('field', ['name' => 'account_id', 'label' => 'Compte débité', 'type' => 'select', 'options' => $accountOptions, 'value' => $values['account_id'], 'required' => true])

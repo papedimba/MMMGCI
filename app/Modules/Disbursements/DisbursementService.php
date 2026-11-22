@@ -46,6 +46,7 @@ final class DisbursementService
     private const EDITABLE = [...self::SUBSTANTIAL, 'category_id', 'internal_note'];
     private const ATTACHABLE = 'disbursement_request'; // absent d'AttachmentService::TARGETS : les pièces ne s'ajoutent que par revise()
     private const MAX_CENTS = 999_999_999_999_999;
+    private const SOCIAL_LIVE = 'Un décaissement est déjà en cours pour cette décision sociale.';
     public const STALE = 'La demande a été modifiée depuis votre lecture, relisez-la avant de continuer.';
     private const LABELS = ['brouillon' => 'au brouillon', 'soumis' => 'soumise', 'approuve_1' => 'en cours d\'approbation', 'approuve_2' => 'approuvée',
         'rejete' => 'rejetée', 'annule' => 'annulée', 'paye' => 'déjà payée'];
@@ -81,7 +82,12 @@ final class DisbursementService
             }
             $row = $this->clean($data); // verrou partagé du compte avant la séquence
             $reference = $this->sequence->next('disbursement', 'DEC', 5);
-            $id = $this->db->insert('disbursement_requests', $row + ['reference' => $reference, 'initiated_by' => $initiator, 'status' => 'brouillon', 'revision' => 1, 'social_decision_id' => $decision]);
+            try {
+                $id = $this->db->insert('disbursement_requests', $row + ['reference' => $reference, 'initiated_by' => $initiator, 'status' => 'brouillon', 'revision' => 1, 'social_decision_id' => $decision]);
+            } catch (PDOException $e) { // filet 0027 : la lecture simple d'assertSocialDecision peut dater d'avant l'attente du verrou
+                throw ($e->errorInfo[1] ?? 0) === 1062 && str_contains((string) ($e->errorInfo[2] ?? ''), 'uq_dr_live_social_decision')
+                    ? new DisbursementRuleViolation(self::SOCIAL_LIVE, 0, $e) : $e;
+            }
             $this->audit->log($initiator, 'disbursement.created', 'disbursement_request', $id, null, ['status' => 'brouillon', 'revision' => 1, 'amount' => $row['amount']]
                 + ($decision === null ? [] : ['social_decision_id' => $decision]), $reference, $ip);
             return $id;
@@ -487,8 +493,9 @@ final class DisbursementService
     /**
      * Lien avec une décision sociale : décision verrouillée (FOR UPDATE, seule : jamais la demande sociale ici, l'appelant social la verrouille avant),
      * accordée, aide financière, montant égal au montant décidé, bénéficiaire = adhérent de la demande, aucun autre décaissement vivant lié.
-     * Ce dernier test est une lecture simple : ces lignes ne s'insèrent que sous ce verrou, et SocialDisbursementLink verrouille la demande
-     * sociale en tout premier (sa vue cohérente est donc postérieure à toute préparation concurrente). @param array<string,mixed> $data
+     * Ce dernier test est une lecture simple (une lecture verrouillante poserait un verrou d'intervalle qui interbloque deux décisions différentes) :
+     * sa vue cohérente peut dater d'avant l'attente du verrou (contrôle de permission). Le filet est l'index unique live_social_decision_id (0027),
+     * dont la violation est traduite dans create(). @param array<string,mixed> $data
      */
     private function assertSocialDecision(mixed $decisionId, array $data): void
     {
@@ -507,7 +514,7 @@ final class DisbursementService
             throw new DisbursementRuleViolation('Le bénéficiaire doit être l\'adhérent de la demande sociale.');
         }
         if ($this->db->fetchValue("SELECT 1 FROM disbursement_requests WHERE social_decision_id = ? AND status NOT IN ('rejete', 'annule') LIMIT 1", [$decisionId]) !== null) {
-            throw new DisbursementRuleViolation('Un décaissement est déjà en cours pour cette décision sociale.');
+            throw new DisbursementRuleViolation(self::SOCIAL_LIVE);
         }
     }
 

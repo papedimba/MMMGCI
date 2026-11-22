@@ -457,7 +457,6 @@ final class DisbursementCircuitTest extends DatabaseTestCase
         }
     }
 
-    /** Audit::log verrouille audit_chain jusqu'au commit : dans chaque action, c'est la dernière instruction avant le retour (preuve structurelle). */
     public function test_create_checks_a_social_decision_under_lock(): void
     {
         $base = ['amount' => 5_000_000, 'beneficiary_name' => 'Veuve Kouassi', 'account_id' => $this->account, 'category_id' => $this->category, 'purpose' => 'Aide'];
@@ -472,6 +471,7 @@ final class DisbursementCircuitTest extends DatabaseTestCase
         $this->assertStringContainsString('FROM social_decisions WHERE id = ? FOR UPDATE', substr($src, strpos($src, 'private function assertSocialDecision('), 600));
     }
 
+    /** Audit::log verrouille audit_chain jusqu'au commit : dans chaque action, c'est la dernière instruction avant le retour (preuve structurelle). */
     public function test_audit_is_the_last_lock(): void
     {
         $src = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Modules/Disbursements/DisbursementService.php');
