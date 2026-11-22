@@ -101,7 +101,8 @@ final class SocialScreensTest extends AdminTestCase
     {
         $this->app();
         $id = '/admin/demandes-sociales/{id:\d+}';
-        $expected = ['GET /admin/demandes-sociales/nouvelle' => 'social.create', 'POST /admin/demandes-sociales/nouvelle' => 'social.create',
+        $expected = ['GET /admin/demandes-sociales' => 'social.view', 'GET /admin/demandes-sociales/export.csv' => 'social.export', 'GET /admin/demandes-sociales/export.xlsx' => 'social.export',
+            'GET /admin/demandes-sociales/nouvelle' => 'social.create', 'POST /admin/demandes-sociales/nouvelle' => 'social.create',
             "GET $id" => 'social.view', "GET $id/pieces/{docId:\\d+}" => 'social.view', "POST $id/affecter" => 'social.manage', "POST $id/pieces-demandees" => 'social.manage',
             "POST $id/reprendre" => 'social.manage', "POST $id/avis" => 'social.manage', "POST $id/soumettre" => 'social.manage',
             "GET $id/decision" => 'social.decide', "POST $id/decision" => 'social.decide', "GET $id/decaissement" => 'social.manage', "POST $id/decaissement" => 'social.manage',

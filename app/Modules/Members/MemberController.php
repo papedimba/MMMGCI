@@ -21,7 +21,7 @@ use DomainException;
 final class MemberController
 {
     public const TABS = ['identite' => 'Identité', 'profession' => 'Profession', 'ayants-droit' => 'Ayants droit', 'pieces' => 'Pièces',
-        'cotisations' => 'Cotisations', 'demandes' => 'Demandes', 'historique' => 'Historique'];
+        'cotisations' => 'Cotisations', 'demandes' => 'Demandes d\'assistance', 'historique' => 'Historique'];
     private const FIELDS = ['last_name', 'first_names', 'sex', 'birth_date', 'birth_place', 'nationality', 'phone', 'phone_alt', 'email', 'address',
         'zone_id', 'category_id', 'profession_id', 'specialty_id', 'employment_status', 'employer', 'joined_at'];
     /** Pièce d'identité et livret : réservés à members.documents.view (absents du formulaire sinon, valeurs existantes conservées). */
@@ -132,7 +132,8 @@ final class MemberController
              LEFT JOIN member_statuses st ON st.code = m.status WHERE m.id = ?', [$id]);
         $docs = $this->gate->allows($userId, 'members.documents.view');
         $contrib = $this->gate->allows($userId, 'contributions.view');
-        $tabs = array_filter(self::TABS, static fn (string $k): bool => ($k !== 'pieces' || $docs) && ($k !== 'cotisations' || $contrib), ARRAY_FILTER_USE_KEY);
+        $social = $this->gate->allows($userId, 'social.view');
+        $tabs = array_filter(self::TABS, static fn (string $k): bool => ($k !== 'pieces' || $docs) && ($k !== 'cotisations' || $contrib) && ($k !== 'demandes' || $social), ARRAY_FILTER_USE_KEY);
         $tab = $forceTab ?? $r->input('onglet');
         $tab = is_string($tab) && isset($tabs[$tab]) ? $tab : 'identite';
         $data = ['m' => $m, 'tab' => $tab, 'tabs' => $tabs, 'canDocuments' => $docs, 'revealed' => []] + $extra;
@@ -148,6 +149,10 @@ final class MemberController
                 FROM contribution_calls c JOIN contribution_types t ON t.id = c.contribution_type_id WHERE c.member_id = ? ORDER BY c.period_start DESC, c.id DESC', [$id]);
             $data['situation'] = $this->arrears?->memberSituation($id);
             $data['payments'] = $this->db->fetchAll('SELECT id, reference, paid_at, amount, cancelled_at FROM payments WHERE member_id = ? ORDER BY paid_at DESC, id DESC', [$id]);
+        } elseif ($tab === 'demandes') {
+            // Périmètre garanti par assertMayAccess plus haut ; ni description ni donnée de santé.
+            $data['requests'] = $this->db->fetchAll('SELECT r.id, r.reference, r.received_at, r.status, t.name AS type_name FROM social_requests r JOIN social_request_types t ON t.id = r.type_id
+                WHERE r.member_id = ? ORDER BY r.received_at DESC, r.id DESC', [$id]);
         } elseif ($tab === 'historique') {
             $data['rows'] = $this->db->fetchAll(
                 'SELECT h.from_status, h.to_status, h.reason, h.decision_ref, h.created_at, u.name AS author, f.label AS from_label, t.label AS to_label

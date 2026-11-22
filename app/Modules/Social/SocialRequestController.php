@@ -39,6 +39,7 @@ final class SocialRequestController
     private SocialMedicalService $medical;
     private SocialTypeService $types;
     private MemberScope $scope;
+    private SocialSearch $search;
 
     public function __construct(private View $view, private Csrf $csrf, private Session $session, private Database $db, private Gate $gate, private Audit $audit,
         Uploads $uploads, private SocialRequestService $service, private SocialDisbursementLink $link, private SolidarityService $solidarity)
@@ -49,6 +50,48 @@ final class SocialRequestController
         $this->medical = new SocialMedicalService($db, $audit, $gate);
         $this->types = new SocialTypeService($db, $audit, $gate);
         $this->scope = new MemberScope($db, $gate);
+        $this->search = new SocialSearch($db, $this->scope, $gate);
+    }
+
+    // --- liste et export ---
+
+    /** @return array<string,string> critères lus dans la requête (partagés avec l'export) */
+    private function filters(Request $r): array
+    {
+        $c = [];
+        foreach (['q', 'status', 'type_id', 'priority', 'assignee', 'zone_id', 'from', 'to'] as $k) {
+            $v = $r->input($k);
+            if (is_string($v) && trim($v) !== '') {
+                $c[$k] = trim($v);
+            }
+        }
+        return $c;
+    }
+
+    public function index(Request $r): Response
+    {
+        $uid = (int) $r->attribute('user')['id'];
+        $criteria = $this->filters($r);
+        $page = $r->input('page');
+        $res = $this->search->search($uid, $criteria, is_string($page) && ctype_digit($page) ? (int) $page : 1);
+        $opts = static fn (array $rows): array => ['' => 'Tous'] + array_column($rows, 'name', 'id');
+        return $this->page($r, 'admin/social/index', 'Demandes sociales', $res + [
+            'criteria' => $criteria, 'applied' => $this->search->applied($uid, $criteria),
+            'types' => $opts($this->db->fetchAll('SELECT id, name FROM social_request_types ORDER BY name')),
+            'zones' => $this->gate->allows($uid, 'members.scope.all') ? $opts($this->db->fetchAll('SELECT id, name FROM zones WHERE is_active = 1 ORDER BY name')) : null,
+        ]);
+    }
+
+    public function export(Request $r): Response
+    {
+        $format = str_ends_with($r->path(), '.xlsx') ? 'xlsx' : 'csv';
+        $body = (new SocialExport($this->search, $this->audit))->file($format, (int) $r->attribute('user')['id'], $this->filters($r), $r->ip(), $r->header('User-Agent'));
+        return new Response($body, 200, [
+            'Content-Type' => $format === 'xlsx' ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'text/csv; charset=UTF-8',
+            'Content-Length' => (string) strlen($body),
+            'Content-Disposition' => 'attachment; filename="demandes-sociales-' . date('Ymd') . '.' . $format . '"',
+            'Cache-Control' => 'private, no-store',
+        ]);
     }
 
     // --- enregistrement ---

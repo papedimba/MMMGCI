@@ -386,6 +386,9 @@ return static function (Router $r, array $deps): void {
     $sr = '/admin/demandes-sociales';
     $soView = [$requireAuth, $permission('social.view')];
     $soManage = [$requireAuth, $permission('social.manage')];
+    $r->get($sr, static fn (Request $q): Response => $socialRequests()->index($q), $soView);
+    $r->get("$sr/export.csv", static fn (Request $q): Response => $socialRequests()->export($q), [$requireAuth, $permission('social.export')]);
+    $r->get("$sr/export.xlsx", static fn (Request $q): Response => $socialRequests()->export($q), [$requireAuth, $permission('social.export')]);
     $r->get("$sr/nouvelle", static fn (Request $q): Response => $socialRequests()->createForm($q), [$requireAuth, $permission('social.create')]);
     $r->post("$sr/nouvelle", static fn (Request $q): Response => $socialRequests()->store($q), [$requireAuth, $permission('social.create')]);
     $r->get("$sr/{id:\\d+}", static fn (Request $q): Response => $socialRequests()->show($q), $soView);
