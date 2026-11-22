@@ -458,6 +458,20 @@ final class DisbursementCircuitTest extends DatabaseTestCase
     }
 
     /** Audit::log verrouille audit_chain jusqu'au commit : dans chaque action, c'est la dernière instruction avant le retour (preuve structurelle). */
+    public function test_create_checks_a_social_decision_under_lock(): void
+    {
+        $base = ['amount' => 5_000_000, 'beneficiary_name' => 'Veuve Kouassi', 'account_id' => $this->account, 'category_id' => $this->category, 'purpose' => 'Aide'];
+        $this->refuses(fn () => $this->svc()->create($base + ['social_decision_id' => 999_999_999], $this->initiator), DisbursementRuleViolation::class, 'Décision sociale introuvable');
+        $this->refuses(fn () => $this->svc()->create($base + ['social_decision_id' => '1'], $this->initiator), DisbursementRuleViolation::class, 'Décision sociale introuvable');
+        $this->assertSame(0, (int) $this->db->fetchValue('SELECT COUNT(*) FROM disbursement_requests'));
+        $id = $this->svc()->create($base + ['social_decision_id' => null], $this->initiator); // null : décaissement ordinaire
+        $this->assertNull($this->db->fetchValue('SELECT social_decision_id FROM disbursement_requests WHERE id = ?', [$id]));
+        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Modules/Disbursements/DisbursementService.php');
+        $create = substr($src, strpos($src, 'public function create('), 2500);
+        $this->assertLessThan(strpos($create, '$this->clean($data)'), strpos($create, '$this->assertSocialDecision('), 'décision verrouillée avant le compte et les séquences');
+        $this->assertStringContainsString('FROM social_decisions WHERE id = ? FOR UPDATE', substr($src, strpos($src, 'private function assertSocialDecision('), 600));
+    }
+
     public function test_audit_is_the_last_lock(): void
     {
         $src = (string) file_get_contents(dirname(__DIR__, 2) . '/app/Modules/Disbursements/DisbursementService.php');

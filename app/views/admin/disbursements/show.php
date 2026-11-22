@@ -2,7 +2,7 @@
 /**
  * Page d'une demande. Chaque bouton d'action n'apparaît que si DisbursementService::allowedActions l'autorise ($actions) ; le service reste seul juge au POST.
  * @var array $d @var ?string $error @var array $attachments @var array $approvals @var array $revisions @var ?array $payment @var list<string> $actions
- * @var array{required:int, valid:int, other_eligible_approvers:int, stalled:bool} $circuit @var bool $operational @var array $methods @var string $csrfToken
+ * @var array{required:int, valid:int, other_eligible_approvers:int, stalled:bool} $circuit @var bool $operational @var array $methods @var string $csrfToken @var Closure $can
  */
 use App\Core\Money;
 use App\Modules\Disbursements\DisbursementController;
@@ -72,6 +72,10 @@ if ($st === 'rejete') {
 $dl = '<dl class="detail-list">';
 foreach ($details as $k => $v) {
     $dl .= '<dt>' . e($k) . '</dt><dd>' . e((string) $v) . '</dd>';
+}
+if ($d['social_reference'] !== null) { // référence seulement : ni nom, ni type d'aide ; lien vers la demande pour social.view
+    $label = 'Aide sociale ' . $d['social_reference'];
+    $dl .= '<dt>Origine</dt><dd>' . ($can('social.view') ? '<a class="cell-link" href="/admin/demandes-sociales/' . (int) $d['social_request_id'] . '">' . e($label) . '</a>' : e($label)) . '</dd>';
 }
 $dl .= '</dl>';
 ?>

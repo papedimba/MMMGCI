@@ -33,7 +33,8 @@ if ($can('solidarity.manage') || $can('finance.manage')) {
     ['occurred_at', 'Date', 'left', false, static fn (array $t): string => '<span class="nowrap">' . e(date('d/m/Y', strtotime((string) $t['occurred_at']))) . '</span>'],
     ['category_name', 'Libellé', 'left', false, static function (array $t) use ($canSeeDisbursements): string {
         $label = e($t['category_name']) . ($t['reversal_of_id'] !== null ? ' (contre-passation)' : '') . ' <code>' . e($t['reference']) . '</code>';
-        return $t['source_type'] === 'disbursement' && $canSeeDisbursements ? '<a href="/admin/decaissements/' . e((string) $t['source_id']) . '">' . $label . '</a>' : $label;
+        $link = $t['source_type'] === 'disbursement' && $canSeeDisbursements ? '<a href="/admin/decaissements/' . e((string) $t['source_id']) . '">' . $label . '</a>' : $label;
+        return $link . ($t['social_reference'] !== null ? ' · Aide sociale <code>' . e($t['social_reference']) . '</code>' : '');
     }],
     ['direction', 'Sens', 'left', false, static fn (array $t): string => $t['direction'] === 'recette' ? 'Entrée' : 'Sortie', 'status'],
     ['amount', 'Montant', 'right', true, static fn (array $t): string => $money(Money::fromDecimal((string) $t['amount']))],

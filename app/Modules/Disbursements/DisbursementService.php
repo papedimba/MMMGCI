@@ -63,22 +63,27 @@ final class DisbursementService
         $this->operational = new DisbursementGate($db);
     }
 
-    /** @param array<string,mixed> $data amount (centimes int), beneficiary_name, beneficiary_member_id?, account_id, category_id, purpose, internal_note? */
+    /**
+     * social_decision_id : seulement par SocialDisbursementLink::prepare (jamais depuis le formulaire) ; contrôlé sous verrou de la décision.
+     * @param array<string,mixed> $data amount (centimes int), beneficiary_name, beneficiary_member_id?, account_id, category_id, purpose, internal_note?, social_decision_id?
+     */
     public function create(array $data, int $initiator, ?string $ip = null): int
     {
         return $this->run(function () use ($data, $initiator, $ip): int {
             $this->deny($this->permission($initiator, 'disbursement.initiate'));
-            if (($data['social_decision_id'] ?? null) !== null) {
-                throw new DisbursementRuleViolation('Le lien avec une décision sociale n\'est pas encore disponible.');
-            }
+            $decision = $data['social_decision_id'] ?? null;
             unset($data['social_decision_id']);
             if (array_diff(['amount', 'beneficiary_name', 'account_id', 'category_id', 'purpose'], array_keys($data)) !== []) {
                 throw new DisbursementRuleViolation('Montant, bénéficiaire, compte, catégorie et motif sont obligatoires.');
             }
+            if ($decision !== null) {
+                $this->assertSocialDecision($decision, $data); // verrou de la décision avant celui du compte et les séquences
+            }
             $row = $this->clean($data); // verrou partagé du compte avant la séquence
             $reference = $this->sequence->next('disbursement', 'DEC', 5);
-            $id = $this->db->insert('disbursement_requests', $row + ['reference' => $reference, 'initiated_by' => $initiator, 'status' => 'brouillon', 'revision' => 1]);
-            $this->audit->log($initiator, 'disbursement.created', 'disbursement_request', $id, null, ['status' => 'brouillon', 'revision' => 1, 'amount' => $row['amount']], $reference, $ip);
+            $id = $this->db->insert('disbursement_requests', $row + ['reference' => $reference, 'initiated_by' => $initiator, 'status' => 'brouillon', 'revision' => 1, 'social_decision_id' => $decision]);
+            $this->audit->log($initiator, 'disbursement.created', 'disbursement_request', $id, null, ['status' => 'brouillon', 'revision' => 1, 'amount' => $row['amount']]
+                + ($decision === null ? [] : ['social_decision_id' => $decision]), $reference, $ip);
             return $id;
         });
     }
@@ -173,6 +178,10 @@ final class DisbursementService
                 if (mb_strlen(trim((string) $label)) > 160) {
                     throw new DisbursementRuleViolation('Libellé du justificatif : 160 caractères au maximum.');
                 }
+            }
+            if ($r['social_decision_id'] !== null && array_intersect($changed, ['amount', 'beneficiary_member_id']) !== []) {
+                throw new DisbursementRuleViolation(in_array('amount', $changed, true) ? 'Le montant est fixé par la décision sociale.'
+                    : 'L\'adhérent bénéficiaire est fixé par la décision sociale.');
             }
             if ($changed === [] && $adds === [] && $removes === []) {
                 throw new DisbursementRuleViolation('Aucune modification à enregistrer.');
@@ -463,14 +472,42 @@ final class DisbursementService
         }
     }
 
-    /** Fichier téléversé par l'acteur lui-même, et jamais une pièce d'un dossier d'adhérent ou de demande d'adhésion. */
+    /** Fichier téléversé par l'acteur lui-même, et jamais une pièce d'un dossier d'adhérent, de demande d'adhésion ou de demande sociale (peut-être médicale). */
     private function assertOwnFile(mixed $fileId, int $actor, string $label): void
     {
         $ok = is_int($fileId) && $this->db->fetchValue('SELECT 1 FROM files f WHERE f.id = ? AND f.uploaded_by = ?
             AND NOT EXISTS (SELECT 1 FROM member_documents d WHERE d.file_id = f.id)
-            AND NOT EXISTS (SELECT 1 FROM membership_application_files m WHERE m.file_id = f.id)', [$fileId, $actor]) !== null;
+            AND NOT EXISTS (SELECT 1 FROM membership_application_files m WHERE m.file_id = f.id)
+            AND NOT EXISTS (SELECT 1 FROM social_request_documents s WHERE s.file_id = f.id)', [$fileId, $actor]) !== null;
         if (!$ok) {
             throw new DisbursementRuleViolation("$label : fichier introuvable ou non téléversé par vous pour ce décaissement.");
+        }
+    }
+
+    /**
+     * Lien avec une décision sociale : décision verrouillée (FOR UPDATE, seule : jamais la demande sociale ici, l'appelant social la verrouille avant),
+     * accordée, aide financière, montant égal au montant décidé, bénéficiaire = adhérent de la demande, aucun autre décaissement vivant lié.
+     * Ce dernier test est une lecture simple : ces lignes ne s'insèrent que sous ce verrou, et SocialDisbursementLink verrouille la demande
+     * sociale en tout premier (sa vue cohérente est donc postérieure à toute préparation concurrente). @param array<string,mixed> $data
+     */
+    private function assertSocialDecision(mixed $decisionId, array $data): void
+    {
+        $d = is_int($decisionId) ? $this->db->fetch('SELECT id, social_request_id, decision, aid_kind, amount FROM social_decisions WHERE id = ? FOR UPDATE', [$decisionId]) : null;
+        if ($d === null) {
+            throw new DisbursementRuleViolation('Décision sociale introuvable.');
+        }
+        if ($d['decision'] !== 'accordee' || $d['aid_kind'] !== 'financiere' || $d['amount'] === null) {
+            throw new DisbursementRuleViolation('Seule une aide financière accordée peut être liée à un décaissement.');
+        }
+        if ($data['amount'] !== Money::fromDecimal((string) $d['amount'])) {
+            throw new DisbursementRuleViolation('Le montant est fixé par la décision sociale.');
+        }
+        $member = (int) $this->db->fetchValue('SELECT member_id FROM social_requests WHERE id = ?', [(int) $d['social_request_id']]);
+        if (($data['beneficiary_member_id'] ?? null) !== $member) {
+            throw new DisbursementRuleViolation('Le bénéficiaire doit être l\'adhérent de la demande sociale.');
+        }
+        if ($this->db->fetchValue("SELECT 1 FROM disbursement_requests WHERE social_decision_id = ? AND status NOT IN ('rejete', 'annule') LIMIT 1", [$decisionId]) !== null) {
+            throw new DisbursementRuleViolation('Un décaissement est déjà en cours pour cette décision sociale.');
         }
     }
 

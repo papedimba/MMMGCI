@@ -69,12 +69,16 @@ final class SolidarityService
             'receipts_total' => self::cents((string) $tot['r']), 'disbursed_total' => self::cents((string) $tot['d']), 'by_month' => $by];
     }
 
-    /** Dernières opérations, sans libellé libre (il peut citer un bénéficiaire). @return list<array<string,mixed>> */
+    /** Dernières opérations, sans libellé libre (il peut citer un bénéficiaire) ; social_reference : référence AS- d'une sortie liée à une aide (ni nom ni type). @return list<array<string,mixed>> */
     public function latest(int $limit = 20): array
     {
         $acc = $this->account();
-        return $acc === null ? [] : $this->db->fetchAll('SELECT t.id, t.reference, t.occurred_at, t.direction, t.amount, t.source_type, t.source_id, t.reversal_of_id, c.name AS category_name
-            FROM financial_transactions t JOIN financial_categories c ON c.id = t.category_id WHERE t.account_id = ? ORDER BY t.occurred_at DESC, t.id DESC LIMIT ' . max(1, min(200, $limit)), [$acc['id']]);
+        return $acc === null ? [] : $this->db->fetchAll('SELECT t.id, t.reference, t.occurred_at, t.direction, t.amount, t.source_type, t.source_id, t.reversal_of_id, c.name AS category_name,
+                sr.reference AS social_reference
+            FROM financial_transactions t JOIN financial_categories c ON c.id = t.category_id
+            LEFT JOIN disbursement_requests dr ON t.source_type = \'disbursement\' AND dr.id = t.source_id
+            LEFT JOIN social_decisions sd ON sd.id = dr.social_decision_id LEFT JOIN social_requests sr ON sr.id = sd.social_request_id
+            WHERE t.account_id = ? ORDER BY t.occurred_at DESC, t.id DESC LIMIT ' . max(1, min(200, $limit)), [$acc['id']]);
     }
 
     /** Export audité : référence, date, sens, catégorie, montant ; ni libellé ni bénéficiaire. */
