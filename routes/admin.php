@@ -71,6 +71,8 @@ use App\Modules\Members\Referentials;
 use App\Modules\Members\StatusService;
 use App\Modules\Roles\RoleController;
 use App\Modules\Roles\RoleService;
+use App\Modules\Social\SocialTypeController;
+use App\Modules\Social\SocialTypeService;
 use App\Core\Sequence;
 use App\Core\Settings;
 use App\Modules\Users\UserController;
@@ -112,6 +114,7 @@ return static function (Router $r, array $deps): void {
         new DisbursementGate($db()), $uploads(), new SensitiveAccess($db()));
     $control = static fn (): ControlController => new ControlController($view, $csrf, $session, $db(), $gate(), new ControlService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))));
     $arrears = static fn (): ArrearsController => new ArrearsController($view, $csrf, $session, $db(), $gate(), $arrearsService());
+    $socialTypes = static fn (): SocialTypeController => new SocialTypeController($view, $csrf, $session, $gate(), new SocialTypeService($db(), $audit(), $gate()));
     $solidarity = static fn (): SolidarityController => new SolidarityController($view, $csrf, $session, $gate(), new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))), new AccountService($db(), $audit()));
     $media = static fn (): MediaController => new MediaController($view, $csrf, $session, $gate(), new MediaService($db(), $audit(), $uploads()));
     $pages = static fn (): PageController => new PageController($view, $csrf, $session, $gate(), new PageService($db(), $audit(), $gate()));
@@ -356,6 +359,15 @@ return static function (Router $r, array $deps): void {
     }
     // Pièce de consentement (privée) : publicateurs seulement, consultation journalisée ; jamais sous /media.
     $r->get('/admin/site/temoignages/{id:\d+}/consentement', static fn (Request $q): Response => $testimonials()->download($q), [$requireAuth, $permission('cms.publish')]);
+
+    // Types de demande d'assistance : lecture social.view ; paramètres décidés par les instances = settings.validate.
+    $validateSettings = [$requireAuth, $permission('settings.validate')];
+    $r->get('/admin/demandes-sociales/types', static fn (Request $q): Response => $socialTypes()->index($q), [$requireAuth, $permission('social.view')]);
+    $r->get('/admin/demandes-sociales/types/nouveau', static fn (Request $q): Response => $socialTypes()->form($q), $validateSettings);
+    $r->post('/admin/demandes-sociales/types/nouveau', static fn (Request $q): Response => $socialTypes()->create($q), $validateSettings);
+    $r->get('/admin/demandes-sociales/types/{id:\d+}/parametres', static fn (Request $q): Response => $socialTypes()->form($q), $validateSettings);
+    $r->post('/admin/demandes-sociales/types/{id:\d+}/parametres', static fn (Request $q): Response => $socialTypes()->configure($q), $validateSettings);
+    $r->post('/admin/demandes-sociales/types/{id:\d+}/activation', static fn (Request $q): Response => $socialTypes()->activation($q), $validateSettings);
 
     // Réglages du site : saisie (cms.settings.manage) ; validation par les instances (settings.validate) ; lecture par l'un ou l'autre.
     $r->get('/admin/site/reglages', static fn (Request $q): Response => $siteSettingsScreen()->index($q), [$requireAuth, $permission('cms.settings.manage', 'settings.validate')]);
