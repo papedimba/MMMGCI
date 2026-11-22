@@ -6,13 +6,15 @@ namespace Tests\Feature;
 use App\Core\Config;
 use App\Core\Env;
 use App\Core\Http\Request;
-use PHPUnit\Framework\TestCase;
+use Tests\DatabaseTestCase;
 
-final class PublicShellTest extends TestCase
+/** Base de test fraîche (DatabaseTestCase) : aucune page publiée, quel que soit l'état de la base de développement. */
+final class PublicShellTest extends DatabaseTestCase
 {
     private function home(): string
     {
-        $env = ['APP_ENV' => 'testing'] + Env::load(dirname(__DIR__, 2) . '/.env');
+        $env = Env::load(dirname(__DIR__, 2) . '/.env');
+        $env = ['APP_ENV' => 'testing', 'DB_NAME' => $env['DB_TEST_NAME'] ?? ''] + $env;
         $res = (require dirname(__DIR__, 2) . '/app/kernel.php')(new Config($env), false)->handle(new Request('GET', '/'));
         $this->assertSame(200, $res->status());
         return $res->body();

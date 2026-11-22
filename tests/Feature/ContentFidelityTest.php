@@ -13,7 +13,7 @@ final class ContentFidelityTest extends AdminTestCase
 {
     /** Libellés d'interface et titres de navigation qui ne sont pas des phrases du cahier (à garder courte). */
     private const ALLOWLIST = ['Contact', 'Missions et objectifs', 'Nous écrire', 'Aller à la page Contact', 'Voir les conditions d’adhésion',
-        'Pièces du dossier d’adhésion', 'Livret maritime disponible', 'Ayants droit à déclarer'];
+        'Pièces du dossier d’adhésion', 'Livret maritime disponible', 'Ayants droit à déclarer', 'Objectif spécifique']; // singulier du titre de l'art. 2 (un seul objectif cité)
 
     private static function norm(string $s): string
     {

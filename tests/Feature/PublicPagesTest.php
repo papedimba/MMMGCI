@@ -218,6 +218,11 @@ final class PublicPagesTest extends AdminTestCase
         $this->assertSame(301, $res->status());
         $this->assertSame('/notre-histoire', $res->headers()['Location']);
         $this->assertSame(200, $this->get('/notre-histoire')->status());
+        foreach (["/$slug/", '/' . strtoupper($slug)] as $raw) {
+            $res = $this->get($raw);
+            $this->assertSame([301, '/notre-histoire'], [$res->status(), $res->headers()['Location'] ?? null], "$raw : une seule 301, directement vers la nouvelle adresse");
+        }
+        $this->assertSame('/notre-histoire', $this->get('/notre-histoire/')->headers()['Location'], 'adresse actuelle : simple normalisation');
         // Chemin hiérarchique : vers l'adresse plate.
         [$parent, $pslug] = $this->page('Mutuelle');
         $this->db->query('UPDATE cms_pages SET parent_id = ? WHERE id = ?', [$parent, $id]);
@@ -225,9 +230,11 @@ final class PublicPagesTest extends AdminTestCase
         // Une redirection altérée en base vers un autre hôte n'est jamais suivie.
         $this->db->query("INSERT INTO cms_page_redirects (page_id, old_slug) VALUES (?, 'piege')", [$id]);
         $this->db->query("UPDATE cms_pages SET slug = 'evil.example' WHERE id = ?", [$id]);
-        $res = $this->get('/piege');
-        $this->assertNotSame(301, $res->status());
-        $this->assertArrayNotHasKey('Location', $res->headers());
+        foreach (['/piege', '/piege/'] as $raw) {
+            $res = $this->get($raw);
+            $this->assertSame(404, $res->status(), $raw);
+            $this->assertArrayNotHasKey('Location', $res->headers());
+        }
     }
 
     public function test_home_serves_the_accueil_page_or_the_waiting_page(): void

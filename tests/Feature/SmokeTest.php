@@ -7,13 +7,15 @@ use App\Core\App;
 use App\Core\Config;
 use App\Core\Env;
 use App\Core\Http\Request;
-use PHPUnit\Framework\TestCase;
+use Tests\DatabaseTestCase;
 
-final class SmokeTest extends TestCase
+/** Application sur la base de test fraîche (DatabaseTestCase), jamais sur la base de développement. */
+final class SmokeTest extends DatabaseTestCase
 {
     private static function app(array $overrides = []): App
     {
-        $env = $overrides + ['APP_ENV' => 'testing'] + Env::load(dirname(__DIR__, 2) . '/.env');
+        $env = Env::load(dirname(__DIR__, 2) . '/.env');
+        $env = $overrides + ['APP_ENV' => 'testing', 'DB_NAME' => $env['DB_TEST_NAME'] ?? ''] + $env;
         return (require dirname(__DIR__, 2) . '/app/kernel.php')(new Config($env), false);
     }
 
@@ -25,7 +27,8 @@ final class SmokeTest extends TestCase
         $this->assertArrayHasKey('Content-Security-Policy', $res->headers());
         $this->assertSame('nosniff', $res->headers()['X-Content-Type-Options']);
 
-        // Cookies : seulement observables via un vrai serveur HTTP. Le site public n'en pose aucun ; l'administration, si (jeton CSRF).
+        // Cookies : seulement observables via un vrai serveur HTTP (qui lit .env, donc la base de dev : seuls cookies et en-têtes y sont vérifiés, pas le contenu).
+        // Le site public n'en pose aucun ; l'administration, si (jeton CSRF).
         self::serve(dirname(__DIR__, 2) . '/public', function (int $port): void {
             [$headers] = self::fetch($port, '/');
             $all = implode("\n", $headers);

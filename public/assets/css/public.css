@@ -164,7 +164,7 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
 .home-body > :is(.pub-articles, .pub-events, .pub-docs) .pub-cards { margin: 0; gap: var(--s4); }
 .home-body > :is(.pub-articles, .pub-events, .pub-docs) .pub-card { padding: 0; background: none; }
 .home-body > :is(.pub-articles, .pub-events, .pub-docs) h2 { margin: 0 0 var(--s4); font-size: clamp(1.5rem, 1.2rem + 1.2vw, 2rem); }
-.home-body > :is(.pub-articles, .pub-events, .pub-docs) h2 a { color: var(--navy-900); text-decoration-thickness: 1px; }
+.home-body > :is(.pub-articles, .pub-events, .pub-docs) h2 a { color: var(--navy-900); text-decoration-thickness: 1px; display: inline-flex; align-items: center; min-height: var(--control-h); }
 .pub-empty { padding: var(--s4); background: var(--frame); border-radius: var(--r-sm); color: var(--ink-2); }
 .pub-facts-inline { display: grid; grid-template-columns: auto 1fr; gap: var(--s2) var(--s4); margin: 0 0 var(--s5); }
 .pub-facts-inline div { display: contents; }
@@ -196,7 +196,7 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
 .apply-inline legend, .apply-inline .field-error { grid-column: 1 / -1; }
 .apply-sub, .pub-page .apply-sub { margin: var(--s6) 0 var(--s3); font-size: var(--text-xl); }
 .apply-in > .apply-sub:first-child, .apply-form > input[type="hidden"]:first-child + .apply-sub { margin-top: 0; }
-.apply-errors { margin-bottom: var(--s5); padding: var(--s4); border-left: 4px solid var(--danger); background: var(--danger-bg); }
+.apply-errors { margin-bottom: var(--s5); padding: var(--s4); border: 2px solid var(--danger); border-radius: var(--r-sm); background: var(--danger-bg); }
 .apply-errors h2, .pub-page .apply-errors h2 { margin: 0 0 var(--s2); font-size: var(--text-lg); color: var(--danger); }
 .apply-errors ul { margin: 0; padding-left: var(--s4); }
 .apply-errors a { display: inline-flex; min-height: var(--control-h); align-items: center; color: var(--danger); font-weight: 600; }
@@ -307,7 +307,7 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
 }
 /* Vérification publique d'une carte de membre */
 .verify { padding: var(--s7) var(--s4); background: var(--paper); }
-.verify-card { max-width: 480px; margin: 0 auto; padding: var(--s6); background: var(--sheet); border-radius: var(--r-lg); }
+.verify-card { max-width: 480px; margin: 0 auto; padding: var(--s6); background: var(--sheet); border-radius: var(--r-sm); }
 .verify-card h1 { font-size: var(--text-2xl); margin-bottom: var(--s4); }
 .verify-card p { color: var(--ink-2); }
 .verify-list { display: grid; grid-template-columns: auto 1fr; gap: var(--s2) var(--s4); margin: 0; }
@@ -321,12 +321,12 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
 .preview-page h1 { margin-bottom: var(--s5); }
 .preview-page h2 { margin: var(--s6) 0 var(--s3); }
 .preview-facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: var(--s3); }
-.preview-facts div { padding: var(--s3); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }
+.preview-facts div { padding: var(--s3); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-sm); }
 .preview-facts dd { margin: 0; font-size: var(--text-xl); color: var(--navy-900); }
 .preview-figure { margin: var(--s5) 0; }
-.preview-figure img { max-width: 100%; height: auto; border-radius: var(--r-md); }
-.preview-placeholder { padding: var(--s4); border: 1px dashed var(--line-strong); border-radius: var(--r-md); color: var(--ink-2); background: var(--sheet); }
-.preview-cta { margin: var(--s6) 0; padding: var(--s5); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }
+.preview-figure img { max-width: 100%; height: auto; border-radius: var(--r-sm); }
+.preview-placeholder { padding: var(--s4); border: 1px dashed var(--line-strong); border-radius: var(--r-sm); color: var(--ink-2); background: var(--sheet); }
+.preview-cta { margin: var(--s6) 0; padding: var(--s5); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-sm); }
 
 
 /* Formulaires publics (contact, information, partenariat) : la feuille de l'adhésion, choix du type de demande en onglets simples. */

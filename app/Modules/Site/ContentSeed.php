@@ -17,6 +17,10 @@ use App\Modules\Cms\PageService;
 final class ContentSeed
 {
     private const RESERVE = 'Sous réserve des ressources disponibles, des textes applicables et des critères adoptés, la Mutuelle peut développer les domaines d’intervention suivants :';
+    /** Domaine seul sur sa page : la réserve de l'art. 9 devient la réserve du domaine (sans « les domaines suivants : » au pluriel devant un seul). */
+    private const RESERVE_ONE = 'Sous réserve des ressources disponibles, des textes applicables et des critères adoptés';
+    /** Un seul des neuf objectifs de l'art. 2 sur la page : titre au singulier (« Objectifs spécifiques » laisserait croire à la liste complète). */
+    private const ONE_OBJECTIVE = 'Objectif spécifique';
 
     /** Rubriques sans source dans le cahier des charges : non créées, listées dans l'administration (« À fournir par la Mutuelle »). */
     public const TO_PROVIDE = [
@@ -152,27 +156,26 @@ final class ContentSeed
                     . '<p>Toute aide est soumise à des critères écrits, à une procédure d’examen et à une validation par l’organe compétent. Les décisions et décaissements sont documentés et justifiés.</p>', 'CDC art. 10'),
             ]],
             'emploi' => fn (array $ids): array => ['title' => 'Emploi', 'blocks' => [
-                $texte('<p>' . self::RESERVE . '</p>', 'CDC art. 9'),
                 $this->domaines(['Emploi']),
-                $titre('Objectifs spécifiques', 'CDC art. 2'),
+                $titre(self::ONE_OBJECTIVE, 'CDC art. 2'),
                 $texte('<p>Contribuer à l’insertion professionnelle et au retour à l’emploi des marins.</p>', 'CDC art. 2'),
                 ['type' => 'appel', 'title' => 'Nous écrire', 'text' => '', 'button_label' => 'Aller à la page Contact', 'page_id' => $ids['contact'], 'url' => '',
                     'source' => 'Fonction du site (aucun texte du cahier des charges)'],
             ]],
             'formation' => fn (): array => ['title' => 'Formation', 'blocks' => [
-                $texte('<p>' . self::RESERVE . '</p>', 'CDC art. 9'),
                 $this->domaines(['Formation']),
-                $titre('Objectifs spécifiques', 'CDC art. 2'),
+                $titre(self::ONE_OBJECTIVE, 'CDC art. 2'),
                 $texte('<p>Promouvoir la formation et le perfectionnement professionnel.</p>', 'CDC art. 2'),
             ]],
             'partenaires' => fn (): array => ['title' => 'Partenariats', 'blocks' => [
-                $titre('Objectifs spécifiques', 'CDC art. 2'),
+                $titre(self::ONE_OBJECTIVE, 'CDC art. 2'),
                 $texte('<p>Développer des partenariats avec les armements, entreprises maritimes, syndicats, ONG et institutions.</p>', 'CDC art. 2'),
                 $titre('Partenariats stratégiques', 'CDC art. 12'),
                 $texte('<p>La Mutuelle recherche des conventions avec les armements maritimes, sociétés de pêche industrielle, entreprises offshore, syndicats, associations professionnelles, établissements sanitaires, centres de formation et institutions publiques ou privées.</p>'
                     . '<p>Chaque partenariat fait l’objet d’un écrit précisant son objet, les engagements réciproques, sa durée, son suivi et ses modalités de fin.</p>', 'CDC art. 12'),
             ]],
-            'accueil' => fn (array $ids): array => ['title' => 'Mutuelle des Marins Marchands et Gens de Mer de Côte d’Ivoire', 'template' => 'accueil',
+            // Titre (h1 de la carte) = la devise du cahier, en deux lignes au plus ; le nom complet est déjà sur la ligne d'émetteur et dans le titre SEO.
+            'accueil' => fn (array $ids): array => ['title' => 'Un nouveau jour se lève', 'seo_title' => 'Mutuelle des Marins Marchands et Gens de Mer de Côte d’Ivoire', 'template' => 'accueil',
                 'excerpt' => 'La Mutuelle des Marins Marchands et Gens de Mer de Côte d’Ivoire est une organisation de solidarité, d’entraide et d’accompagnement social destinée aux professionnels du secteur maritime ainsi qu’à leurs familles.',
                 'blocks' => [
                     ['type' => 'appel', 'title' => 'Adhésion', 'button_label' => 'Voir les conditions d’adhésion', 'page_id' => $ids['adhesion'], 'url' => '', 'source' => 'CDC art. 5',
@@ -204,7 +207,8 @@ final class ContentSeed
             ['Urgences', 'Étude des demandes d’aide en situation sociale urgente.'],
         ];
         $rows = array_values(array_filter($rows, static fn (array $r): bool => $only === null || in_array($r[0], $only, true)));
-        return ['type' => 'domaines', 'source' => 'CDC art. 9', 'items' => array_map(static fn (array $r): array => ['name' => $r[0], 'nature' => $r[1], 'description' => ''], $rows)];
+        $reserve = $only === null ? '' : self::RESERVE_ONE;
+        return ['type' => 'domaines', 'source' => 'CDC art. 9', 'items' => array_map(static fn (array $r): array => ['name' => $r[0], 'nature' => $r[1], 'description' => $reserve], $rows)];
     }
 
     /** @param array<string,int> $ids @return list<array<string,mixed>> */

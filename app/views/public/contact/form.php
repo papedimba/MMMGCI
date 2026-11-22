@@ -11,7 +11,6 @@ $names = array_map(static fn (array $f): string => $f[0], \App\Modules\Cms\FormI
 ?>
 <article class="pub-page">
 <header class="pub-head">
-<?= ui('breadcrumbs', ['items' => [['Accueil', '/'], [$title]]]) ?>
 <h1><?= e($title) ?></h1>
 </header>
 <div class="pub-body">

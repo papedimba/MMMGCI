@@ -72,7 +72,7 @@ final class SiteController
                 return self::moved((string) $page['redirect']);
             }
             return $page['slug'] === 'accueil' ? self::moved('/') : $this->renderPage($page);
-        });
+        }, null, true);
     }
 
     public function articles(Request $r): Response
@@ -171,11 +171,24 @@ final class SiteController
         return new Response('', 301, ['Location' => $to, 'Cache-Control' => 'no-store']);
     }
 
-    /** @param Closure(): Response $handle @param (Closure(): Response)|null $onFailure */
-    private function guarded(Request $r, Closure $handle, ?Closure $onFailure = null): Response
+    /**
+     * @param Closure(): Response $handle @param (Closure(): Response)|null $onFailure
+     * @param bool $follow adresse de page : une ancienne adresse non normalisée (/Ancien/) va en une seule 301 vers la nouvelle
+     */
+    private function guarded(Request $r, Closure $handle, ?Closure $onFailure = null, bool $follow = false): Response
     {
         $this->request = $r;
         $bad = self::check($r);
+        if ($bad !== null && $bad->status() !== 404 && $follow) {
+            try {
+                $page = $this->content()->page((string) $bad->headers()['Location']);
+                if (isset($page['redirect'])) {
+                    $bad = self::moved((string) $page['redirect']); // cible altérée : 404 ci-dessous
+                }
+            } catch (Throwable) {
+                // base injoignable : la 301 de normalisation suffit
+            }
+        }
         if ($bad !== null) {
             return $bad->status() === 404 ? $this->notFound() : $bad;
         }
@@ -195,17 +208,19 @@ final class SiteController
         $home = $page['template'] === 'accueil';
         $extra = [];
         if ($home) {
-            // Héro : image à la une réelle (image publique avec texte alternatif) sinon dessin ; bouton d'adhésion seulement si la page « adhesion » est en ligne.
+            // Héro : image à la une réelle (image publique avec texte alternatif) sinon dessin. Bouton principal : « Demander mon adhésion »
+            // vers le formulaire si l'adhésion en ligne est ouverte, sinon « Comment adhérer » vers la page « adhesion » si elle est en ligne.
             $hero = $page['featured_file_id'] === null ? null : $this->content()->fileUrl((int) $page['featured_file_id']);
             $adhesion = $this->content()->page('/adhesion');
+            $open = ApplyFlow::isOpen($this->settings ??= ($this->makeSettings)());
             $extra = ['hero' => $hero !== null && plain($hero['alt'] ?? '') !== '' && preg_match('~\.(?:jpe?g|png|webp|gif)$~i', $hero['url']) === 1 ? $hero : null,
-                'adhesion' => $adhesion !== null && !isset($adhesion['redirect']) ? '/adhesion' : null,
+                'adhesion' => $open ? '/adhesion-en-ligne' : ($adhesion !== null && !isset($adhesion['redirect']) ? '/adhesion' : null), 'adhesionOpen' => $open,
                 'aides' => array_filter(is_array($page['blocks'] ?? null) ? $page['blocks'] : [], static fn ($b): bool => is_array($b) && ($b['type'] ?? '') === 'domaines' && !empty($b['items'])) !== []];
         }
         $forms = array_filter(is_array($page['blocks'] ?? null) ? $page['blocks'] : [], static fn ($b): bool => is_array($b) && ($b['type'] ?? '') === 'formulaire') !== [];
         return $this->html($this->layout($home ? 'public/pages/accueil' : 'public/pages/standard', ['title' => (string) ($page['seo_title'] ?: $page['title']), 'description' => $page['seo_description'] ?: $page['excerpt'],
             'page' => $page, 'body' => (new PageRenderer($this->view, $this->content(), ApplyFlow::isOpen($this->settings ??= ($this->makeSettings)())))->render($page), 'ogImage' => $image, 'site' => $this->site()] + $extra,
-            $page['canonical_url'] ?? null, $home ? '/' : null), $forms);
+            $page['canonical_url'] ?? null, $home ? '/' : null), $forms || $home); // accueil : bouton selon l'ouverture, revalidé
     }
 
     /** @param list<array<string,mixed>> $items */

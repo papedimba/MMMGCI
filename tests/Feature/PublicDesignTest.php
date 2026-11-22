@@ -30,6 +30,7 @@ final class PublicDesignTest extends AdminTestCase
         $this->db->query('UPDATE cms_pages SET parent_id = NULL');
         $this->db->query('DELETE FROM cms_pages');
         $this->db->query('DELETE FROM cms_media');
+        $this->db->query("UPDATE settings SET value = NULL, status = 'non_configure', validated_by = NULL, validated_at = NULL, decision_ref = NULL WHERE `group` = 'site'");
         $this->db->query('DELETE FROM users');
         $this->author = $this->createUser('redac@x.test', ['redacteur']);
         $this->publisher = $this->createUser('editeur@x.test', ['editeur']);
@@ -69,11 +70,18 @@ final class PublicDesignTest extends AdminTestCase
         $this->publish(['title' => 'Demander mon adhésion', 'slug' => 'adhesion', 'blocks' => [['type' => 'titre', 'text' => 'Conditions', 'level' => '2']]]);
         $html = $this->get('/')->body();
         $main = substr($html, (int) strpos($html, '<main'));
-        $primary = strpos($main, '<a class="btn btn-primary" href="/adhesion"><span>Demander mon adhésion</span></a>');
+        $primary = strpos($main, '<a class="btn btn-primary" href="/adhesion"><span>Comment adhérer</span></a>');
         $this->assertNotFalse($primary);
         $this->assertLessThan(strpos($main, 'Voir les aides'), $primary, 'action principale avant la secondaire');
         $this->assertLessThan($primary, strpos($main, '<h1'), 'titre puis action');
         $this->assertSame($primary, strpos($main, '<a '), 'premier lien du contenu');
+        $this->assertSame('no-cache', $this->get('/')->headers()['Cache-Control'], 'accueil revalidé : le bouton suit l\'ouverture');
+
+        // Adhésion en ligne ouverte (deux paramètres validés) : le bouton mène au formulaire.
+        $s = new \App\Core\Settings($this->db);
+        $s->validate('site', 'adhesion_open', true, $this->publisher, 'PV test');
+        $s->validate('site', 'consent_text', 'Texte de consentement de test.', $this->publisher, 'PV test');
+        $this->assertStringContainsString('<a class="btn btn-primary" href="/adhesion-en-ligne"><span>Demander mon adhésion</span></a>', $this->get('/')->body());
     }
 
     public function test_menu_card_renders_domains_with_their_reservations(): void

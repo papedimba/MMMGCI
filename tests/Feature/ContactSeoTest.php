@@ -268,7 +268,9 @@ final class ContactSeoTest extends AdminTestCase
         $this->assertSame('no-store', $done->headers()['Cache-Control']);
         $this->assertStringContainsString('<h1>Message envoyé</h1>', $done->body());
         $this->assertStringNotContainsString('<form', $done->body());
-        $this->get('/contact?envoye=1'); // rechargement de l'accusé : aucun nouvel envoi
+        $again = $this->get('/contact?envoye=1'); // rechargement de l'accusé : aucun nouvel envoi, et l'accusé ne se rejoue pas
+        $this->assertStringNotContainsString('<h1>Message envoyé</h1>', $again->body(), 'accusé une seule fois, juste après un vrai envoi');
+        $this->assertStringContainsString('<form', $again->body());
         $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_form_submissions'));
         foreach (['Awa Koné', 'awa@x.test', 'Question précise'] as $pii) {
             $this->assertStringNotContainsString($pii, $done->body(), 'accusé sans donnée personnelle');

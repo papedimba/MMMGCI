@@ -183,6 +183,16 @@ final class ContentSeedTest extends AdminTestCase
             $this->assertStringContainsString('dans les limites des règles adoptées', $text);
             $this->assertStringContainsString('selon les conditions prévues', $text);
         }
+        // Domaine seul (emploi, formation) : la réserve accompagne le domaine, jamais « les domaines suivants : » devant un seul ; un seul objectif : titre au singulier.
+        foreach (['emploi' => 'Emploi', 'formation' => 'Formation'] as $slug => $name) {
+            $blocks = $this->seeded()[$slug]['blocks'];
+            $domains = array_values(array_filter($blocks, static fn (array $b): bool => $b['type'] === 'domaines'))[0];
+            $this->assertSame([$name], array_column($domains['items'], 'name'));
+            $this->assertSame('Sous réserve des ressources disponibles, des textes applicables et des critères adoptés', $domains['items'][0]['description'], $slug);
+            $text = json_encode($blocks, JSON_UNESCAPED_UNICODE);
+            $this->assertStringNotContainsString('domaines d’intervention suivants', $text, $slug);
+            $this->assertStringNotContainsString('Objectifs spécifiques', $text, $slug);
+        }
         $this->assertStringContainsString('critères écrits', json_encode($this->seeded()['fonds-de-solidarite']['blocks'], JSON_UNESCAPED_UNICODE));
         // Le fonds n'est jamais présenté comme existant : « peut constituer » accompagne toute mention (page actions sociales comprise).
         $this->assertStringContainsString('peut constituer un fonds de solidarité', json_encode($this->seeded()['actions-sociales']['blocks'], JSON_UNESCAPED_UNICODE));

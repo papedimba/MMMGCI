@@ -52,7 +52,7 @@ return static function (Router $router, View $view, Csrf $csrf, callable $db, ar
     $contact = static function () use ($view, $csrf, $db, $services, $content, $siteSettings, $site, $appUrl): ContactController {
         ['audit' => $audit, 'gate' => $gate, 'mailer' => $mailer, 'defer' => $defer] = $services;
         $inbox = static fn (): FormInbox => new FormInbox($db(), $audit(), $gate(), new Sequence($db()), $siteSettings(), static fn () => $mailer(), Closure::fromCallable($defer), $appUrl);
-        return new ContactController($view, $csrf, $inbox, $content, $siteSettings, $site);
+        return new ContactController($view, $csrf, $inbox, $content, $siteSettings, $site, $services['session']);
     };
     foreach (['get', 'post'] as $verb) {
         $router->$verb('/contact', static fn (Request $r): Response => $contact()->handle($r));

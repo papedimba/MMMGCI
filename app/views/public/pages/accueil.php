@@ -3,7 +3,7 @@
  * Accueil (gabarit « accueil », servi à /) : le héro est la carte imprimée du livret (bande de cordage, titre et extrait de la page,
  * actions), à côté de l'image à la une ou, à défaut, d'un dessin du métier présenté comme illustration. Puis les blocs de la page.
  * @var array<string,mixed> $page @var string $body @var array{url:string,alt:?string,width:?int,height:?int}|null $hero
- * @var ?string $adhesion chemin de la page d'adhésion en ligne @var bool $aides un bloc « domaines » existe (ancre #aides)
+ * @var ?string $adhesion formulaire d'adhésion (ouvert) ou page d'information « adhesion » @var bool $adhesionOpen @var bool $aides un bloc « domaines » existe (ancre #aides)
  */
 $motto = 'Un nouveau jour se lève'; // devise du gabarit (pied de page), reprise sur la carte sauf si elle est déjà le titre
 $title = plain($page['title']);
@@ -20,7 +20,7 @@ $hero ??= null;
 <?php endif; ?>
 <?php if (!empty($adhesion) || !empty($aides)): ?>
 <p class="home-actions">
-<?php if (!empty($adhesion)): ?><a class="btn btn-primary" href="<?= e($adhesion) ?>"><span>Demander mon adhésion</span></a>
+<?php if (!empty($adhesion)): ?><a class="btn btn-primary" href="<?= e($adhesion) ?>"><span><?= e(empty($adhesionOpen) ? 'Comment adhérer' : 'Demander mon adhésion') ?></span></a>
 <?php endif; ?>
 <?php if (!empty($aides)): ?><a class="home-link" href="#aides">Voir les aides</a>
 <?php endif; ?>

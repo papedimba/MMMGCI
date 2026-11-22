@@ -141,6 +141,10 @@ final class BlocksTest extends TestCase
         $this->assertSame('blocs[0].pieces[1].situations', $this->invalidPath([array_replace($ok, ['pieces' => [$ok['pieces'][0], ['label' => 'X', 'situations' => 'inconnue']]])]));
         $this->assertSame('blocs[0].situations[0].key', $this->invalidPath([array_replace($ok, ['situations' => [['key' => 'Livret Maritime', 'label' => 'L']]])]));
         $this->assertSame('blocs[0].situations[1].key', $this->invalidPath([array_replace($ok, ['situations' => [['key' => 'a', 'label' => 'A'], ['key' => 'a', 'label' => 'B']]])]));
+        // Ligne vide avant la ligne fautive : l'erreur reste sur l'indice saisi, et les lignes retenues sont renumérotées.
+        $this->assertSame('blocs[0].pieces[2].situations', $this->invalidPath([array_replace($ok, ['pieces' => [$ok['pieces'][0], ['label' => '', 'situations' => ''], ['label' => 'X', 'situations' => 'inconnue']]])]));
+        $this->assertSame('blocs[0].situations[2].key', $this->invalidPath([array_replace($ok, ['situations' => [['key' => 'a', 'label' => 'A'], ['key' => '', 'label' => ''], ['key' => 'a', 'label' => 'B']]])]));
+        $this->assertSame([0, 1], array_keys(Blocks::validate([array_replace($ok, ['pieces' => [['label' => '', 'situations' => ''], ...$ok['pieces']]])])[0]['pieces']));
         $this->assertSame('blocs[0].pieces[0]', $this->invalidPath([array_replace($ok, ['pieces' => []])]), 'au moins une pièce');
         $this->assertSame('blocs[0].title', $this->invalidPath([array_replace($ok, ['title' => ''])]));
 

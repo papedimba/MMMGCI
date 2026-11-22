@@ -7,6 +7,7 @@ use App\Core\Csrf;
 use App\Core\Database;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
+use App\Core\Session;
 use App\Core\View;
 use App\Modules\Cms\FormInbox;
 use App\Modules\Cms\FormInvalid;
@@ -29,7 +30,7 @@ final class ContactController
     private const HEADERS = ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'no-store'];
 
     /** @param Closure(): FormInbox $inbox @param Closure(): PublishedContent $content @param Closure(): SiteSettings $settings @param Closure(): SiteController $site */
-    public function __construct(private View $view, private Csrf $csrf, private Closure $inbox, private Closure $content, private Closure $settings, private Closure $site)
+    public function __construct(private View $view, private Csrf $csrf, private Closure $inbox, private Closure $content, private Closure $settings, private Closure $site, private Session $session)
     {
     }
 
@@ -62,7 +63,8 @@ final class ContactController
         $asked = plain($r->input('demande'));
         $key = in_array($asked, $keys, true) ? $asked : $keys[0];
         if ($r->method() !== 'POST') {
-            return $r->input('envoye') === '1' ? $this->done($site, $path) : $this->form($site, $page, $path, $key);
+            // Accusé une seule fois, juste après un vrai envoi (marque en session du formulaire) ; sinon ?envoye=1 rend le formulaire.
+            return $r->input('envoye') === '1' && $this->session->pullFlash('form.sent') === $path ? $this->done($site, $path) : $this->form($site, $page, $path, $key);
         }
         $payload = array_diff_key($r->all(), ['_csrf' => 1, 'demande' => 1]);
         try {
@@ -75,10 +77,11 @@ final class ContactController
             error_log('Formulaire public non enregistré : ' . get_class($e)); // jamais le contenu
             return $this->form($site, $page, $path, $key, $payload, ['form' => 'Le message n\'a pas pu être envoyé : réessayez dans quelques minutes.'], 503);
         }
+        $this->session->flash('form.sent', $path);
         return new Response('', 303, ['Location' => $path . '?envoye=1'] + self::HEADERS); // PRG : un rechargement ne renvoie pas le formulaire
     }
 
-    /** Accusé (GET ?envoye=1) : identique pour tous, aucune donnée du visiteur. */
+    /** Accusé (GET ?envoye=1 juste après l'envoi) : identique pour tous, aucune donnée du visiteur. */
     private function done(SiteController $site, string $path): Response
     {
         return new Response($site->layout('public/contact/done', ['title' => 'Message envoyé', 'noindex' => true, 'back' => $path]), 200, self::HEADERS + ['X-Robots-Tag' => 'noindex']);

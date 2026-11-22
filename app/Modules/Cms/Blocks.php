@@ -95,6 +95,11 @@ final class Blocks
             if ($type === 'dossier') {
                 self::checkDossier($clean, $path, $errors);
             }
+            foreach (self::FIELDS[$type] as $name => [$kind]) {
+                if ($kind === 'items' && is_array($clean[$name])) {
+                    $clean[$name] = array_values($clean[$name]);
+                }
+            }
             if ($type === 'appel' && !isset($errors["$path.url"]) && !isset($errors["$path.page_id"]) && ($clean['page_id'] === null) === ($clean['url'] === null)) {
                 $errors["$path.url"] = 'Choisissez une page du site ou saisissez une adresse (l\'une ou l\'autre).';
             }
@@ -177,7 +182,7 @@ final class Blocks
                         $errors[$e->path] = $e->getMessage();
                     }
                 }
-                $rows[] = $clean;
+                $rows[$j] = $clean; // clé = indice saisi (erreurs du dossier sur la bonne ligne) ; renumérotée par validate()
             }
             if ($required && $rows === []) {
                 throw new BlockInvalid("{$path}[0]", 'Ajoutez au moins un élément.');
