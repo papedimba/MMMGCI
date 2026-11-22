@@ -23,7 +23,7 @@ final class ContactSeoTest extends AdminTestCase
     protected function setUp(): void
     {
         parent::setUp();
-        foreach (['cms_form_submissions', 'cms_menu_items', 'cms_page_redirects', 'cms_documents', 'cms_events', 'cms_article_tag', 'cms_articles'] as $t) {
+        foreach (['cms_form_submissions', 'cms_gallery_items', 'cms_galleries', 'cms_menu_items', 'cms_page_redirects', 'cms_documents', 'cms_events', 'cms_article_tag', 'cms_articles'] as $t) {
             $this->db->query("DELETE FROM $t");
         }
         $this->db->query('UPDATE cms_pages SET parent_id = NULL');
@@ -168,6 +168,9 @@ final class ContactSeoTest extends AdminTestCase
         // ETag faible et « * » : 304.
         $this->assertSame(304, $this->get("/$slug", ['HTTP_IF_NONE_MATCH' => 'W/' . $a->headers()['ETag']])->status());
         $this->assertSame(304, $this->get("/$slug", ['HTTP_IF_NONE_MATCH' => '*'])->status());
+        // mod_deflate renvoie l'ETag suffixé « -gzip » : reconnu aussi ; un autre suffixe, non.
+        $this->assertSame(304, $this->get("/$slug", ['HTTP_IF_NONE_MATCH' => substr($a->headers()['ETag'], 0, -1) . '-gzip"'])->status());
+        $this->assertSame(200, $this->get("/$slug", ['HTTP_IF_NONE_MATCH' => substr($a->headers()['ETag'], 0, -1) . '-br"'])->status());
 
         // Champ canonique de la page (adresse absolue sûre) prioritaire ; une adresse douteuse est ignorée.
         $id = (int) $this->db->fetchValue('SELECT id FROM cms_pages WHERE slug = ?', [$slug]);
@@ -232,7 +235,7 @@ final class ContactSeoTest extends AdminTestCase
         // Limite par adresse IP (5 tentatives par 10 minutes, comptées par FormInbox).
         $this->db->query('DELETE FROM login_attempts WHERE succeeded = 5');
         for ($i = 0; $i < 5; $i++) {
-            $this->assertSame(200, $this->post('/contact', $ok, '10.0.0.9')->status(), "envoi $i");
+            $this->assertSame(303, $this->post('/contact', $ok, '10.0.0.9')->status(), "envoi $i");
         }
         $limited = $this->post('/contact', $ok, '10.0.0.9');
         $this->assertSame(422, $limited->status());
@@ -256,21 +259,36 @@ final class ContactSeoTest extends AdminTestCase
         $this->page('Partenariats', 'publie', ['slug' => 'partenaires']);
         $this->validate('contact_email', 'secretariat@mutuelle.test');
 
-        $done = $this->post('/contact', ['name' => 'Awa Koné', 'email' => 'awa@x.test', 'subject' => 'Cotisation', 'message' => 'Question précise']);
+        $sent = $this->post('/contact', ['name' => 'Awa Koné', 'email' => 'awa@x.test', 'subject' => 'Cotisation', 'message' => 'Question précise']);
+        $this->assertSame(303, $sent->status(), 'PRG : un rechargement ne renvoie pas le formulaire');
+        $this->assertSame('/contact?envoye=1', $sent->headers()['Location']);
+        $this->assertSame('', $sent->body());
+        $done = $this->get('/contact?envoye=1');
         $this->assertSame(200, $done->status());
         $this->assertSame('no-store', $done->headers()['Cache-Control']);
         $this->assertStringContainsString('<h1>Message envoyé</h1>', $done->body());
+        $this->assertStringNotContainsString('<form', $done->body());
+        $this->get('/contact?envoye=1'); // rechargement de l'accusé : aucun nouvel envoi
+        $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM cms_form_submissions'));
         foreach (['Awa Koné', 'awa@x.test', 'Question précise'] as $pii) {
             $this->assertStringNotContainsString($pii, $done->body(), 'accusé sans donnée personnelle');
         }
         $info = $this->get('/contact?demande=information');
         $this->assertStringContainsString('name="demande" value="information"', $info->body());
         $this->assertStringNotContainsString('name="subject"', $info->body());
-        $this->assertSame(200, $this->post('/contact', ['demande' => 'information', 'name' => 'Ali', 'email' => 'ali@x.test', 'message' => 'Horaires ?'])->status());
+        $sent = $this->post('/contact', ['demande' => 'information', 'name' => 'Ali', 'email' => 'ali@x.test', 'message' => 'Horaires ?']);
+        $this->assertSame([303, '/contact?envoye=1'], [$sent->status(), $sent->headers()['Location']]);
+        $this->assertStringContainsString('<h1>Message envoyé</h1>', $this->get('/contact?envoye=1')->body());
         $part = $this->get('/partenariat');
         $this->assertSame(200, $part->status());
         $this->assertStringContainsString('name="organisation"', $part->body());
-        $this->assertSame(200, $this->post('/partenariat', ['organisation' => 'Armement X', 'name' => 'Ali', 'email' => 'ali@x.test', 'message' => 'Convention'])->status());
+        $sent = $this->post('/partenariat', ['organisation' => 'Armement X', 'name' => 'Ali', 'email' => 'ali@x.test', 'message' => 'Convention']);
+        $this->assertSame([303, '/partenariat?envoye=1'], [$sent->status(), $sent->headers()['Location']]);
+        $ack = $this->get('/partenariat?envoye=1')->body();
+        $this->assertStringContainsString('<h1>Message envoyé</h1>', $ack);
+        foreach (['Armement X', 'ali@x.test'] as $pii) {
+            $this->assertStringNotContainsString($pii, $ack);
+        }
 
         $rows = $this->db->fetchAll('SELECT f.form_key, s.payload FROM cms_form_submissions s JOIN cms_forms f ON f.id = s.form_id ORDER BY s.id');
         $this->assertSame(['contact', 'information', 'partenariat'], array_column($rows, 'form_key'));
@@ -296,6 +314,47 @@ final class ContactSeoTest extends AdminTestCase
         $html = $this->get('/contact')->body();
         $this->assertStringContainsString('Nos coordonnées', $html);
         $this->assertStringContainsString('href="tel:+22507080910"', $html);
+    }
+
+    public function test_form_session_only_on_exact_form_routes(): void
+    {
+        $this->page('Contact', 'publie', ['slug' => 'contact']);
+        $this->page('Partenariats', 'publie', ['slug' => 'partenaires']);
+        foreach (['/contact/foo' => 404, '/partenariat/x' => 404, '/contact/' => 301, '/partenariat/' => 301] as $path => $status) {
+            $this->forgetApp();
+            $this->app();
+            $res = $this->get($path);
+            $this->assertSame($status, $res->status(), $path);
+            $this->assertNull($this->services['session']->get('_last_activity'), "$path : aucune session");
+        }
+        foreach (['/contact', '/partenariat'] as $path) {
+            $this->forgetApp();
+            $this->app();
+            $res = $this->get($path);
+            $this->assertSame(200, $res->status(), $path);
+            $this->assertNotNull($this->services['session']->get('_last_activity'), "$path : session");
+            $this->assertStringContainsString('name="_csrf" value="' . $this->services['csrf']->token() . '"', $res->body(), $path);
+        }
+    }
+
+    public function test_media_resolvers_drop_unsafe_paths(): void
+    {
+        $file = fn (string $path, string $mime): int => $this->db->insert('files', ['disk' => 'public', 'path' => $path, 'original_name' => 'x', 'mime' => $mime, 'size' => 1, 'sha256' => str_repeat('0', 64)]);
+        foreach (['2026/11/bon.pdf' => 'Document sûr', '../../.env' => 'Document piégé', '2026/11/a.b.pdf' => 'Double point'] as $path => $title) {
+            $this->db->insert('cms_documents', ['title' => $title, 'category' => 'Statuts', 'document_date' => '2026-03-03', 'file_id' => $file($path, 'application/pdf'), 'status' => 'publie', 'published_at' => '2026-03-03 10:00:00']);
+        }
+        $html = $this->get('/documents')->body();
+        $this->assertStringContainsString('href="/media/2026/11/bon.pdf"', $html);
+        $this->assertStringNotContainsString('Document piégé', $html);
+        $this->assertStringNotContainsString('Double point', $html);
+        $album = $this->db->insert('cms_galleries', ['title' => 'Album', 'slug' => 'album', 'status' => 'publie', 'published_at' => '2026-03-03 10:00:00']);
+        foreach (['2026/11/quai.png', '../secret.png'] as $i => $path) {
+            $media = $this->db->insert('cms_media', ['file_id' => $file($path, 'image/png'), 'title' => 'Image', 'alt' => "Image $i"]);
+            $this->db->insert('cms_gallery_items', ['gallery_id' => $album, 'media_id' => $media, 'sort_order' => $i]);
+        }
+        $html = $this->get('/galeries/album')->body();
+        $this->assertStringContainsString('src="/media/2026/11/quai.png"', $html);
+        $this->assertStringNotContainsString('secret', $html);
     }
 
     public function test_asset_url_adds_content_hash(): void

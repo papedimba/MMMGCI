@@ -62,7 +62,7 @@ final class ContactController
         $asked = plain($r->input('demande'));
         $key = in_array($asked, $keys, true) ? $asked : $keys[0];
         if ($r->method() !== 'POST') {
-            return $this->form($site, $page, $path, $key);
+            return $r->input('envoye') === '1' ? $this->done($site, $path) : $this->form($site, $page, $path, $key);
         }
         $payload = array_diff_key($r->all(), ['_csrf' => 1, 'demande' => 1]);
         try {
@@ -75,6 +75,12 @@ final class ContactController
             error_log('Formulaire public non enregistré : ' . get_class($e)); // jamais le contenu
             return $this->form($site, $page, $path, $key, $payload, ['form' => 'Le message n\'a pas pu être envoyé : réessayez dans quelques minutes.'], 503);
         }
+        return new Response('', 303, ['Location' => $path . '?envoye=1'] + self::HEADERS); // PRG : un rechargement ne renvoie pas le formulaire
+    }
+
+    /** Accusé (GET ?envoye=1) : identique pour tous, aucune donnée du visiteur. */
+    private function done(SiteController $site, string $path): Response
+    {
         return new Response($site->layout('public/contact/done', ['title' => 'Message envoyé', 'noindex' => true, 'back' => $path]), 200, self::HEADERS + ['X-Robots-Tag' => 'noindex']);
     }
 

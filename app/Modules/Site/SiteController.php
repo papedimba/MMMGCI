@@ -215,7 +215,7 @@ final class SiteController
     }
 
     /**
-     * Réponse publique en cache 5 min, ETag fort du HTML ; 304 si le navigateur a déjà cette version (comparaison faible : « W/ » accepté, « * » aussi).
+     * Réponse publique en cache 5 min, ETag fort du HTML ; 304 si le navigateur a déjà cette version (comparaison faible : « W/ » accepté, « * » aussi ; suffixe « -gzip » ajouté par mod_deflate retiré).
      * Le HTML ne dépend pas des paramètres d'adresse (canonique = adresse propre) : un même ETag pour /p et /p?x=1 désigne bien le même contenu.
      * @param bool $revalidate page à état changeant (bloc formulaire : bouton d'adhésion ouvert/fermé) : no-cache, revalidée par ETag à chaque visite
      */
@@ -224,7 +224,7 @@ final class SiteController
         $etag = '"' . substr(hash('sha256', $html), 0, 32) . '"';
         $headers = ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => $revalidate ? 'no-cache' : 'public, max-age=300', 'ETag' => $etag];
         $sent = $this->request?->header('If-None-Match');
-        $tags = $sent === null ? [] : array_map(static fn (string $t): string => (string) preg_replace('~^W/~', '', trim($t)), explode(',', $sent));
+        $tags = $sent === null ? [] : array_map(static fn (string $t): string => (string) preg_replace(['~^W/~', '~-gzip"$~'], ['', '"'], trim($t)), explode(',', $sent));
         if (in_array($etag, $tags, true) || in_array('*', $tags, true)) {
             return new Response('', 304, $headers);
         }

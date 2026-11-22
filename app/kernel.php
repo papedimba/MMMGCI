@@ -94,10 +94,14 @@ return static function (Config $config, bool $httpSession, array $overrides = []
         new SecurityHeaders(),
         // Session (donc cookie) seulement pour l'administration et les futurs formulaires publics (adhésion, contact, partenariat) : tout le reste du site est sans cookie.
         // Adhésion en ligne fermée : aucune session ni cookie (la garde n'est qu'une lecture des réglages ; base injoignable = fermée).
-        new StartSession($session, $httpSession, [], ['/admin', '/admin/', '/adhesion-en-ligne', '/adhesion-en-ligne/', '/contact', '/contact/', '/partenariat', '/partenariat/'],
+        new StartSession($session, $httpSession, [], ['/admin', '/admin/', '/adhesion-en-ligne', '/adhesion-en-ligne/', '/contact', '/partenariat'],
             static function (Request $r) use ($db, $audit, $gate): bool {
-                // Formulaires publics : session seulement si la page hôte est en ligne (sinon 404 sans cookie) ; « /contact/ » redirige, sans session.
-                if (in_array($r->path(), ['/contact', '/contact/', '/partenariat', '/partenariat/'], true)) {
+                // Formulaires publics : session seulement à l'adresse exacte (Request retire la barre finale : « /contact/ » redirige, sans session)
+                // et si la page hôte est en ligne (sinon 404 sans cookie).
+                if (in_array($r->path(), ['/contact', '/partenariat'], true)) {
+                    if ($r->rawPath() !== $r->path()) {
+                        return true;
+                    }
                     try {
                         return !\App\Modules\Site\ContactController::hostLive($db(), new \App\Modules\Cms\PageService($db(), $audit(), $gate()), $r->path());
                     } catch (\Throwable) {
