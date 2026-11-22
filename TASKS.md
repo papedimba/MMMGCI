@@ -19,7 +19,7 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **À fournir par la Mutuelle pour ouvrir le site (L4)** : relecture et publication des 11 pages semées en brouillon (cahier non adopté) ; texte de consentement (`site.consent_text`) puis ouverture (`site.adhesion_open`), deux réglages à valider ; coordonnées et réseaux sociaux à valider ; mot du Président, historique, mentions légales, confidentialité, photos et galerie
 - [ ] **Reports de L4** : étude de sites comparables (réseau bloqué) ; logo transparent pour l'en-tête ; vraies photos ; voir docs/superpowers/plans/2026-11-16-l4-decisions-et-reports.md
 - [ ] **C38 Dépôt de demandes d'assistance en ligne par l'adhérent : oui/non** - commanditaire
-- [ ] **D4 Domaine, hébergeur cPanel, SMTP** - commanditaire (pas encore d'hébergement)
+- [ ] **D4 Domaine, SMTP et ouverture de l'hébergement chez Likuid** - commanditaire (hébergeur choisi : Likuid, 22/11/2026 ; à vérifier au lot L13 sur l'offre réellement souscrite : cPanel oui/non, version PHP ≥ 8.2, MariaDB/MySQL, extension GD, tâches cron, SMTP, LiteSpeed ou Apache, `post_max_size`/`upload_max_filesize`, sauvegardes proposées)
 - [ ] **Logo horizontal + version SVG/PNG transparente** - commanditaire
 
 ## Someday
