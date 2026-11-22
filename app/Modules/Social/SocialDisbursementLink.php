@@ -130,7 +130,7 @@ final class SocialDisbursementLink
     private function lock(int $id, int $actor): array
     {
         $r = $this->db->fetch('SELECT * FROM social_requests WHERE id = ? FOR UPDATE', [$id]);
-        if ($r === null || !$this->access->visible($actor, (int) $r['member_id'])) {
+        if ($r === null || !$this->access->allows($actor, 'social.view') || !$this->access->visible($actor, (int) $r['member_id'])) { // sans social.view : introuvable
             throw new NotFound('Demande sociale introuvable.');
         }
         return $r;

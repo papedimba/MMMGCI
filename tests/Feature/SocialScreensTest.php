@@ -339,12 +339,50 @@ final class SocialScreensTest extends AdminTestCase
 
     public function test_decision_form_shows_ceiling_only_when_validated(): void
     {
-        $this->db->query("UPDATE social_request_types SET ceiling_amount = 100000.00, params_decision_ref = 'PV-1' WHERE id = ?", [$this->typeId]);
-        $id = $this->requestIn('soumise_decision');
-        $this->as($this->decider);
-        $form = html_entity_decode($this->request('GET', "/admin/demandes-sociales/$id/decision")->body(), ENT_QUOTES);
-        self::assertStringContainsString('Plafond validé pour ce type', $form);
-        self::assertStringNotContainsString('100 000', preg_replace('/Plafond validé pour ce type[^.]*\./u', '', $form));
+        $ceiling = "100\u{202F}000"; // Money::format sépare les milliers par une espace fine insécable
+        $form = function (): string {
+            $id = $this->requestIn('soumise_decision');
+            $this->as($this->decider);
+            return html_entity_decode($this->request('GET', "/admin/demandes-sociales/$id/decision")->body(), ENT_QUOTES);
+        };
+        // Plafond en base mais non validé : jamais affiché ni appliqué.
+        $this->db->query('UPDATE social_request_types SET ceiling_amount = 100000.00, params_decision_ref = NULL WHERE id = ?', [$this->typeId]);
+        $html = $form();
+        self::assertStringNotContainsString($ceiling, $html);
+        self::assertStringContainsString('Aucun plafond validé', $html);
+        // Validé : affiché comme tel.
+        $this->db->query("UPDATE social_request_types SET params_decision_ref = 'PV-1' WHERE id = ?", [$this->typeId]);
+        $html = $form();
+        self::assertStringContainsString("Plafond validé pour ce type : $ceiling", $html);
+        self::assertStringNotContainsString('Aucun plafond validé', $html);
+        self::assertMatchesRegularExpression('/name="amount" class="control"[^>]* value=""/', $html); // le plafond n'est jamais recopié dans le montant
+    }
+
+    /** Défense en profondeur : sans social.view, toute action du circuit ou du lien répond « introuvable », même avec les autres droits et tout le périmètre. */
+    public function test_actions_without_social_view_are_not_found(): void
+    {
+        $this->db->query("INSERT IGNORE INTO roles (name, label) VALUES ('so_noview', 'so_noview')");
+        foreach (['social.manage', 'social.decide', 'disbursement.initiate', 'finance.view', 'members.scope.all'] as $p) {
+            $this->db->query("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'so_noview' AND p.name = ?", [$p]);
+        }
+        $u = $this->socialUser('noview', ['so_noview']);
+        $s = $this->socialSvc();
+        $recue = $this->requestIn('recue');
+        $submitted = $this->requestIn('soumise_decision');
+        $granted = $this->requestIn('accordee');
+        $before = (int) $this->db->fetchValue('SELECT COUNT(*) FROM social_request_events');
+        foreach ([fn () => $s->assign($recue, $this->manager2, $u), fn () => $s->decide($submitted, $this->grant(), $u), fn () => $s->close($granted, null, $u),
+            fn () => $this->link()->prepare($granted, ['account_id' => 1, 'category_id' => 1, 'beneficiary_name' => 'X'], $u),
+            fn () => $this->link()->paymentFailed($granted, $u)] as $call) {
+            try {
+                $call();
+                self::fail('NotFound attendue');
+            } catch (\App\Core\NotFound $e) {
+                self::assertStringContainsString('introuvable', $e->getMessage());
+            }
+        }
+        self::assertSame($before, (int) $this->db->fetchValue('SELECT COUNT(*) FROM social_request_events'));
+        self::assertSame('recue', $this->state($recue));
     }
 
     public function test_assignment_from_screen_sends_email(): void

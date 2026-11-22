@@ -35,6 +35,8 @@
       t.setAttribute('aria-label', open ? 'Fermer le menu' : 'Ouvrir le menu');
       if (open) { var first = menu.querySelector('nav a[href]'); if (first) { first.focus(); } } // le menu précède le bouton dans le DOM : sans cela, Tab part vers la page
     } else if (t.hasAttribute('data-confirm-open')) {
+      // Formulaire invalide : erreurs affichées sur la page, sans boîte (derrière une boîte modale, les champs sont inertes et le navigateur ne dit rien).
+      if (t.form && typeof t.form.reportValidity === 'function' && !t.form.reportValidity()) { ev.preventDefault(); return; }
       var dlg = document.getElementById(t.getAttribute('data-confirm-open'));
       if (dlg && typeof dlg.showModal === 'function') { ev.preventDefault(); dlg.showModal(); } // sinon : le formulaire part directement
     } else {
@@ -57,8 +59,10 @@
     if (form.target === '_blank' || form.hasAttribute('download')) { return; } // la page reste ouverte : ne pas verrouiller le bouton
     // Différé : désactiver tout de suite retirerait la valeur du bouton déclencheur de l'envoi.
     setTimeout(function () {
-      var buttons = form.querySelectorAll('button[type="submit"]');
+      // b.form : y compris un bouton relié par l'attribut form (confirmation dans une boîte hors du formulaire).
+      var buttons = document.querySelectorAll('button[type="submit"]');
       for (var i = 0; i < buttons.length; i++) {
+        if (buttons[i].form !== form) { continue; }
         buttons[i].disabled = true;
         buttons[i].setAttribute('aria-busy', 'true');
       }

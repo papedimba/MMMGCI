@@ -38,6 +38,15 @@ final class AssetsTest extends TestCase
         $this->assertStringContainsString("addEventListener('change', reopen)", $js);
     }
 
+    /** Boîte de confirmation : ouverte seulement si le formulaire est valide (sinon champs inertes derrière la boîte, aucun message) ; le bouton relié par form est verrouillé après l'envoi. */
+    public function test_confirm_dialog_opens_only_for_a_valid_form_and_locks_linked_buttons(): void
+    {
+        $js = (string) file_get_contents(self::ASSETS . '/js/app.js');
+        $open = substr($js, (int) strpos($js, "hasAttribute('data-confirm-open')"), 600);
+        $this->assertMatchesRegularExpression('/!t\.form\.reportValidity\(\)\) \{ ev\.preventDefault\(\); return; \}[\s\S]*showModal\(\)/', $open);
+        $this->assertStringContainsString('buttons[i].form !== form', $js);
+    }
+
     public function test_tokens_define_every_variable_used_by_other_css_files(): void
     {
         $all = '';

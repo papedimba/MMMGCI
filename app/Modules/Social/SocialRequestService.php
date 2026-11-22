@@ -288,7 +288,8 @@ final class SocialRequestService
     private function lock(int $id, int $actor): array
     {
         $r = $this->db->fetch('SELECT * FROM social_requests WHERE id = ? FOR UPDATE', [$id]);
-        if ($r === null || !$this->visible($actor, (int) $r['member_id'])) {
+        // sans social.view : introuvable aussi (aucun oracle d'existence pour un futur appelant qui oublierait la garde de route)
+        if ($r === null || !$this->access->allows($actor, 'social.view') || !$this->visible($actor, (int) $r['member_id'])) {
             throw new NotFound('Demande sociale introuvable.');
         }
         return $r;
