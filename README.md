@@ -334,7 +334,53 @@ Parcours public en 5 étapes servies par le serveur (Situation, Identité, Coord
 
 ### Limites connues
 
-Pas de glisser-déposer (boutons Monter/Descendre) ; une seule version de travail par page (pas d'historique de versions) ; redirections d'adresse simples (pages seulement, pas d'articles) ; listes d'administration plafonnées à 200 lignes pour les contenus simples ; SEO avancé (T3.8) reporté au lot L4 ; pas de purge des pièces de consentement ni des formulaires ; les images du texte riche ne bloquent pas la suppression d'un média dans tous les cas (voir le plan L3). Détail et décisions : [`docs/superpowers/plans/2026-11-16-l3-decisions-et-reports.md`](docs/superpowers/plans/2026-11-16-l3-decisions-et-reports.md).
+Pas de glisser-déposer (boutons Monter/Descendre) ; une seule version de travail par page (pas d'historique de versions) ; redirections d'adresse simples (pages seulement, pas d'articles) ; listes d'administration plafonnées à 200 lignes pour les contenus simples ; SEO avancé (T3.8) fait au lot L4 (voir « Site public (lot L4) ») ; pas de purge des pièces de consentement ni des formulaires ; les images du texte riche ne bloquent pas la suppression d'un média dans tous les cas (voir le plan L3). Détail et décisions : [`docs/superpowers/plans/2026-11-16-l3-decisions-et-reports.md`](docs/superpowers/plans/2026-11-16-l3-decisions-et-reports.md).
+
+## Site public (lot L4)
+
+Le site public est servi par `App\Modules\Site` (gabarits `app/views/public/`, feuille `public/assets/css/public.css`). **Seul du contenu publié est public** : il ne lit que `PublishedContent` (L3) ; un brouillon, un contenu en relecture, archivé ou programmé pour plus tard n'apparaît ni en page, ni au menu, ni au plan du site. Les aperçus d'administration restent sous session et `noindex`.
+
+### Ce qui est publié
+
+- **Pages** du CMS à l'adresse plate `/{slug}` ; accueil = page « accueil » servie à `/` (sinon une page d'attente « Le site de la Mutuelle est en cours de construction »). Listes `/actualites`, `/evenements`, `/documents`, `/galeries` (état vide honnête tant que rien n'est publié), fiches `/actualites/{slug}`, `/evenements/{slug}`, `/galeries/{slug}`. Les anciennes adresses, les majuscules et la barre finale redirigent en **une seule** 301 vers l'adresse actuelle.
+- **Formulaires** `/contact` (contact ou demande d'information) et `/partenariat`, chacun seulement si sa page hôte (« contact », « partenaires ») est en ligne ; les messages arrivent dans la boîte `/admin/site/formulaires` ; l'accusé « Message envoyé » n'apparaît qu'une fois, juste après un vrai envoi.
+- **Adhésion en ligne** `/adhesion-en-ligne` (voir ci-dessus) et **vérification de carte** `/verifier/{jeton}` (L5).
+- **SEO** (T3.8, fait ici) : titre et description par page, adresse canonique (champ `canonical_url` sûr, sinon l'adresse propre sans paramètre, absolue si `APP_URL` est renseigné), balises Open Graph et Twitter, `noindex` sur les pages d'erreur, de formulaire envoyé et d'adhésion ; `/sitemap.xml` (contenu publié seulement) et `/robots.txt` ; images responsives (variantes `srcset`).
+- **Cookies** : aucun sur le site public ; une session (cookie `mmmgci_sid`) seulement sur `/contact` et `/partenariat` quand leur page est en ligne, et sur `/adhesion-en-ligne` quand l'adhésion est ouverte. En-têtes CSP stricte, `nosniff`, `X-Frame-Options` partout ; méthode non permise → 405.
+- **Performance** : accueil sous 200 Ko hors photos (mesuré : ~150 Ko transférés **sans compression**, 15 requêtes) ; compression et cache des fichiers statiques par `public/.htaccess` ; pages en cache public 5 min avec ETag (pages à formulaire et accueil : revalidées à chaque visite) ; tout fonctionne sans JavaScript.
+
+### Comment publier
+
+1. Un rédacteur (`cms.pages.manage`) crée ou modifie la page dans « Site web » puis la **soumet à relecture**.
+2. Un publicateur (`cms.publish`) relit **la version affichée** et la publie (ou la programme : la tâche cron `cms.publish_scheduled` la publie à l'heure ; le cron doit donc tourner, voir « Cron »).
+3. Les menus (`header`, `footer`) s'enregistrent avec les deux droits ; un élément qui pointe vers une page non publiée reste masqué au public.
+
+### Contenu semé en brouillon : à relire par un humain
+
+`php bin/seed-site.php --actor=<courriel>` crée **en brouillon** 11 pages et les deux menus, avec des textes **copiés du cahier des charges 2026–2027**, qui **n'est pas encore adopté**. Rien n'est publié par le script (`--publish` est refusé). Avant publication, un humain relit chaque page : le champ interne « Source » de chaque bloc (jamais affiché) indique l'article du cahier. Le semis ne remplace jamais une page existante : une correction du semis (par exemple le titre « Objectif spécifique » ou la réserve de l'art. 9 sur les pages Emploi et Formation) ne touche pas une base déjà semée ; reprendre ces pages à la main si besoin. Le titre de l'accueil est la devise « Un nouveau jour se lève » (le nom complet est dans le titre SEO et sur la carte).
+
+### Pages « à fournir » par la Mutuelle
+
+Mot du Président, historique, mentions légales, politique de confidentialité, galerie et photographies : **aucune source** dans le cahier des charges, donc **non créées** (liste « À fournir par la Mutuelle » sur l'écran Pages). Aucune photo n'est semée : les visuels sont des **dessins** du métier, toujours légendés « Illustration », jamais présentés comme des photos ; les vraies photos passent par la médiathèque. Coordonnées (téléphone, e-mail, adresse, réseaux sociaux) : affichées seulement une fois **validées** dans les réglages du site.
+
+### Ouvrir l'adhésion en ligne : deux réglages à valider
+
+L'adhésion en ligne est **fermée par défaut**. Elle ne s'ouvre que lorsque **les deux** réglages suivants sont **saisis puis validés** (référence de la décision des instances, par un titulaire de `settings.validate`) dans « Site web › Réglages » :
+
+1. `consent_text` : le texte de consentement au traitement des données, **fourni par la Mutuelle** (aucun texte n'est proposé par le code) ;
+2. `adhesion_open` : « oui ».
+
+Tant que l'un manque, toute adresse du parcours affiche « Les adhésions en ligne ouvriront prochainement. », sans session ni écriture ; le bouton de l'accueil s'intitule « Comment adhérer » et mène à la page d'information « adhesion » (si elle est en ligne). Ouverte, il devient « Demander mon adhésion » et mène au formulaire. Une demande déposée apparaît dans `/admin/adherents/demandes` avec l'origine « En ligne » : c'est une **demande**, jamais un membre, instruite comme les autres.
+
+### Sauvegarde des pièces déposées
+
+Les pièces jointes aux demandes d'adhésion (et les pièces de consentement des témoignages) sont sur le **disque privé** `storage/uploads/private/`, hors de la racine web, jamais servies publiquement. Elles ne sont **pas** dans la base : la sauvegarde doit copier **à la fois** la base de données **et** ce dossier (la sauvegarde cPanel « répertoire personnel » le contient si le projet y est installé ; à vérifier lors de l'installation, L13). Les fichiers de la médiathèque (`public/media/`) sont publics par nature mais doivent aussi être sauvegardés. Les pièces de brouillon abandonnées (jamais envoyées, plus de 6 h) sont purgées par la tâche cron `site.cleanup_apply_drafts`.
+
+### Limites du lot L4
+
+- **Pas d'étude de sites comparables** : l'accès réseau aux sites visés était bloqué pendant les travaux (voir [`docs/conception/etude-sites-comparables.md`](docs/conception/etude-sites-comparables.md)) ; la direction visuelle repose sur le contexte du projet, pas sur une observation de sites.
+- Photos, texte de consentement, coordonnées et pages « à fournir » : à fournir par la Mutuelle.
+- Détail des décisions et des reports : [`docs/superpowers/plans/2026-11-16-l4-decisions-et-reports.md`](docs/superpowers/plans/2026-11-16-l4-decisions-et-reports.md).
 
 ## Site public (lot L3) — points à décider par les instances
 

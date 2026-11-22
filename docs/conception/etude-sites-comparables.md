@@ -2,6 +2,8 @@
 
 ## Statut : étude NON réalisée sur pièces
 
+**Toujours vrai à la fin du lot L4 (22/11/2026)** : le site public a été construit sans cette étude ; sa direction visuelle (`05-design-system.md` §7) repose sur le contexte du projet et les hypothèses ci-dessous, pas sur l'observation de sites. L'étude reste à faire dès que les domaines seront accessibles.
+
 Les tentatives de lecture (WebFetch) ont toutes échoué : l'hôte ne se résout pas dans le réseau autorisé de la session (`getaddrinfo ENOTFOUND`). Aucune page d'accueil ni page clé n'a donc pu être lue. Sites en échec :
 
 - https://www.nautilusint.org

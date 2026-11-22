@@ -9,7 +9,7 @@ $scheduler = new App\Core\Scheduler($db);
 App\Modules\Auth\AuthMaintenance::register($scheduler, $db);
 App\Modules\Contributions\CallService::register($scheduler, $db, new App\Core\Audit($db, (string) $config->get('APP_KEY')));
 App\Modules\Cms\CmsScheduler::register($scheduler, $db, new App\Core\Audit($db, (string) $config->get('APP_KEY')));
-// Pièces de demandes d'adhésion en ligne abandonnées (plus de 24 h, jamais envoyées) : disque privé seulement (chemin résolu par Uploads).
+// Pièces de demandes d'adhésion en ligne abandonnées (plus de 6 h, ApplyFlow::DRAFT_TTL_HOURS, jamais envoyées) : disque privé seulement (chemin résolu par Uploads).
 App\Modules\Site\ApplyFlow::register($scheduler, $db, new App\Core\Uploads($db, dirname(__DIR__) . '/storage/uploads/private', dirname(__DIR__) . '/public/media',
     max(1, (int) $config->get('UPLOAD_MAX_MB', 5)) * 1048576));
 
