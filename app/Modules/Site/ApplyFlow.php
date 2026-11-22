@@ -366,8 +366,8 @@ final class ApplyFlow
             $db->query('DELETE FROM files WHERE id = ?', [$fileId]);
             return false;
         });
-        if (!$attached && $path !== null && is_file($path)) {
-            unlink($path);
+        if (!$attached && $path !== null && is_file($path) && !@unlink($path)) {
+            error_log('site.cleanup_apply_drafts : fichier non supprimable (n° ' . $fileId . ')'); // la ligne est déjà retirée : la purge continue avec les suivants
         }
     }
 

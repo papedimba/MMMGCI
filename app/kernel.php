@@ -80,6 +80,11 @@ return static function (Config $config, bool $httpSession, array $overrides = []
     $titles = [400 => 'Requête invalide', 403 => 'Accès refusé', 404 => 'Page introuvable', 405 => 'Méthode non autorisée', 419 => 'Session expirée'];
     $errors = static function (int $status, Request $r) use ($view, $titles): Response {
         $status = isset($titles[$status]) ? $status : 404;
+        if (in_array($status, [404, 405], true) && !VerifyCsrf::isAdmin($r->path())) { // site public : son propre gabarit, sans menu (aucune lecture de base)
+            $public = $status === 404 ? [] : ['heading' => $titles[405], 'message' => 'Cette page ne peut pas être ouverte de cette façon. Utilisez le lien ou le formulaire prévu.'];
+            return new Response($view->render('public/pages/not-found', ['title' => $titles[$status], 'noindex' => true] + $public, 'layouts/public'), $status,
+                ['Cache-Control' => 'no-store', 'X-Robots-Tag' => 'noindex']);
+        }
         return new Response($view->render("errors/$status", ['title' => $titles[$status]]), $status);
     };
 

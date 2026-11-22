@@ -14,6 +14,7 @@ Plateforme institutionnelle et de gestion de la **Mutuelle des Marins Marchands 
 - MariaDB ≥ 10.2.7 ou MySQL ≥ 8.0.16 (les contraintes `CHECK` ne sont appliquées qu'à partir de ces versions ; le type `JSON` des migrations, utilisé depuis `0001`, demande MariaDB 10.2.7). En dessous, une migration échoue en laissant des tables partielles.
 - Hébergement cible : mutualisé cPanel ; seul `public/` est exposé au web.
 - `max_input_vars` ≥ 1000 (valeur par défaut de PHP et de cPanel). Le formulaire d'une page du site envoie au plus 800 champs de blocs plus une vingtaine d'autres (plafond `Blocks::MAX_FIELDS`) ; au-delà de `max_input_vars`, PHP tronquerait l'envoi sans erreur : un champ sentinelle final le détecte et l'enregistrement est refusé. Ne pas abaisser cette valeur.
+- `upload_max_filesize` ≥ 5M (taille par fichier, `UPLOAD_MAX_MB=5`) et `post_max_size` ≥ 16M (6 pièces et 15 Mo au plus par demande d'adhésion en ligne, plus les champs) ; réglables dans cPanel (« MultiPHP INI Editor »). Le défaut cPanel de `post_max_size` (souvent 8M) est trop bas. En cas de dépassement : un fichier au-delà de `upload_max_filesize` est refusé avec le message « fichier trop volumineux » (rien n'est enregistré) ; un envoi au-delà de `post_max_size` arrive **vide** à PHP (jeton CSRF compris) : le visiteur voit la page publique « Session expirée » avec un lien vers le début de son formulaire ; la pièce trop lourde n'est pas enregistrée, mais les étapes d'adhésion déjà remplies restent dans la session tant qu'elle n'a pas expiré (30 min d'inactivité : `SESSION_IDLE_MINUTES`).
 
 Aucune dépendance PHP tierce en production : `vendor/` (PHPUnit) ne sert qu'aux tests et n'est jamais déployé.
 
@@ -264,7 +265,7 @@ Le rédacteur soumet, il ne publie jamais. Chaque transition de publication est 
 - Renommer une catégorie ou une étiquette (ou changer son adresse) utilisée par un article en ligne exige `cms.publish`. Un article déjà publié : seul un publicateur change son adresse, sa catégorie, son auteur affiché ou ses étiquettes. Un auteur qui modifie ces champs sur un article en relecture le renvoie en brouillon.
 - Un évènement déjà en ligne est modifié en direct par un publicateur (pas de version conservée) ; l'auteur ne le modifie plus.
 - Changer l'adresse (slug) d'une page déjà publiée conserve l'ancienne en redirection simple ; une page publiée ne peut pas être supprimée (l'archiver).
-- Adresses : `[a-z0-9-]`, 1 à 80 caractères, uniques ; réservées : `admin`, `verifier`, `espace`, `assets`, `media`, `sante`, `adhesion-en-ligne`, `sitemap.xml`, `robots.txt`, `favicon.ico`.
+- Adresses : `[a-z0-9-]`, 1 à 80 caractères, uniques ; réservées : `admin`, `verifier`, `espace`, `assets`, `media`, `sante`, `adhesion-en-ligne`, `partenariat`, `sitemap.xml`, `robots.txt`, `favicon.ico`, et, pour les pages seulement, les listes fixes du site `actualites`, `evenements`, `documents`, `galeries` (une page à ces adresses serait masquée par la liste : refus avec un message clair ; une page plus ancienne déjà à une de ces adresses n'est jamais au plan du site).
 
 ### Blocs d'une page (registre fixe, pas de constructeur libre)
 

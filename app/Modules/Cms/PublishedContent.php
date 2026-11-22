@@ -225,6 +225,9 @@ final class PublishedContent
             $out = [];
             $slugs = $this->pages->liveSlugs(array_map('intval', array_column($this->db->fetchAll('SELECT id FROM cms_pages ORDER BY sort_order, id'), 'id')));
             foreach ($slugs as $id => $slug) {
+                if (in_array($slug, [...Slugs::RESERVED, ...Slugs::LIST_ROUTES], true)) {
+                    continue; // page antérieure à la réservation : masquée par une route fixe, jamais au plan du site
+                }
                 $out[] = ['path' => '/' . $slug, 'lastmod' => $this->pages->liveVersion($id)['published_at'] ?? null];
             }
             foreach ($this->articles->liveList(5000) as $a) {

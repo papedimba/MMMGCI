@@ -9,6 +9,11 @@ use DomainException;
 final class Slugs
 {
     public const RESERVED = ['admin', 'verifier', 'espace', 'assets', 'media', 'sante', 'adhesion-en-ligne', 'partenariat', 'sitemap.xml', 'robots.txt', 'favicon.ico'];
+    /**
+     * Listes servies par des routes fixes du site public (avant l'attrape-tout) : réservées aux PAGES seulement (une page à cette adresse ne serait jamais
+     * visible) ; une étiquette ou une catégorie « Actualités » garde l'adresse « actualites » (ses URL ne croisent pas les pages).
+     */
+    public const LIST_ROUTES = ['actualites', 'evenements', 'documents', 'galeries'];
     /** Tables à slug unique (liste blanche : le nom est interpolé en SQL). */
     private const TABLES = ['cms_pages', 'cms_articles', 'cms_events', 'cms_categories', 'cms_tags', 'cms_galleries'];
     private const MAP = [
@@ -30,6 +35,9 @@ final class Slugs
         $slug = trim($slug);
         if (strlen($slug) < 1 || strlen($slug) > 80 || !preg_match('/^[a-z0-9]+(?:-[a-z0-9]+)*$/', $slug)) {
             throw new DomainException('Adresse invalide : 1 à 80 caractères, minuscules, chiffres et tirets (sans tiret au début, à la fin ni doublé).');
+        }
+        if ($table === 'cms_pages' && in_array($slug, self::LIST_ROUTES, true)) {
+            throw new DomainException("L'adresse « $slug » est réservée : c'est celle de la liste /$slug du site. Choisissez-en une autre (par exemple « $slug-mutuelle »).");
         }
         if (in_array($slug, self::RESERVED, true)) {
             throw new DomainException("L'adresse « $slug » est réservée.");
