@@ -71,6 +71,10 @@ use App\Modules\Members\Referentials;
 use App\Modules\Members\StatusService;
 use App\Modules\Roles\RoleController;
 use App\Modules\Roles\RoleService;
+use App\Modules\Social\SocialDisbursementLink;
+use App\Modules\Social\SocialNotifier;
+use App\Modules\Social\SocialRequestController;
+use App\Modules\Social\SocialRequestService;
 use App\Modules\Social\SocialSettingsService;
 use App\Modules\Social\SocialTypeController;
 use App\Modules\Social\SocialTypeService;
@@ -115,6 +119,13 @@ return static function (Router $r, array $deps): void {
         new DisbursementGate($db()), $uploads(), new SensitiveAccess($db()));
     $control = static fn (): ControlController => new ControlController($view, $csrf, $session, $db(), $gate(), new ControlService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))));
     $arrears = static fn (): ArrearsController => new ArrearsController($view, $csrf, $session, $db(), $gate(), $arrearsService());
+    // Demandes sociales : le notifier est branché ici pour que l'affectation prévienne vraiment l'affecté (référence et lien seulement).
+    $socialRequests = static fn (): SocialRequestController => new SocialRequestController($view, $csrf, $session, $db(), $gate(), $audit(), $uploads(),
+        new SocialRequestService($db(), $audit(), new Sequence($db()), $gate(),
+            new SocialNotifier($db(), static fn () => $mailer(), Closure::fromCallable($defer), (string) $config->get('APP_URL', ''))),
+        new SocialDisbursementLink($db(), $audit(), $gate(),
+            new DisbursementService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db())), new Sequence($db()), new Settings($db()), $gate())),
+        new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))));
     $socialTypes = static fn (): SocialTypeController => new SocialTypeController($view, $csrf, $session, $gate(), new SocialTypeService($db(), $audit(), $gate()), new SocialSettingsService($db(), $audit(), $gate()));
     $solidarity = static fn (): SolidarityController => new SolidarityController($view, $csrf, $session, $gate(), new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))), new AccountService($db(), $audit()));
     $media = static fn (): MediaController => new MediaController($view, $csrf, $session, $gate(), new MediaService($db(), $audit(), $uploads()));
@@ -371,6 +382,29 @@ return static function (Router $r, array $deps): void {
     $r->get('/admin/demandes-sociales/types/{id:\d+}/parametres', static fn (Request $q): Response => $socialTypes()->form($q), $validateSettings);
     $r->post('/admin/demandes-sociales/types/{id:\d+}/parametres', static fn (Request $q): Response => $socialTypes()->configure($q), $validateSettings);
     $r->post('/admin/demandes-sociales/types/{id:\d+}/activation', static fn (Request $q): Response => $socialTypes()->activation($q), $validateSettings);
+    // Gestion d'une demande : chaque écriture filtrée par sa permission ; le service reste seul juge (état, périmètre, permission).
+    $sr = '/admin/demandes-sociales';
+    $soView = [$requireAuth, $permission('social.view')];
+    $soManage = [$requireAuth, $permission('social.manage')];
+    $r->get("$sr/nouvelle", static fn (Request $q): Response => $socialRequests()->createForm($q), [$requireAuth, $permission('social.create')]);
+    $r->post("$sr/nouvelle", static fn (Request $q): Response => $socialRequests()->store($q), [$requireAuth, $permission('social.create')]);
+    $r->get("$sr/{id:\\d+}", static fn (Request $q): Response => $socialRequests()->show($q), $soView);
+    $r->get("$sr/{id:\\d+}/pieces/{docId:\\d+}", static fn (Request $q): Response => $socialRequests()->document($q), $soView);
+    $r->post("$sr/{id:\\d+}/affecter", static fn (Request $q): Response => $socialRequests()->assign($q), $soManage);
+    $r->post("$sr/{id:\\d+}/pieces-demandees", static fn (Request $q): Response => $socialRequests()->requestDocuments($q), $soManage);
+    $r->post("$sr/{id:\\d+}/reprendre", static fn (Request $q): Response => $socialRequests()->resume($q), $soManage);
+    $r->post("$sr/{id:\\d+}/avis", static fn (Request $q): Response => $socialRequests()->review($q), $soManage);
+    $r->post("$sr/{id:\\d+}/soumettre", static fn (Request $q): Response => $socialRequests()->submit($q), $soManage);
+    $r->get("$sr/{id:\\d+}/decision", static fn (Request $q): Response => $socialRequests()->decisionForm($q), [$requireAuth, $permission('social.decide')]);
+    $r->post("$sr/{id:\\d+}/decision", static fn (Request $q): Response => $socialRequests()->decide($q), [$requireAuth, $permission('social.decide')]);
+    $r->get("$sr/{id:\\d+}/decaissement", static fn (Request $q): Response => $socialRequests()->disbursementForm($q), $soManage);
+    $r->post("$sr/{id:\\d+}/decaissement", static fn (Request $q): Response => $socialRequests()->prepare($q), $soManage);
+    $r->post("$sr/{id:\\d+}/decaissement/echec", static fn (Request $q): Response => $socialRequests()->paymentFailed($q), $soManage);
+    $r->post("$sr/{id:\\d+}/cloturer", static fn (Request $q): Response => $socialRequests()->close($q), $soManage);
+    $r->post("$sr/{id:\\d+}/notes", static fn (Request $q): Response => $socialRequests()->note($q), [$requireAuth, $permission('social.manage', 'social.decide')]);
+    $r->post("$sr/{id:\\d+}/pieces", static fn (Request $q): Response => $socialRequests()->addDocument($q), [$requireAuth, $permission('social.manage', 'social.create')]);
+    $r->post("$sr/{id:\\d+}/medical/afficher", static fn (Request $q): Response => $socialRequests()->revealMedical($q), [$requireAuth, $permission('social.medical.view')]);
+    $r->post("$sr/{id:\\d+}/medical", static fn (Request $q): Response => $socialRequests()->writeMedical($q), $soManage);
 
     // Réglages du site : saisie (cms.settings.manage) ; validation par les instances (settings.validate) ; lecture par l'un ou l'autre.
     $r->get('/admin/site/reglages', static fn (Request $q): Response => $siteSettingsScreen()->index($q), [$requireAuth, $permission('cms.settings.manage', 'settings.validate')]);

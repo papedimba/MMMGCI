@@ -230,10 +230,10 @@ final class SocialConfidentialityTest extends DatabaseTestCase
             fn () => $this->medical()->read($id, $this->finance, null)] as $read) {
             $this->refuses($read, NotFound::class);
         }
-        // Écriture : refusée, rien n'est écrit (même règle que les actions du circuit, tâche 3).
+        // Écriture : introuvable aussi sans social.view (aucun oracle d'existence), rien n'est écrit.
         foreach ([fn () => $this->notes()->add($id, 'x', $this->finance), fn () => $this->docs()->add($id, $this->pdf(), 'piece', null, false, $this->finance),
             fn () => $this->medical()->write($id, 'x', $this->finance)] as $write) {
-            $this->refuses($write, SocialRuleViolation::class);
+            $this->refuses($write, NotFound::class);
         }
         self::assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM social_request_notes WHERE social_request_id = ?', [$id]));
         self::assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM social_request_documents WHERE social_request_id = ?', [$id]));

@@ -64,13 +64,14 @@ final class SocialAccess
     }
 
     /**
-     * Écriture annexe (pièce, note, données de santé) : verrou de la demande AVANT la lecture de son état, périmètre (404), une des permissions,
+     * Écriture annexe (pièce, note, données de santé) : verrou de la demande AVANT la lecture de son état, social.view et périmètre (404), une des permissions,
      * demande non clôturée. À appeler en premier dans la transaction. @return array<string,mixed>
      */
     public function lockForWrite(int $id, int $actor, string ...$anyOf): array
     {
         $r = $this->db->fetch('SELECT * FROM social_requests WHERE id = ? FOR UPDATE', [$id]);
-        if ($r === null || !$this->visible($actor, (int) $r['member_id'])) {
+        // sans social.view : introuvable aussi (pas d'oracle d'existence pour un détenteur de finance.view avec tout le périmètre)
+        if ($r === null || !$this->allows($actor, 'social.view') || !$this->visible($actor, (int) $r['member_id'])) {
             throw new NotFound('Demande sociale introuvable.');
         }
         if (array_filter($anyOf, fn (string $p): bool => $this->allows($actor, $p)) === []) {

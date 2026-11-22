@@ -203,3 +203,6 @@
 
 /* Boîte de réception : formulaires de traitement empilés avec un espacement net. */
 .page-form + .page-form { margin-top: var(--s4); }
+/* Demande sociale : formulaires d'action empilés dans un même panneau */
+.stack-forms { display: grid; gap: var(--s5); }
+.stack-forms form + form { border-top: 1px solid var(--line); padding-top: var(--s5); }
