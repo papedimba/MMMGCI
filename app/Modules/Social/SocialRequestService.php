@@ -47,10 +47,12 @@ final class SocialRequestService
     private MemberScope $scope;
     private SocialTypeService $types;
     private ArrearsService $arrears;
+    private SocialAccess $access;
 
-    public function __construct(private Database $db, private Audit $audit, private Sequence $sequence, private Gate $gate)
+    public function __construct(private Database $db, private Audit $audit, private Sequence $sequence, private Gate $gate, private ?SocialNotifier $notifier = null)
     {
         $this->scope = new MemberScope($db, $gate);
+        $this->access = new SocialAccess($db, $gate, $audit);
         $this->types = new SocialTypeService($db, $audit, $gate);
         $this->arrears = new ArrearsService($db, $this->scope, new Settings($db), $audit);
     }
@@ -77,7 +79,7 @@ final class SocialRequestService
         });
     }
 
-    /** Affectation (reçue -> en instruction) ou réaffectation sans changement d'état. Notification de l'affecté : SocialNotifier (tâche 4). */
+    /** Affectation (reçue -> en instruction) ou réaffectation sans changement d'état. L'affecté est prévenu après la validation (référence et lien seulement). */
     public function assign(int $id, int $assignee, int $actor, ?string $ip = null): void
     {
         $this->run(function () use ($id, $assignee, $actor, $ip): void {
@@ -96,6 +98,7 @@ final class SocialRequestService
             $this->auditTransition($actor, $to === $r['status'] ? 'reassigned' : 'assigned', $r, $to, $ip, ['assigned_to' => $assignee,
                 'previous_assignee' => $r['assigned_to'] === null ? null : (int) $r['assigned_to']]);
         });
+        $this->notifier?->assigned($id, $assignee);
     }
 
     /** $memberText est destiné à l'adhérent (affiché dans son espace tant que les pièces sont attendues). */
@@ -291,14 +294,9 @@ final class SocialRequestService
         return $r;
     }
 
-    /** Adhérent dans le périmètre d'un compte ACTIF (MemberScope ne regarde pas is_active : un compte désactivé avec zone y verrait encore sa zone). */
     private function visible(int $userId, int $memberId): bool
     {
-        if ((int) $this->db->fetchValue('SELECT is_active FROM users WHERE id = ?', [$userId]) !== 1) {
-            return false;
-        }
-        [$sql, $params] = $this->scope->where($userId);
-        return $this->db->fetchValue("SELECT 1 FROM members m WHERE m.id = ? AND $sql", [$memberId, ...$params]) !== null;
+        return $this->access->visible($userId, $memberId);
     }
 
     private function event(int $id, ?string $from, string $to, string $action, int $actor, ?string $comment): void
@@ -424,7 +422,8 @@ final class SocialRequestService
             'deciding_body' => $body, 'decision_ref' => $in['decision_ref'], 'reason' => $in['reason'], 'member_message' => $in['member_message'], 'decided_at' => $in['decided_at']];
     }
 
-    private function text(mixed $v, int $max, string $label): ?string
+    /** Texte libre nettoyé (null si vide), borné à $max caractères ; partagé avec les pièces, notes et données de santé. */
+    public static function text(mixed $v, int $max, string $label): ?string
     {
         if ($v !== null && !is_string($v)) {
             throw new SocialRuleViolation("$label : texte invalide.");
