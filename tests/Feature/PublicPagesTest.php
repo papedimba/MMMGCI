@@ -349,6 +349,17 @@ final class PublicPagesTest extends AdminTestCase
         $this->assertStringNotContainsString('csrf', $html);
     }
 
+    public function test_pages_with_a_form_block_are_revalidated_not_cached(): void
+    {
+        $slug = $this->rawPage([['type' => 'formulaire', 'form_key' => 'adhesion']]);
+        $form = $this->get('/' . $slug);
+        $this->assertSame('no-cache', $form->headers()['Cache-Control']);
+        $etag = $form->headers()['ETag'];
+        $this->assertSame(304, $this->get('/' . $slug, ['HTTP_IF_NONE_MATCH' => $etag])->status());
+        [, $plain] = $this->page('Sans formulaire');
+        $this->assertSame('public, max-age=300', $this->get('/' . $plain)->headers()['Cache-Control']);
+    }
+
     public function test_call_to_action_is_hidden_for_offline_target_and_unsafe_url(): void
     {
         [$draft] = $this->page('Cible brouillon', 'brouillon');

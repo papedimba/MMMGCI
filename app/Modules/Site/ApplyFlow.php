@@ -46,6 +46,12 @@ final class ApplyFlow
     public const MAX_MAILS_PER_HOUR = 20;
     private const THROTTLE_MARK = 7; // login_attempts.succeeded : 0-2 connexion, 4 /verifier, 5-6 formulaires
     private const MAIL_MARK = 8;
+    private const UPLOAD_MARK = 9; // tentatives de téléversement par IP (refusées comprises)
+    public const MAX_UPLOADS_PER_HOUR = 12;
+    /** Volume total des pièces de brouillon non rattachées, tous visiteurs confondus : au-delà, plus aucun téléversement jusqu'à la purge du cron. */
+    public const MAX_DRAFT_BYTES = 200 * 1048576;
+    public const DRAFT_TTL_HOURS = 6;
+    public const UNAVAILABLE = 'Service momentanément indisponible : réessayez plus tard, ou envoyez votre demande sans pièce (la Mutuelle pourra vous les demander).';
     public const REFUSED = 'Votre demande n\'a pas pu être envoyée. Patientez quelques instants, vérifiez la page puis réessayez.';
 
     /** @param Closure(): int $clock @param Closure(): \App\Core\Mailer $mailer @param Closure(callable): void $defer */
@@ -194,9 +200,21 @@ final class ApplyFlow
     }
 
     /** Ajoute une pièce ; renvoie un message d'erreur ou null. @param array<string,mixed> $phpFile entrée de $_FILES */
-    public function addFile(array $phpFile, mixed $type): ?string
+    public function addFile(array $phpFile, mixed $type, string $ip): ?string
     {
         $token = $this->start()['token'];
+        // Limite par IP (toute tentative compte, même refusée ensuite), puis plafond global des brouillons : contre le remplissage du disque privé.
+        $key = IpKey::of($ip);
+        $now = ($this->clock)();
+        $this->db->insert('login_attempts', ['email' => 'adhesion-piece', 'ip' => $key, 'succeeded' => self::UPLOAD_MARK, 'created_at' => gmdate('Y-m-d H:i:s', $now)]);
+        if ((int) $this->db->fetchValue('SELECT COUNT(*) FROM login_attempts WHERE ip = ? AND succeeded = ? AND created_at >= ?',
+            [$key, self::UPLOAD_MARK, gmdate('Y-m-d H:i:s', $now - 3600)]) > self::MAX_UPLOADS_PER_HOUR) {
+            return 'Trop de pièces envoyées depuis votre connexion : réessayez plus tard, ou envoyez votre demande sans pièce (la Mutuelle pourra vous les demander).';
+        }
+        $tmpSize = is_string($phpFile['tmp_name'] ?? null) && is_file($phpFile['tmp_name']) ? (int) filesize($phpFile['tmp_name']) : 0;
+        if ((int) $this->db->fetchValue('SELECT COALESCE(SUM(f.size), 0) FROM apply_draft_files d JOIN files f ON f.id = d.file_id') + $tmpSize > self::MAX_DRAFT_BYTES) {
+            return self::UNAVAILABLE;
+        }
         if (!is_string($type) || !in_array($type, self::PIECE_TYPES, true)) {
             return 'Choisissez le type de la pièce dans la liste proposée.';
         }
@@ -268,13 +286,23 @@ final class ApplyFlow
         }
         $token = (string) $d['token'];
         $payload = array_intersect_key($d['data'], array_flip(ApplicationService::FIELDS));
-        [$ref, $email] = $this->db->transaction(function () use ($payload, $ip, $token): array {
-            $id = $this->applications->submit($payload, 'en_ligne', null, mb_substr($ip, 0, 45));
-            $this->db->query('INSERT INTO membership_application_files (application_id, type, file_id) SELECT ?, type, file_id FROM apply_draft_files WHERE token = ? ORDER BY id', [$id, $token]);
-            $this->db->query('DELETE FROM apply_draft_files WHERE token = ?', [$token]);
-            $app = $this->db->fetch('SELECT reference, payload FROM membership_applications WHERE id = ?', [$id]) ?? [];
-            return [(string) $app['reference'], (string) (json_decode((string) $app['payload'], true)['email'] ?? '')];
-        });
+        try {
+            [$ref, $email] = $this->db->transaction(function () use ($payload, $ip, $token): array {
+                $id = $this->applications->submit($payload, 'en_ligne', null, mb_substr($ip, 0, 45));
+                // Jeton consommé en base (unique) : sans verrou de session, un second envoi simultané échoue ici et toute sa transaction est annulée.
+                $this->db->query('UPDATE membership_applications SET draft_token = ? WHERE id = ?', [$token, $id]);
+                $this->db->query('INSERT INTO membership_application_files (application_id, type, file_id) SELECT ?, type, file_id FROM apply_draft_files WHERE token = ? ORDER BY id', [$id, $token]);
+                $this->db->query('DELETE FROM apply_draft_files WHERE token = ?', [$token]);
+                $app = $this->db->fetch('SELECT reference, payload FROM membership_applications WHERE id = ?', [$id]) ?? [];
+                return [(string) $app['reference'], (string) (json_decode((string) $app['payload'], true)['email'] ?? '')];
+            });
+        } catch (\PDOException $e) {
+            $done = (int) ($e->errorInfo[1] ?? 0) === 1062 ? $this->db->fetchValue('SELECT reference FROM membership_applications WHERE draft_token = ?', [$token]) : null;
+            if ($done === null) {
+                throw $e;
+            }
+            return ['status' => 'replay', 'reference' => (string) $done];
+        }
         $this->session->forget(self::SESSION);
         $this->session->set(self::DONE, ['token' => $token, 'reference' => $ref]);
         $this->session->regenerate();
@@ -343,10 +371,10 @@ final class ApplyFlow
         }
     }
 
-    /** Pièces de brouillons abandonnés (plus de 24 h, jamais rattachées) : idempotent. @return int nombre de pièces traitées */
+    /** Pièces de brouillons abandonnés (plus de DRAFT_TTL_HOURS, jamais rattachées) : idempotent. @return int nombre de pièces traitées */
     public static function cleanup(Database $db, Uploads $uploads): int
     {
-        $ids = array_map('intval', array_column($db->fetchAll('SELECT file_id FROM apply_draft_files WHERE created_at < NOW() - INTERVAL 24 HOUR ORDER BY id'), 'file_id'));
+        $ids = array_map('intval', array_column($db->fetchAll('SELECT file_id FROM apply_draft_files WHERE created_at < NOW() - INTERVAL ' . self::DRAFT_TTL_HOURS . ' HOUR ORDER BY id'), 'file_id'));
         foreach ($ids as $id) {
             self::purge($db, $uploads, $id);
         }
@@ -355,6 +383,6 @@ final class ApplyFlow
 
     public static function register(Scheduler $scheduler, Database $db, Uploads $uploads): void
     {
-        $scheduler->register('site.cleanup_apply_drafts', 60, static fn () => self::cleanup($db, $uploads));
+        $scheduler->register('site.cleanup_apply_drafts', 15, static fn () => self::cleanup($db, $uploads));
     }
 }

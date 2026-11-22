@@ -93,7 +93,18 @@ return static function (Config $config, bool $httpSession, array $overrides = []
         new ForceHttps((string) $config->get('APP_ENV', 'production')),
         new SecurityHeaders(),
         // Session (donc cookie) seulement pour l'administration et les futurs formulaires publics (adhésion, contact, partenariat) : tout le reste du site est sans cookie.
-        new StartSession($session, $httpSession, [], ['/admin', '/admin/', '/adhesion-en-ligne', '/adhesion-en-ligne/', '/contact', '/contact/', '/partenariat', '/partenariat/']),
+        // Adhésion en ligne fermée : aucune session ni cookie (la garde n'est qu'une lecture des réglages ; base injoignable = fermée).
+        new StartSession($session, $httpSession, [], ['/admin', '/admin/', '/adhesion-en-ligne', '/adhesion-en-ligne/', '/contact', '/contact/', '/partenariat', '/partenariat/'],
+            static function (Request $r) use ($db, $audit, $gate): bool {
+                if ($r->path() !== '/adhesion-en-ligne' && !str_starts_with($r->path(), '/adhesion-en-ligne/')) {
+                    return false;
+                }
+                try {
+                    return !\App\Modules\Site\ApplyFlow::isOpen(new \App\Modules\Cms\SiteSettings($db(), $audit(), $gate()));
+                } catch (\Throwable) {
+                    return true;
+                }
+            }),
         new VerifyCsrf($csrf, $view),
         new ShareLayoutData($view, $router),
     ]);

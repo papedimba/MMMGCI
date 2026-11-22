@@ -41,4 +41,19 @@ final class StartSessionTest extends TestCase
             $this->assertArrayHasKey('_last_activity', $store, $p);
         }
     }
+
+    public function test_skip_predicate_prevents_the_session(): void
+    {
+        $store = [];
+        $closed = true;
+        $mw = new StartSession(new Session($store, 30), false, [], ['/adhesion-en-ligne', '/adhesion-en-ligne/'], static function (Request $r) use (&$closed): bool {
+            return $closed;
+        });
+        $next = static fn (Request $r): Response => new Response('ok');
+        $mw->handle(new Request('GET', '/adhesion-en-ligne/etape/1'), $next);
+        $this->assertArrayNotHasKey('_last_activity', $store);
+        $closed = false;
+        $mw->handle(new Request('GET', '/adhesion-en-ligne/etape/1'), $next);
+        $this->assertArrayHasKey('_last_activity', $store);
+    }
 }

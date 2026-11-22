@@ -39,7 +39,7 @@ final class OnlineApplicationTest extends AdminTestCase
         foreach (['apply_draft_files', 'sensitive_access_logs', 'member_documents', 'membership_application_files', 'membership_applications', 'member_status_history', 'members', 'users', 'zones'] as $t) {
             $this->db->query("DELETE FROM $t");
         }
-        $this->db->query('DELETE FROM login_attempts WHERE succeeded IN (7, 8)');
+        $this->db->query('DELETE FROM login_attempts WHERE succeeded IN (7, 8, 9)');
         $this->db->query('UPDATE cms_pages SET parent_id = NULL');
         $this->db->query('DELETE FROM cms_menu_items');
         $this->db->query('DELETE FROM cms_page_redirects');
@@ -75,9 +75,9 @@ final class OnlineApplicationTest extends AdminTestCase
     }
 
     /** @param array<string,mixed> $post */
-    private function step(int $n, array $post = [], array $files = []): Response
+    private function step(int $n, array $post = [], array $files = [], string $ip = '127.0.0.1'): Response
     {
-        return $this->req('POST', self::BASE . "/etape/$n", $post + ['op' => 'next'], $files);
+        return $this->req('POST', self::BASE . "/etape/$n", $post + ['op' => 'next'], $files, $ip);
     }
 
     /** @return array<string,string> */
@@ -384,6 +384,7 @@ final class OnlineApplicationTest extends AdminTestCase
             $this->assertStringContainsString('href="#f-piece"', $res->body(), $label);
         }
         $this->assertSame($files, $this->rows('files'));
+        $this->db->query('DELETE FROM login_attempts WHERE succeeded = 9'); // limite horaire par IP testée à part
         // Polyglotte PNG + PHP : accepté comme image mais ré-encodé, la charge disparaît.
         $this->assertSame(303, $this->step(4, ['op' => 'upload', 'type' => 'photo'], ['piece' => $this->png('<?php system("id"); ?>')])->status());
         $fid = (int) $this->db->fetchValue('SELECT file_id FROM apply_draft_files');
@@ -590,8 +591,10 @@ final class OnlineApplicationTest extends AdminTestCase
         $this->fill([], [], [['identite', $this->pdf()], ['photo', $this->png()]]);
         $old = array_map('intval', array_column($this->db->fetchAll('SELECT file_id FROM apply_draft_files'), 'file_id'));
         $paths = array_map(fn (int $id): string => $this->uploads->path($id), $old);
-        $this->assertSame(0, ApplyFlow::cleanup($this->db, $this->uploads), 'moins de 24 h : rien');
-        $this->db->query('UPDATE apply_draft_files SET created_at = NOW() - INTERVAL 25 HOUR');
+        $this->assertSame(0, ApplyFlow::cleanup($this->db, $this->uploads), 'brouillon récent : rien');
+        $this->db->query('UPDATE apply_draft_files SET created_at = NOW() - INTERVAL 5 HOUR');
+        $this->assertSame(0, ApplyFlow::cleanup($this->db, $this->uploads), 'moins de 6 h : rien');
+        $this->db->query('UPDATE apply_draft_files SET created_at = NOW() - INTERVAL 7 HOUR');
         // Une ligne de brouillon pointant vers une pièce déjà rattachée (incohérence) : la pièce reste.
         $this->db->insert('apply_draft_files', ['token' => str_repeat('b', 64), 'file_id' => $attached, 'type' => 'identite', 'created_at' => '2000-01-01 00:00:00']);
         $scheduler = new Scheduler($this->db);
@@ -626,9 +629,12 @@ final class OnlineApplicationTest extends AdminTestCase
                 }
                 return '';
             };
+            $this->assertMatchesRegularExpression('/^Set-Cookie: mmmgci_sid=\w+;.*HttpOnly; SameSite=Lax/mi', $headers('/admin/connexion'), 'le serveur pose bien des cookies');
+            // Base de développement : adhésion fermée → page fermée sans session ni cookie.
             foreach ([self::BASE, self::BASE . '/etape/3', self::BASE . '/envoye'] as $p) {
                 $h = $headers($p);
-                $this->assertMatchesRegularExpression('/^Set-Cookie: mmmgci_sid=\w+;.*HttpOnly; SameSite=Lax/mi', $h, $p);
+                $this->assertStringContainsString('200 OK', $h, $p);
+                $this->assertStringNotContainsStringIgnoringCase('Set-Cookie', $h, $p);
                 $this->assertStringContainsString('X-Robots-Tag: noindex', $h);
             }
             foreach (['/', '/adhesion', '/adhesion-en-ligne-x', '/actualites'] as $p) {
@@ -638,5 +644,81 @@ final class OnlineApplicationTest extends AdminTestCase
             proc_terminate($proc);
             proc_close($proc);
         }
+    }
+
+    public function test_closed_flow_starts_no_session_open_flow_does(): void
+    {
+        foreach ([self::BASE, self::BASE . '/etape/1', self::BASE . '/envoye'] as $p) {
+            $this->newVisitor();
+            $res = $this->req('GET', $p);
+            $this->assertClosed($res, $p);
+            $this->assertNull($this->services['session']->get('_last_activity'), "$p : aucune session (donc aucun cookie)");
+        }
+        $this->open();
+        $this->newVisitor();
+        $this->req('GET', self::BASE . '/etape/1');
+        $this->assertNotNull($this->services['session']->get('_last_activity'), 'ouvert : session démarrée');
+        // /contact garde sa session.
+        $this->newVisitor();
+        $this->req('GET', '/contact');
+        $this->assertNotNull($this->services['session']->get('_last_activity'));
+    }
+
+    public function test_uploads_are_limited_per_ip_and_by_global_draft_volume(): void
+    {
+        $this->open();
+        // Un brouillon créé par GET ne crée aucun fichier.
+        $files = $this->rows('files');
+        $this->req('GET', self::BASE . '/etape/1');
+        $this->assertSame($files, $this->rows('files'));
+        $this->assertSame(0, $this->rows('apply_draft_files'));
+        // 12 tentatives par IP et par heure, IPv4 et IPv4 mappée confondues, sur plusieurs brouillons ; une tentative refusée compte.
+        $upload = fn (string $ip, ?array $file = null): Response => $this->step(4, ['op' => 'upload', 'type' => 'identite'], ['piece' => $file ?? $this->pdf()], $ip);
+        $this->assertSame(422, $upload('10.5.5.5', $this->tmp('x.php', '<?php'))->status(), 'refusée, mais comptée');
+        for ($i = 1; $i < ApplyFlow::MAX_UPLOADS_PER_HOUR; $i++) {
+            if ($i === 6) {
+                $this->newVisitor(); // nouveau brouillon : la limite par IP ne repart pas
+                $this->req('GET', self::BASE . '/etape/1');
+            }
+            $this->assertSame(303, $upload($i % 2 ? '::ffff:10.5.5.5' : '10.5.5.5')->status(), "tentative $i");
+        }
+        $res = $upload('::ffff:10.5.5.5');
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString('Trop de pièces envoyées depuis votre connexion', $res->body());
+        $this->assertSame(ApplyFlow::MAX_UPLOADS_PER_HOUR - 1, $this->rows('apply_draft_files'));
+        $this->newVisitor(); // le brouillon courant a atteint ses 6 pièces
+        $this->req('GET', self::BASE . '/etape/1');
+        $this->assertSame(303, $upload('10.5.5.6')->status(), 'autre adresse');
+        $this->db->query('UPDATE login_attempts SET created_at = created_at - INTERVAL 61 MINUTE WHERE succeeded = 9');
+        $this->assertSame(303, $upload('10.5.5.5')->status(), 'heure écoulée');
+        // Plafond global du volume des brouillons non rattachés : refus « momentanément indisponible ».
+        $big = $this->db->insert('files', ['disk' => 'private', 'path' => '2026/11/factice.pdf', 'original_name' => 'autre.pdf', 'mime' => 'application/pdf', 'size' => ApplyFlow::MAX_DRAFT_BYTES, 'sha256' => str_repeat('0', 64)]);
+        $this->db->insert('apply_draft_files', ['token' => str_repeat('c', 64), 'file_id' => $big, 'type' => 'autre']);
+        $this->newVisitor();
+        $this->req('GET', self::BASE . '/etape/1');
+        $res = $upload('10.7.7.7');
+        $this->assertSame(422, $res->status());
+        $this->assertStringContainsString('Service momentanément indisponible', $res->body());
+        // Purge par le cron (plus de 6 h) : le service reprend.
+        $this->db->query('UPDATE apply_draft_files SET created_at = NOW() - INTERVAL 7 HOUR WHERE file_id = ?', [$big]);
+        ApplyFlow::cleanup($this->db, $this->uploads);
+        $this->assertSame(303, $upload('10.7.7.7')->status());
+    }
+
+    public function test_draft_token_is_consumed_in_database_even_without_session_lock(): void
+    {
+        $this->open();
+        $step5 = $this->fill();
+        $draft = $this->services['session']->get(ApplyFlow::SESSION);
+        $this->assertSame(303, $this->send($step5)->status());
+        // Second envoi concurrent simulé : sa session a encore le brouillon (gestionnaire de session sans verrou).
+        $this->services['session']->set(ApplyFlow::SESSION, $draft);
+        $this->services['session']->forget(ApplyFlow::DONE);
+        $res = $this->send($step5);
+        $this->assertSame(200, $res->status());
+        $ref = (string) $this->db->fetchValue('SELECT reference FROM membership_applications');
+        $this->assertStringContainsString($ref, $res->body());
+        $this->assertSame(1, $this->rows('membership_applications'));
+        $this->assertSame($draft['token'], $this->db->fetchValue('SELECT draft_token FROM membership_applications'));
     }
 }

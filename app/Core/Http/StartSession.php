@@ -11,14 +11,16 @@ final class StartSession implements Middleware
      * @param bool $httpSession false en CLI/tests : la session reste un tableau local, sans cookie
      * @param list<string> $except chemins servis sans session (sondes) ; un chemin terminé par « / » vaut pour tout ce qu'il contient
      * @param list<string> $only si non vide, SEULS ces chemins (même forme) ouvrent une session : le site public reste sans cookie
+     * @param (\Closure(Request): bool)|null $skip vrai = pas de session pour cette requête (ex. adhésion en ligne fermée : page sans cookie)
      */
-    public function __construct(private readonly Session $session, private readonly bool $httpSession = true, private readonly array $except = [], private readonly array $only = [])
+    public function __construct(private readonly Session $session, private readonly bool $httpSession = true, private readonly array $except = [], private readonly array $only = [],
+        private readonly ?\Closure $skip = null)
     {
     }
 
     public function handle(Request $r, callable $next): Response
     {
-        if (self::matches($r->path(), $this->except) || ($this->only !== [] && !self::matches($r->path(), $this->only))) {
+        if (self::matches($r->path(), $this->except) || ($this->only !== [] && !self::matches($r->path(), $this->only)) || ($this->skip !== null && ($this->skip)($r))) {
             return $next($r);
         }
         if ($this->httpSession) {

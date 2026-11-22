@@ -180,8 +180,9 @@ final class SiteController
                 'adhesion' => $adhesion !== null && !isset($adhesion['redirect']) ? '/adhesion' : null,
                 'aides' => array_filter(is_array($page['blocks'] ?? null) ? $page['blocks'] : [], static fn ($b): bool => is_array($b) && ($b['type'] ?? '') === 'domaines' && !empty($b['items'])) !== []];
         }
+        $forms = array_filter(is_array($page['blocks'] ?? null) ? $page['blocks'] : [], static fn ($b): bool => is_array($b) && ($b['type'] ?? '') === 'formulaire') !== [];
         return $this->html($this->view->render($home ? 'public/pages/accueil' : 'public/pages/standard', ['title' => (string) ($page['seo_title'] ?: $page['title']), 'description' => $page['seo_description'] ?: $page['excerpt'],
-            'page' => $page, 'body' => (new PageRenderer($this->view, $this->content(), ApplyFlow::isOpen($this->settings ??= ($this->makeSettings)())))->render($page), 'ogImage' => $image, 'site' => $this->site()] + $extra, 'layouts/public'));
+            'page' => $page, 'body' => (new PageRenderer($this->view, $this->content(), ApplyFlow::isOpen($this->settings ??= ($this->makeSettings)())))->render($page), 'ogImage' => $image, 'site' => $this->site()] + $extra, 'layouts/public'), $forms);
     }
 
     /** @param list<array<string,mixed>> $items */
@@ -191,10 +192,11 @@ final class SiteController
     }
 
     /** Réponse publique en cache 5 min, ETag fort du HTML ; 304 si le navigateur a déjà cette version. */
-    private function html(string $html): Response
+    /** @param bool $revalidate page à état changeant (bloc formulaire : bouton d'adhésion ouvert/fermé) : no-cache, revalidée par ETag à chaque visite */
+    private function html(string $html, bool $revalidate = false): Response
     {
         $etag = '"' . substr(hash('sha256', $html), 0, 32) . '"';
-        $headers = ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'public, max-age=300', 'ETag' => $etag];
+        $headers = ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => $revalidate ? 'no-cache' : 'public, max-age=300', 'ETag' => $etag];
         $sent = $this->request?->header('If-None-Match');
         if ($sent !== null && in_array($etag, array_map('trim', explode(',', $sent)), true)) {
             return new Response('', 304, $headers);

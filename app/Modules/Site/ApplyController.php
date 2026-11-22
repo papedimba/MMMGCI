@@ -72,7 +72,7 @@ final class ApplyController
             }
             $file = $r->file('piece');
             if (is_array($file) && (int) ($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-                $error = $flow->addFile($file, $r->post('type'));
+                $error = $flow->addFile($file, $r->post('type'), $r->ip());
                 if ($error !== null) {
                     return $this->render($flow, 4, ['piece' => $error], 422);
                 }
