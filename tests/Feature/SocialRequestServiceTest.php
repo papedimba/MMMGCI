@@ -319,7 +319,8 @@ final class SocialRequestServiceTest extends DatabaseTestCase
             $atomic = strpos($body, '$this->run(function');
             self::assertNotFalse($atomic, "$action : en transaction");
             $closure = $this->block($body, strpos($body, '{', $atomic));
-            self::assertMatchesRegularExpression('/^\{\s*\$r = \$this->lock\(\$id, \$actor\);|^\{\s*\$this->deny\(\$this->permission/', $closure, "$action : le verrou (ou l'autorisation sans état) d'abord");
+            self::assertMatchesRegularExpression($action === 'register' ? '/^\{\s*\$this->deny\(\$this->permission/' : '/^\{\s*\$r = \$this->lock\(\$id, \$actor\);/',
+                $closure, "$action : " . ($action === 'register' ? 'l\'autorisation sans état d\'abord' : 'le verrou de la demande (et le périmètre) avant toute lecture'));
             $pos = (int) strrpos($closure, '$this->auditTransition(');
             self::assertGreaterThan(0, $pos, "$action : audité");
             $paren = strpos($closure, '(', $pos);
@@ -400,6 +401,44 @@ final class SocialRequestServiceTest extends DatabaseTestCase
         self::assertSame([], $this->socialSvc()->allowedActions($id, $zoneManager));
     }
 
+    /** Compte désactivé avec une zone, compte actif d'une autre zone : chaque action répond « introuvable » (404), comme une demande inconnue. */
+    public function test_inactive_or_out_of_zone_actor_gets_not_found_on_every_action(): void
+    {
+        $this->db->query("INSERT IGNORE INTO roles (name, label) VALUES ('so_zall', 'so_zall')");
+        $this->db->query("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'so_zall'
+            AND p.name IN ('social.create', 'social.view', 'social.manage', 'social.decide')");
+        $inactiveA = $this->socialUser('inactiveA', ['so_zall'], $this->zoneA, false);
+        $activeB = $this->socialUser('activeB', ['so_zall'], $this->zoneB);
+        $activeA = $this->socialUser('activeA', ['so_zall'], $this->zoneA);
+        $s = $this->socialSvc();
+        $cases = [ // état où l'action serait permise, pour que seul le périmètre puisse la refuser
+            'assign' => ['recue', fn (int $id, int $u) => $s->assign($id, $activeA, $u)],
+            'requestDocuments' => ['en_instruction', fn (int $id, int $u) => $s->requestDocuments($id, 'Pièce', $u)],
+            'resumeInstruction' => ['en_attente_pieces', fn (int $id, int $u) => $s->resumeInstruction($id, $u, null)],
+            'addReview' => ['en_instruction', fn (int $id, int $u) => $s->addReview($id, 'favorable', null, 'Avis', $u)],
+            'submitForDecision' => ['reviewed', fn (int $id, int $u) => $s->submitForDecision($id, $u)],
+            'decide' => ['soumise_decision', fn (int $id, int $u) => $s->decide($id, $this->grant(), $u)],
+            'close' => ['refusee', fn (int $id, int $u) => $s->close($id, null, $u)],
+        ];
+        foreach ($cases as $action => [$state, $call]) {
+            $id = $this->requestIn($state === 'reviewed' ? 'en_instruction' : $state);
+            if ($state === 'reviewed') {
+                $s->addReview($id, 'favorable', null, 'Avis', $this->manager);
+            }
+            $before = $this->counts($id);
+            $status = $this->state($id);
+            foreach (['inactif avec zone' => $inactiveA, 'autre zone' => $activeB] as $who => $u) {
+                $this->refuses(fn () => $call($id, $u), NotFound::class, 'introuvable');
+                self::assertSame([], $s->allowedActions($id, $u), "$action, $who");
+            }
+            self::assertSame($status, $this->state($id), $action);
+            self::assertSame($before, $this->counts($id), "$action : rien n'est écrit");
+            self::assertContains($action, $s->allowedActions($id, $activeA), "$action : le même compte actif de la zone A y est autorisé");
+        }
+        $this->refuses(fn () => $s->register(['member_id' => $this->memberA, 'type_id' => $this->typeId, 'received_at' => Ledger::now()->format('Y-m-d'),
+            'channel' => 'guichet', 'description' => 'x'], $inactiveA), SocialRuleViolation::class, 'refusée'); // aucune demande existante à révéler
+    }
+
     public function test_beneficiary_of_another_member_refused(): void
     {
         $own = $this->db->insert('member_beneficiaries', ['member_id' => $this->memberA, 'last_name' => 'Kouassi', 'first_names' => 'Koffi', 'relationship' => 'enfant']);
@@ -417,7 +456,7 @@ final class SocialRequestServiceTest extends DatabaseTestCase
         foreach ([$this->manager, $this->creator, $this->plain] as $actor) {
             $this->refuses(fn () => $this->socialSvc()->decide($id, $this->grant(), $actor), SocialRuleViolation::class, 'refusée');
         }
-        $this->refuses(fn () => $this->socialSvc()->decide($id, $this->grant(), $inactive), NotFound::class); // compte désactivé : plus aucun périmètre
+        $this->refuses(fn () => $this->socialSvc()->decide($id, $this->grant(), $inactive), NotFound::class); // compte désactivé (même avec une zone : voir test_inactive_or_out_of_zone_actor_gets_not_found_on_every_action)
         self::assertSame(0, $this->counts($id)['decisions']);
         // Le décideur ne peut ni instruire ni clôturer.
         $this->refuses(fn () => $this->socialSvc()->addReview($this->requestIn('en_instruction'), 'favorable', null, 'x', $this->decider), SocialRuleViolation::class);

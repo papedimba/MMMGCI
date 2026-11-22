@@ -291,8 +291,12 @@ final class SocialRequestService
         return $r;
     }
 
+    /** Adhérent dans le périmètre d'un compte ACTIF (MemberScope ne regarde pas is_active : un compte désactivé avec zone y verrait encore sa zone). */
     private function visible(int $userId, int $memberId): bool
     {
+        if ((int) $this->db->fetchValue('SELECT is_active FROM users WHERE id = ?', [$userId]) !== 1) {
+            return false;
+        }
         [$sql, $params] = $this->scope->where($userId);
         return $this->db->fetchValue("SELECT 1 FROM members m WHERE m.id = ? AND $sql", [$memberId, ...$params]) !== null;
     }
