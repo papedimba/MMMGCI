@@ -17,11 +17,11 @@ final class RbacSeedTest extends DatabaseTestCase
         'tresorier_general' => ['contributions.export', 'contributions.manage', 'contributions.view', 'disbursement.initiate', 'finance.manage', 'finance.view', 'governance.view', 'members.scope.all', 'members.view', 'partners.view', 'reports.export', 'reports.view', 'social.view', 'solidarity.manage', 'solidarity.view'],
         'resp_communication' => ['cms.forms.manage', 'cms.media.manage', 'cms.pages.manage', 'cms.publish', 'cms.settings.manage', 'employment.manage', 'employment.view', 'partners.view', 'reports.view'],
         'resp_commission' => ['governance.view', 'members.scope.all', 'members.view', 'reports.view'],
-        'delegue' => ['delegates.report', 'members.create', 'members.view', 'social.view'],
-        'point_focal' => ['delegates.report', 'members.create', 'members.view', 'social.view'],
+        'delegue' => ['delegates.report', 'members.create', 'members.view', 'social.create', 'social.view'],
+        'point_focal' => ['delegates.report', 'members.create', 'members.view', 'social.create', 'social.view'],
         'controleur' => ['audit.view', 'contributions.export', 'contributions.view', 'delegates.view', 'discipline.view', 'employment.view', 'finance.control', 'finance.view', 'governance.view', 'members.scope.all', 'members.view', 'partners.view', 'reports.export', 'reports.view', 'social.view', 'solidarity.view'],
         'gest_adherents' => ['contributions.view', 'delegates.view', 'members.create', 'members.documents.view', 'members.export', 'members.scope.all', 'members.status', 'members.update', 'members.validate', 'members.view', 'reports.view'],
-        'gest_social' => ['contributions.view', 'disbursement.initiate', 'employment.view', 'members.scope.all', 'members.view', 'reports.view', 'social.manage', 'social.medical.view', 'social.view', 'solidarity.view'],
+        'gest_social' => ['contributions.view', 'disbursement.initiate', 'employment.view', 'members.scope.all', 'members.view', 'reports.view', 'social.create', 'social.export', 'social.manage', 'social.medical.view', 'social.view', 'solidarity.view'],
         'gest_cms' => ['cms.forms.manage', 'cms.media.manage', 'cms.pages.manage', 'cms.publish'],
         'lecture_seule' => ['contributions.view', 'delegates.view', 'employment.view', 'finance.view', 'governance.view', 'members.scope.all', 'members.view', 'partners.view', 'reports.view', 'solidarity.view'],
         'admin_site' => ['cms.forms.manage', 'cms.media.manage', 'cms.pages.manage', 'cms.publish', 'cms.settings.manage'],
@@ -56,6 +56,16 @@ final class RbacSeedTest extends DatabaseTestCase
         $this->assertContains('super_admin', $this->holders('users.manage'));
     }
 
+    public function test_social_create_only_for_social_manager_delegate_and_focal_point(): void
+    {
+        $this->assertSame(['delegue', 'gest_social', 'point_focal'], $this->holders('social.create'));
+    }
+
+    public function test_social_export_only_for_social_manager(): void
+    {
+        $this->assertSame(['gest_social'], $this->holders('social.export'));
+    }
+
     public function test_medical_data_permission_only_for_social_manager(): void
     {
         $this->assertSame(['gest_social'], $this->holders('social.medical.view'));
@@ -79,10 +89,10 @@ final class RbacSeedTest extends DatabaseTestCase
         $this->assertSame($expected, $actual);
     }
 
-    public function test_permission_catalogue_has_forty_seven_entries(): void
+    public function test_permission_catalogue_has_forty_nine_entries(): void
     {
-        $this->assertSame(47, (int) $this->db->fetchValue('SELECT COUNT(*) FROM permissions'));
-        // 47 permissions, dont deux (approbation et paiement des décaissements) qu'aucun rôle ne détient à l'installation.
+        $this->assertSame(49, (int) $this->db->fetchValue('SELECT COUNT(*) FROM permissions'));
+        // 49 permissions, dont deux (approbation et paiement des décaissements) qu'aucun rôle ne détient à l'installation.
         $granted = array_unique(array_merge(...array_values(self::MATRIX)));
         $this->assertSame(['disbursement.approve', 'disbursement.pay'], array_column($this->db->fetchAll('SELECT name FROM permissions WHERE name NOT IN (' . implode(',', array_fill(0, count($granted), '?')) . ') ORDER BY name', array_values($granted)), 'name'));
     }
