@@ -18,7 +18,8 @@ $columns = [
 $rowActions = $validate ? static fn (array $r): string => ui('button', ['label' => 'Paramètres', 'variant' => 'secondary', 'size' => 'sm', 'href' => '/admin/demandes-sociales/types/' . $r['id'] . '/parametres']) : null;
 ?>
 <?= ui('page-header', ['title' => 'Types de demande d\'assistance', 'subtitle' => 'Sous réserve des ressources disponibles, des textes applicables et des critères adoptés.'],
-    $validate ? ui('button', ['label' => 'Nouveau type', 'icon' => 'plus', 'href' => '/admin/demandes-sociales/types/nouveau']) : '') ?>
+    ui('button', ['label' => 'Paramètres généraux', 'variant' => 'secondary', 'href' => '/admin/demandes-sociales/parametres'])
+    . ($validate ? ui('button', ['label' => 'Nouveau type', 'icon' => 'plus', 'href' => '/admin/demandes-sociales/types/nouveau']) : '')) ?>
 <?= ui('alert', ['kind' => 'info', 'message' => 'Paramètre en attente de validation par les instances : tant qu\'un paramètre est « non configuré », le logiciel n\'en tire aucune règle ; toute aide reste soumise à des critères écrits, à un examen et à la validation de l\'organe compétent.']) ?>
 <?= ui('table', ['caption' => 'Types de demande', 'columns' => $columns, 'rows' => $rows, 'row_actions' => $rowActions,
     'empty' => ['title' => 'Aucun type', 'message' => 'Les types de l\'article 9 sont installés avec le module.']]) ?>

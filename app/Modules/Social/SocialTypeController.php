@@ -16,13 +16,32 @@ use InvalidArgumentException;
 /** Types de demande : lecture = social.view ; paramètres, création et activation = settings.validate (routes/admin.php). */
 final class SocialTypeController
 {
-    public function __construct(private View $view, private Csrf $csrf, private Session $session, private Gate $gate, private SocialTypeService $types)
+    public function __construct(private View $view, private Csrf $csrf, private Session $session, private Gate $gate, private SocialTypeService $types, private SocialSettingsService $general)
     {
     }
 
     public function index(Request $r): Response
     {
         return $this->page($r, 'admin/social/types/index', 'Types de demande d\'assistance', ['rows' => $this->types->all()]);
+    }
+
+    public function settings(Request $r): Response
+    {
+        return $this->page($r, 'admin/social/types/settings', 'Paramètres généraux', ['rows' => $this->general->all(), 'errorKey' => '', 'entered' => '']);
+    }
+
+    public function validateSetting(Request $r): Response
+    {
+        $key = (string) $r->attribute('key');
+        $v = $this->texts($r, ['value_' . $key, 'decision_ref_' . $key]);
+        try {
+            $this->general->validate($key, $v['value_' . $key], $v['decision_ref_' . $key], $this->actor($r));
+        } catch (DomainException $e) {
+            $this->session->flash('error', $e->getMessage());
+            return $this->page($r, 'admin/social/types/settings', 'Paramètres généraux', ['rows' => $this->general->all(), 'errorKey' => $key, 'entered' => $v['value_' . $key]], 422);
+        }
+        $this->session->flash('status', 'Paramètre validé avec la référence de la décision.');
+        return Response::redirect('/admin/demandes-sociales/parametres');
     }
 
     public function form(Request $r): Response

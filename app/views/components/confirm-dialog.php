@@ -15,6 +15,7 @@ if ((string) ($props['csrf'] ?? '') === '') {
 <?php endforeach; ?>
 <h2 id="<?= $e($id) ?>-title"><?= $e($props['title'] ?? '') ?></h2>
 <p id="<?= $e($id) ?>-msg"><?= $e($props['message'] ?? '') ?></p>
+<?= (string) ($props['extra_html'] ?? '') /* champs de saisie fournis par l'appelant (déjà échappés) */ ?>
 <div class="dialog-actions">
 <button class="btn btn-secondary" type="button" data-confirm-close><span>Annuler</span></button>
 <button class="btn btn-danger" type="submit"><span><?= $e($props['confirm_label'] ?? 'Confirmer') ?></span></button>

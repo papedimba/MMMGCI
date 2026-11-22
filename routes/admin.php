@@ -71,6 +71,7 @@ use App\Modules\Members\Referentials;
 use App\Modules\Members\StatusService;
 use App\Modules\Roles\RoleController;
 use App\Modules\Roles\RoleService;
+use App\Modules\Social\SocialSettingsService;
 use App\Modules\Social\SocialTypeController;
 use App\Modules\Social\SocialTypeService;
 use App\Core\Sequence;
@@ -114,7 +115,7 @@ return static function (Router $r, array $deps): void {
         new DisbursementGate($db()), $uploads(), new SensitiveAccess($db()));
     $control = static fn (): ControlController => new ControlController($view, $csrf, $session, $db(), $gate(), new ControlService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))));
     $arrears = static fn (): ArrearsController => new ArrearsController($view, $csrf, $session, $db(), $gate(), $arrearsService());
-    $socialTypes = static fn (): SocialTypeController => new SocialTypeController($view, $csrf, $session, $gate(), new SocialTypeService($db(), $audit(), $gate()));
+    $socialTypes = static fn (): SocialTypeController => new SocialTypeController($view, $csrf, $session, $gate(), new SocialTypeService($db(), $audit(), $gate()), new SocialSettingsService($db(), $audit(), $gate()));
     $solidarity = static fn (): SolidarityController => new SolidarityController($view, $csrf, $session, $gate(), new SolidarityService($db(), $audit(), new Ledger($db(), $audit(), new Sequence($db()))), new AccountService($db(), $audit()));
     $media = static fn (): MediaController => new MediaController($view, $csrf, $session, $gate(), new MediaService($db(), $audit(), $uploads()));
     $pages = static fn (): PageController => new PageController($view, $csrf, $session, $gate(), new PageService($db(), $audit(), $gate()));
@@ -363,6 +364,8 @@ return static function (Router $r, array $deps): void {
     // Types de demande d'assistance : lecture social.view ; paramètres décidés par les instances = settings.validate.
     $validateSettings = [$requireAuth, $permission('settings.validate')];
     $r->get('/admin/demandes-sociales/types', static fn (Request $q): Response => $socialTypes()->index($q), [$requireAuth, $permission('social.view')]);
+    $r->get('/admin/demandes-sociales/parametres', static fn (Request $q): Response => $socialTypes()->settings($q), [$requireAuth, $permission('social.view')]);
+    $r->post('/admin/demandes-sociales/parametres/{key:[a-z0-9_]+}', static fn (Request $q): Response => $socialTypes()->validateSetting($q), $validateSettings);
     $r->get('/admin/demandes-sociales/types/nouveau', static fn (Request $q): Response => $socialTypes()->form($q), $validateSettings);
     $r->post('/admin/demandes-sociales/types/nouveau', static fn (Request $q): Response => $socialTypes()->create($q), $validateSettings);
     $r->get('/admin/demandes-sociales/types/{id:\d+}/parametres', static fn (Request $q): Response => $socialTypes()->form($q), $validateSettings);
