@@ -115,7 +115,7 @@ final class PageController
     {
         return $this->found(function () use ($r): Response {
             $p = $this->pages->get($this->id($r));
-            $html = $this->view->render('admin/cms/pages/preview', ['title' => 'Aperçu — ' . $p['title'], 'page' => $p, 'refs' => $this->pages->resolve($p['blocks'])], 'layouts/public');
+            $html = $this->view->render('admin/cms/pages/preview', ['noindex' => true, 'title' => 'Aperçu — ' . $p['title'], 'page' => $p, 'refs' => $this->pages->resolve($p['blocks'])], 'layouts/public');
             return (new Response($html))->withHeader('X-Robots-Tag', 'noindex, nofollow')->withHeader('Cache-Control', 'no-store');
         });
     }

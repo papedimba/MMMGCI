@@ -247,7 +247,7 @@ final class PublishedContentTest extends AdminTestCase
         $mPriv = $this->db->insert('cms_media', ['file_id' => $private, 'title' => 'C', 'alt' => 'Secret']);
         $mHtml = $this->db->insert('cms_media', ['file_id' => $html, 'title' => 'D', 'alt' => 'x']);
         $c = $this->content();
-        $this->assertSame(['url' => '/media/2026/11/a.png', 'alt' => 'Quai', 'width' => null, 'height' => null], $c->mediaUrl($mImg));
+        $this->assertSame(['url' => '/media/2026/11/a.png', 'alt' => 'Quai', 'width' => null, 'height' => null, 'variants' => []], $c->mediaUrl($mImg));
         $this->assertSame('/media/2026/11/b.pdf', $c->mediaUrl($mPdf)['url']);
         $this->assertNull($c->mediaUrl($mPriv), 'disque privé');
         $this->assertNull($c->mediaUrl($mHtml), 'ni image ni PDF');

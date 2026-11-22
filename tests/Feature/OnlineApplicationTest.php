@@ -658,7 +658,8 @@ final class OnlineApplicationTest extends AdminTestCase
         $this->newVisitor();
         $this->req('GET', self::BASE . '/etape/1');
         $this->assertNotNull($this->services['session']->get('_last_activity'), 'ouvert : session démarrée');
-        // /contact garde sa session.
+        // /contact garde sa session quand sa page hôte est en ligne (sinon 404 sans session : ContactSeoTest).
+        $this->db->insert('cms_pages', ['title' => 'Contact', 'slug' => 'contact', 'status' => 'publie', 'blocks' => '[]', 'published_at' => '2026-01-01 00:00:00']);
         $this->newVisitor();
         $this->req('GET', '/contact');
         $this->assertNotNull($this->services['session']->get('_last_activity'));

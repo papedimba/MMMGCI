@@ -1,5 +1,29 @@
 Options -Indexes
 AddType font/woff2 .woff2
+AddType image/webp .webp
+
+# Compression du texte (HTML, CSS, JS, SVG, XML, texte).
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/css application/javascript text/javascript image/svg+xml application/xml text/plain
+</IfModule>
+
+# En-têtes des fichiers statiques. La CSP et les autres en-têtes de sécurité des pages restent posés par PHP (SecurityHeaders) : rien ici ne les remplace.
+<IfModule mod_headers.c>
+    Header always set X-Content-Type-Options "nosniff"
+    # /assets/ versionnés par asset_url() (?v=<empreinte du contenu>) : cache long et immuable ; non versionnés : revalidés à chaque usage.
+    <If "%{REQUEST_URI} =~ m#^/assets/# && %{QUERY_STRING} =~ /^v=[0-9a-f]+$/">
+        Header set Cache-Control "public, max-age=31536000, immutable"
+    </If>
+    <ElseIf "%{REQUEST_URI} =~ m#^/assets/#">
+        Header set Cache-Control "no-cache"
+    </ElseIf>
+    # Médias publics : noms aléatoires jamais réécrits ; cache d'un jour (un média retiré disparaît au plus tard le lendemain des caches).
+    <ElseIf "%{REQUEST_URI} =~ m#^/media/#">
+        Header set Cache-Control "public, max-age=86400"
+    </ElseIf>
+</IfModule>
+# Pages : Cache-Control court (5 min, ETag) ou no-store, fixé par PHP selon la page.
+
 RewriteEngine On
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteRule ^ index.php [L]

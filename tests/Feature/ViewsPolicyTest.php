@@ -58,7 +58,7 @@ final class ViewsPolicyTest extends TestCase
             $this->assertContains($root . "/app/views/public/apply/$apply.php", $files, "adhésion en ligne : $apply");
         }
         $this->assertFileDoesNotExist($root . '/app/views/public/_menu.php', 'menu codé en dur supprimé : il vient de PublishedContent::menu');
-        $allowed = '~^<\?=\s*(?:e\(|e_lines\(|ui\(|ui_icon\(|\(int\)|RichText::sanitize\(|\$body\s*\?>|\$content\s*\?>|\$link\(|\$tag\s*\?>|\$external \? \' rel="noopener noreferrer"\' : \'\'|'
+        $allowed = '~^<\?=\s*(?:e\(|e_lines\(|ui\(|ui_icon\(|\(int\)|RichText::sanitize\(|\$body\s*\?>|\$content\s*\?>|\$link\(|responsive_img\(|\$tag\s*\?>|\$external \? \' rel="noopener noreferrer"\' : \'\'|'
             . '\$m\[\'width\'\] !== null && \$m\[\'height\'\] !== null \? \' width="\' \. \(int\)|\$card\[\'expires_at\'\] === null \?)~';
         $bad = [];
         foreach ($files as $file) {

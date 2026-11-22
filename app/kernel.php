@@ -96,6 +96,14 @@ return static function (Config $config, bool $httpSession, array $overrides = []
         // Adhésion en ligne fermée : aucune session ni cookie (la garde n'est qu'une lecture des réglages ; base injoignable = fermée).
         new StartSession($session, $httpSession, [], ['/admin', '/admin/', '/adhesion-en-ligne', '/adhesion-en-ligne/', '/contact', '/contact/', '/partenariat', '/partenariat/'],
             static function (Request $r) use ($db, $audit, $gate): bool {
+                // Formulaires publics : session seulement si la page hôte est en ligne (sinon 404 sans cookie) ; « /contact/ » redirige, sans session.
+                if (in_array($r->path(), ['/contact', '/contact/', '/partenariat', '/partenariat/'], true)) {
+                    try {
+                        return !\App\Modules\Site\ContactController::hostLive($db(), new \App\Modules\Cms\PageService($db(), $audit(), $gate()), $r->path());
+                    } catch (\Throwable) {
+                        return true;
+                    }
+                }
                 if ($r->path() !== '/adhesion-en-ligne' && !str_starts_with($r->path(), '/adhesion-en-ligne/')) {
                     return false;
                 }
@@ -105,7 +113,7 @@ return static function (Config $config, bool $httpSession, array $overrides = []
                     return true;
                 }
             }),
-        new VerifyCsrf($csrf, $view),
+        new VerifyCsrf($csrf, $view, $router),
         new ShareLayoutData($view, $router),
     ]);
 };

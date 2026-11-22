@@ -15,7 +15,7 @@ use App\Modules\Cms\RichText;
 <?php else: ?>
 <ul class="pub-gallery">
 <?php foreach ($items as $it): ?>
-<li><figure class="pub-figure"><img src="<?= e(plain($it['url'])) ?>" alt="<?= e(plain($it['alt'])) ?>" loading="lazy" decoding="async">
+<li><figure class="pub-figure"><?= responsive_img($it, '(min-width: 40em) 33vw, 100vw') ?>
 <?php if (plain($it['caption'] ?? '') !== '' || plain($it['credit'] ?? '') !== ''): ?><figcaption><?= e(plain($it['caption'] ?? '')) ?><?php if (plain($it['credit'] ?? '') !== ''): ?> <span class="pub-credit"><?= e(plain($it['credit'])) ?></span><?php endif; ?></figcaption>
 <?php endif; ?>
 </figure></li>

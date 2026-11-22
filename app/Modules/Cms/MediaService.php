@@ -49,7 +49,7 @@ final class MediaService
         // Profil « image » pour tout sauf le PDF ; Uploads refuse SVG, HTML, PHP, doubles extensions et MIME menteurs.
         $fileId = $this->uploads->store($phpFile, $isDocument ? 'document' : 'image', true, $actor);
         try {
-            return $this->db->atomic(function () use ($fileId, $clean, $actor): int {
+            $id = $this->db->atomic(function () use ($fileId, $clean, $actor): int {
                 $id = $this->db->insert('cms_media', ['file_id' => $fileId, 'uploaded_by' => $actor] + $clean);
                 $this->audit->log($actor, 'cms.media_added', 'cms_media', $id, null, ['title' => $clean['title'], 'file_id' => $fileId]);
                 return $id;
@@ -58,6 +58,12 @@ final class MediaService
             $this->discard($fileId);
             throw $e;
         }
+        try {
+            (new MediaVariants($this->db, $this->uploads))->forFile($fileId); // images responsives ; un échec ne bloque pas l'ajout (recréées à la demande)
+        } catch (\Throwable $e) {
+            error_log('cms.media: variantes non créées (' . get_class($e) . ')');
+        }
+        return $id;
     }
 
     /** @param array<string,mixed> $meta */
@@ -96,6 +102,9 @@ final class MediaService
             throw new DomainException(in_array($code, [1205, 1213], true)
                 ? 'Le serveur est occupé : réessayez dans quelques instants.'
                 : 'Ce média est encore référencé ailleurs : suppression impossible.'); // filet : contrainte FK
+        }
+        if ($path !== null) {
+            MediaVariants::remove($path);
         }
         if ($path !== null && !@unlink($path)) { // après le COMMIT : au pire un fichier orphelin, jamais une ligne sans fichier
             error_log('cms.media: fichier orphelin non supprimé (média #' . $id . ')');

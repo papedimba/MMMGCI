@@ -132,7 +132,7 @@ final class GalleryService extends SimpleContent
     /** Images d'un album publié (vide si l'album n'est pas publié), seulement celles qui ont un texte alternatif. @return list<array<string,mixed>> */
     public function publishedItems(int $albumId): array
     {
-        return $this->db->fetchAll("SELECT i.id, i.caption, i.credit, m.alt, CONCAT('/media/', f.path) AS url
+        return $this->db->fetchAll("SELECT i.id, i.caption, i.credit, m.alt, CONCAT('/media/', f.path) AS url, f.id AS file_id, f.path, f.mime
             FROM cms_gallery_items i JOIN cms_galleries g ON g.id = i.gallery_id JOIN cms_media m ON m.id = i.media_id JOIN files f ON f.id = m.file_id
             WHERE g.id = ? AND g.status = 'publie' AND f.disk = 'public' AND f.mime LIKE 'image/%' AND m.alt IS NOT NULL AND m.alt <> '' ORDER BY i.sort_order, i.id", [$albumId]);
     }

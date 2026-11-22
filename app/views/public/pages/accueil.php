@@ -31,7 +31,7 @@ $hero ??= null;
 </div>
 <figure class="home-figure">
 <?php if ($hero !== null): ?>
-<img src="<?= e($hero['url']) ?>" alt="<?= e($hero['alt']) ?>"<?php if ($hero['width'] !== null && $hero['height'] !== null): ?> width="<?= (int) $hero['width'] ?>" height="<?= (int) $hero['height'] ?>"<?php endif; ?> decoding="async">
+<?= responsive_img($hero, '(min-width: 60em) 40vw, 100vw', true) ?>
 <?php else: ?>
 <img class="home-art" src="/assets/img/art/livret.svg" alt="Illustration d'un livret maritime ouvert, tamponné d'une ancre" width="480" height="360">
 <figcaption>Illustration : le livret maritime</figcaption>

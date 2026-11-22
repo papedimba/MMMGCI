@@ -115,7 +115,7 @@ final class PublicDesignTest extends AdminTestCase
         $this->assertStringContainsString('<li data-for="livret"><span>Une copie du livret', $html);
         $this->assertStringContainsString('<li data-for="ayants-droit livret"><span>Les informations', $html);
         $this->assertStringContainsString('aria-live="polite" data-dossier-count', $html);
-        $this->assertStringContainsString('<script src="/assets/js/site.js" defer></script>', $html);
+        $this->assertStringContainsString('<script src="' . asset_url('/assets/js/site.js') . '" defer></script>', $html);
         $js = (string) file_get_contents(dirname(__DIR__, 2) . '/public/assets/js/site.js');
         $this->assertLessThanOrEqual(4096, strlen($js));
         foreach (['innerHTML', 'outerHTML', 'insertAdjacentHTML', 'eval(', 'fetch(', 'XMLHttpRequest', 'localStorage', 'sessionStorage', 'cookie'] as $bad) {
@@ -198,7 +198,7 @@ final class PublicDesignTest extends AdminTestCase
             self::DOSSIER, ['type' => 'liste', 'items' => array_fill(0, 3, ['text' => "Constituer le dossier d'adhésion prévu à l'article 6."])]]);
         $html = $this->get('/')->body();
         $public = dirname(__DIR__, 2) . '/public';
-        preg_match_all('~<(?:link rel="stylesheet" href|script src)="(/assets/[^"]+)"~', $html, $m);
+        preg_match_all('~<(?:link rel="stylesheet" href|script src)="(/assets/[^"?]+)(?:\?v=[0-9a-f]+)?"~', $html, $m);
         $this->assertNotEmpty($m[1]);
         $total = strlen($html);
         $css = '';

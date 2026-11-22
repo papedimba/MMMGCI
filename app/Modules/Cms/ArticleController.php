@@ -101,7 +101,7 @@ final class ArticleController
     {
         return $this->found(function () use ($r): Response {
             $a = $this->articles->get($this->id($r));
-            $html = $this->view->render('admin/cms/articles/preview', ['title' => 'Aperçu — ' . $a['title'], 'article' => $a,
+            $html = $this->view->render('admin/cms/articles/preview', ['noindex' => true, 'title' => 'Aperçu — ' . $a['title'], 'article' => $a,
                 'image' => $this->articles->mediaOf($a['featured_file_id'] === null ? null : (int) $a['featured_file_id'])], 'layouts/public');
             return (new Response($html))->withHeader('X-Robots-Tag', 'noindex, nofollow')->withHeader('Cache-Control', 'no-store');
         });

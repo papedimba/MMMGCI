@@ -7,7 +7,7 @@ if ($m === null || !preg_match('~^/media/~', $m['url']) || preg_match('~\.pdf$~i
 }
 ?>
 <figure class="pub-block pub-figure">
-<img src="<?= e($m['url']) ?>" alt="<?= e($m['alt'] ?? '') ?>"<?= $m['width'] !== null && $m['height'] !== null ? ' width="' . (int) $m['width'] . '" height="' . (int) $m['height'] . '"' : '' ?> loading="lazy" decoding="async">
+<?= responsive_img($m) ?>
 <?php if (plain($b['caption'] ?? '') !== ''): ?><figcaption><?= e(plain($b['caption'])) ?></figcaption>
 <?php endif; ?>
 </figure>

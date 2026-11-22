@@ -8,7 +8,7 @@ use DomainException;
 
 final class Slugs
 {
-    public const RESERVED = ['admin', 'verifier', 'espace', 'assets', 'media', 'sante', 'adhesion-en-ligne', 'sitemap.xml', 'robots.txt', 'favicon.ico'];
+    public const RESERVED = ['admin', 'verifier', 'espace', 'assets', 'media', 'sante', 'adhesion-en-ligne', 'partenariat', 'sitemap.xml', 'robots.txt', 'favicon.ico'];
     /** Tables à slug unique (liste blanche : le nom est interpolé en SQL). */
     private const TABLES = ['cms_pages', 'cms_articles', 'cms_events', 'cms_categories', 'cms_tags', 'cms_galleries'];
     private const MAP = [

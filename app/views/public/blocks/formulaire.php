@@ -12,7 +12,7 @@ if ($key === 'adhesion' && empty($adhesionOpen)) {
 [$href, $label] = match ($key) {
     'adhesion' => ['/adhesion-en-ligne', 'Commencer ma demande'],
     'contact' => ['/contact', 'Nous écrire'],
-    'partenariat' => ['/contact', 'Proposer un partenariat'],
+    'partenariat' => ['/partenariat', 'Proposer un partenariat'],
     default => [null, null],
 };
 if ($href === null) {

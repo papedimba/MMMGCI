@@ -344,7 +344,8 @@ final class PublicPagesTest extends AdminTestCase
         $this->assertStringContainsString('href="/adhesion-en-ligne"', $html);
         $this->assertStringContainsString('Commencer ma demande', $html);
         $this->assertStringNotContainsString('ouvrira prochainement', $html);
-        $this->assertSame(2, substr_count($html, 'href="/contact"'));
+        $this->assertSame(1, substr_count($html, 'href="/contact"'));
+        $this->assertSame(1, substr_count($html, 'href="/partenariat"'));
         $this->assertStringNotContainsString('<form', $html);
         $this->assertStringNotContainsString('csrf', $html);
     }

@@ -15,7 +15,7 @@ $meta = array_filter([date_long_fr(plain($article['published_at'] ?? '')), $cate
 <?php endif; ?>
 </header>
 <div class="pub-body">
-<?php if ($image !== null && plain($image['alt'] ?? '') !== ''): ?><figure class="pub-figure"><img src="<?= e($image['url']) ?>" alt="<?= e($image['alt']) ?>" loading="lazy" decoding="async"></figure>
+<?php if ($image !== null && plain($image['alt'] ?? '') !== ''): ?><figure class="pub-figure"><?= responsive_img($image) ?></figure>
 <?php endif; ?>
 <div class="pub-rich"><?= RichText::sanitize(plain($article['body'] ?? '')) ?></div>
 </div>

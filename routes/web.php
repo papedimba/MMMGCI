@@ -24,7 +24,10 @@ use App\Modules\Members\MemberService;
 use App\Modules\Members\VerifyController;
 use App\Modules\Site\ApplyController;
 use App\Modules\Site\ApplyFlow;
+use App\Modules\Site\ContactController;
+use App\Modules\Site\SeoController;
 use App\Modules\Site\SiteController;
+use App\Modules\Cms\FormInbox;
 
 /** Chargé APRÈS routes/admin.php : la route attrape-tout du site public doit rester la dernière enregistrée. */
 return static function (Router $router, View $view, Csrf $csrf, callable $db, array $services): void {
@@ -37,7 +40,24 @@ return static function (Router $router, View $view, Csrf $csrf, callable $db, ar
             Closure::fromCallable($clock), $uploads());
     };
     $siteSettings = static fn (): SiteSettings => new SiteSettings($db(), $audit(), $gate());
-    $site = static fn (): SiteController => new SiteController($view, $content, $siteSettings);
+    $appUrl = (string) $services['config']->get('APP_URL', '');
+    $site = static fn (): SiteController => new SiteController($view, $content, $siteSettings, $appUrl);
+
+    // Plan du site et robots.txt : avant l'attrape-tout (qui refuse le point), sans session.
+    $seo = static fn (): SeoController => new SeoController($content, static fn (string $p): string => $site()->absolute($p), preg_match('#^https?://[^/\s"<>]+#i', $appUrl) === 1);
+    $router->get('/sitemap.xml', static fn (Request $r): Response => $seo()->sitemap($r));
+    $router->get('/robots.txt', static fn (Request $r): Response => $seo()->robots($r));
+
+    // Formulaires publics : session et jeton CSRF seulement ici et seulement si la page hôte est en ligne (StartSession, app/kernel.php).
+    $contact = static function () use ($view, $csrf, $db, $services, $content, $siteSettings, $site, $appUrl): ContactController {
+        ['audit' => $audit, 'gate' => $gate, 'mailer' => $mailer, 'defer' => $defer] = $services;
+        $inbox = static fn (): FormInbox => new FormInbox($db(), $audit(), $gate(), new Sequence($db()), $siteSettings(), static fn () => $mailer(), Closure::fromCallable($defer), $appUrl);
+        return new ContactController($view, $csrf, $inbox, $content, $siteSettings, $site);
+    };
+    foreach (['get', 'post'] as $verb) {
+        $router->$verb('/contact', static fn (Request $r): Response => $contact()->handle($r));
+        $router->$verb('/partenariat', static fn (Request $r): Response => $contact()->handle($r));
+    }
 
     // Site public : sans session ni cookie (StartSession, app/kernel.php) ; accueil = page publiée « accueil », sinon page d'attente.
     $router->get('/', static fn (Request $r): Response => $site()->home($r));

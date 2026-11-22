@@ -25,17 +25,33 @@ $link = static function (array $item, string $class = ''): string {
 <?php if (!empty($description) && is_string($description)): ?><meta name="description" content="<?= e($description) ?>">
 <?php endif; ?>
 <?php if (!empty($noindex)): ?><meta name="robots" content="noindex">
+<?php elseif (!empty($canonical) && is_string($canonical)): ?>
+<link rel="canonical" href="<?= e($canonical) ?>">
+<meta property="og:type" content="<?= e(($ogType ?? '') === 'article' ? 'article' : 'website') ?>">
+<meta property="og:site_name" content="Mutuelle des Marins Marchands et Gens de Mer de Côte d'Ivoire">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:title" content="<?= e($title ?? 'MMMGCI') ?>">
+<?php if (!empty($description) && is_string($description)): ?><meta property="og:description" content="<?= e($description) ?>">
+<?php endif; ?>
+<?php if (preg_match('~^https?://~i', $canonical) === 1): ?><meta property="og:url" content="<?= e($canonical) ?>">
+<?php endif; ?>
+<?php $ogAbs = isset($ogImage['url'], $appUrl) && is_string($appUrl) && $appUrl !== '' ? rtrim($appUrl, '/') . $ogImage['url'] : null; ?>
+<?php if ($ogAbs !== null): ?><meta property="og:image" content="<?= e($ogAbs) ?>">
+<?php if (plain($ogImage['alt'] ?? '') !== ''): ?><meta property="og:image:alt" content="<?= e(plain($ogImage['alt'])) ?>">
+<?php endif; ?>
+<?php endif; ?>
+<meta name="twitter:card" content="<?= e($ogAbs !== null ? 'summary_large_image' : 'summary') ?>">
 <?php endif; ?>
 <?php if (isset($csrfToken)): ?><meta name="csrf-token" content="<?= e($csrfToken) ?>">
 <?php endif; ?>
 <link rel="icon" type="image/png" href="/assets/img/emblem-40.png">
-<link rel="stylesheet" href="/assets/css/tokens.css">
-<link rel="stylesheet" href="/assets/css/base.css">
-<link rel="stylesheet" href="/assets/css/components.css">
-<link rel="stylesheet" href="/assets/css/public.css">
-<script src="/assets/js/js-flag.js"></script>
-<script src="/assets/js/app.js" defer></script>
-<script src="/assets/js/site.js" defer></script>
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/tokens.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/base.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/components.css')) ?>">
+<link rel="stylesheet" href="<?= e(asset_url('/assets/css/public.css')) ?>">
+<script src="<?= e(asset_url('/assets/js/js-flag.js')) ?>"></script>
+<script src="<?= e(asset_url('/assets/js/app.js')) ?>" defer></script>
+<script src="<?= e(asset_url('/assets/js/site.js')) ?>" defer></script>
 </head>
 <body class="public">
 <a class="skip-link" href="#contenu">Aller au contenu</a>

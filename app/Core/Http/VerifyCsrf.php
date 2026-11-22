@@ -8,13 +8,14 @@ use App\Core\View;
 
 final class VerifyCsrf implements Middleware
 {
-    public function __construct(private readonly Csrf $csrf, private readonly View $view)
+    /** @param Router|null $router si fourni : une requête sans route pour sa méthode passe (le routeur répond 404/405, aucun gestionnaire ne s'exécute) */
+    public function __construct(private readonly Csrf $csrf, private readonly View $view, private readonly ?Router $router = null)
     {
     }
 
     public function handle(Request $r, callable $next): Response
     {
-        if (in_array($r->method(), ['GET', 'HEAD', 'OPTIONS'], true)) {
+        if (in_array($r->method(), ['GET', 'HEAD', 'OPTIONS'], true) || ($this->router !== null && !$this->router->has($r->method(), $r->path()))) {
             return $next($r);
         }
         // Corps ou en-tête uniquement : un jeton dans l'URL fuirait dans les journaux et le Referer.

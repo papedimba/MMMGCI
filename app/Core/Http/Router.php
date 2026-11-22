@@ -86,6 +86,18 @@ final class Router
         return ($this->errorRenderer)(404, $r);
     }
 
+    /** Une route répond-elle à cette méthode pour ce chemin ? (HEAD = GET) */
+    public function has(string $method, string $path): bool
+    {
+        $verb = strtoupper($method) === 'HEAD' ? 'GET' : strtoupper($method);
+        foreach ($this->routes as [$m, $regex]) {
+            if ($m === $verb && preg_match($regex, $path) === 1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /** @return list<array{method: string, pattern: string, middleware: list<object|string>}> après fusion des groupes */
     public function routes(): array
     {

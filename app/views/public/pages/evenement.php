@@ -16,7 +16,7 @@ $until = date_long_fr(plain($event['ends_at'] ?? ''), true);
 <?php if (plain($event['location'] ?? '') !== ''): ?><div><dt>Lieu</dt><dd><?= e(plain($event['location'])) ?></dd></div>
 <?php endif; ?>
 </dl>
-<?php if ($image !== null && plain($image['alt'] ?? '') !== ''): ?><figure class="pub-figure"><img src="<?= e($image['url']) ?>" alt="<?= e($image['alt']) ?>" loading="lazy" decoding="async"></figure>
+<?php if ($image !== null && plain($image['alt'] ?? '') !== ''): ?><figure class="pub-figure"><?= responsive_img($image) ?></figure>
 <?php endif; ?>
 <?php if (plain($event['description'] ?? '') !== ''): ?><div class="pub-rich"><?= RichText::sanitize(plain($event['description'])) ?></div>
 <?php endif; ?>

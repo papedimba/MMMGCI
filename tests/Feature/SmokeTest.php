@@ -108,13 +108,18 @@ final class SmokeTest extends TestCase
         $this->assertSame(404, $app->handle(new Request('GET', '/xyz'))->status());
     }
 
-    public function test_post_to_home_without_token_is_419(): void
+    public function test_post_without_token_is_419_and_public_path_without_post_route_is_405(): void
     {
         $app = self::app();
         foreach (['POST', 'PUT', 'DELETE', 'PATCH'] as $m) {
-            $res = $app->handle(new Request($m, '/'));
-            $this->assertSame(419, $res->status(), $m);
-            $this->assertStringContainsString('<title>Session expirée</title>', $res->body());
+            $res = $app->handle(new Request($m, '/admin/connexion')); // route POST existante : jeton exigé
+            $this->assertSame($m === 'POST' ? 419 : 405, $res->status(), $m);
+            if ($m === 'POST') {
+                $this->assertStringContainsString('<title>Session expirée</title>', $res->body());
+            }
+            $res = $app->handle(new Request($m, '/')); // aucune route pour cette méthode : 405 (aucun gestionnaire n'est appelé)
+            $this->assertSame(405, $res->status(), $m);
+            $this->assertStringContainsString('<title>Méthode non autorisée</title>', $res->body());
         }
     }
 

@@ -328,3 +328,11 @@ html.js .pub-dossier-choices { display: grid; gap: var(--s2); }
 .preview-placeholder { padding: var(--s4); border: 1px dashed var(--line-strong); border-radius: var(--r-md); color: var(--ink-2); background: var(--sheet); }
 .preview-cta { margin: var(--s6) 0; padding: var(--s5); background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-md); }
 
+
+/* Formulaires publics (contact, information, partenariat) : la feuille de l'adhésion, choix du type de demande en onglets simples. */
+.contact-switch { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s5); }
+.contact-switch a { display: inline-flex; align-items: center; min-height: 48px; padding: 0 var(--s4); border: 2px solid var(--navy-800); border-radius: var(--r-sm); color: var(--navy-800); font-weight: 600; text-decoration: none; }
+.contact-switch a[aria-current] { background: var(--navy-800); color: var(--paper); }
+.contact-details address { font-style: normal; }
+.contact-details a { display: inline-flex; align-items: center; min-height: 48px; }
+.pub-body > .apply-card { background: var(--frame); max-width: 40rem; } /* feuille du formulaire sur le papier de la page intérieure */

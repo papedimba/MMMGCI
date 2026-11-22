@@ -22,9 +22,30 @@ final class SiteController
     private ?SiteSettings $settings = null;
     private ?Request $request = null;
 
-    /** @param Closure(): PublishedContent $content @param Closure(): SiteSettings $settings fabriques paresseuses (base jointe à la demande) */
-    public function __construct(private View $view, private Closure $makeContent, private Closure $makeSettings)
+    /**
+     * @param Closure(): PublishedContent $content @param Closure(): SiteSettings $settings fabriques paresseuses (base jointe à la demande)
+     * @param string $appUrl APP_URL : adresses canoniques absolues ; vide = chemins seuls
+     */
+    public function __construct(private View $view, private Closure $makeContent, private Closure $makeSettings, private string $appUrl = '')
     {
+    }
+
+    /** Adresse absolue depuis APP_URL (http(s)://hôte), sinon le chemin tel quel : jamais un hôte inventé. */
+    public function absolute(string $path): string
+    {
+        return preg_match('#^https?://[^/\s"<>]+#i', $this->appUrl) === 1 ? rtrim($this->appUrl, '/') . $path : $path;
+    }
+
+    /**
+     * Rendu dans le gabarit public avec les balises SEO : canonique = champ canonical_url sûr de l'élément, sinon l'adresse propre
+     * (sans paramètre) de la requête. @param array<string,mixed> $data
+     */
+    public function layout(string $view, array $data, ?string $canonicalField = null, ?string $path = null): string
+    {
+        $field = (string) $canonicalField;
+        $own = filter_var($field, FILTER_VALIDATE_URL) !== false && preg_match('#^https?://[^/\s"<>]+#i', $field) === 1 ? $field : null;
+        return $this->view->render($view, $data + ['canonical' => $own ?? $this->absolute($path ?? ($this->request === null ? '/' : '/' . trim($this->request->rawPath(), '/'))),
+            'appUrl' => $this->absolute('')] + (isset($data['site']) ? [] : ['site' => $this->safeSite()]), 'layouts/public');
     }
 
     public function home(Request $r): Response
@@ -32,7 +53,7 @@ final class SiteController
         return $this->guarded($r, function (): Response {
             $page = $this->content()->page('/accueil');
             if ($page === null || isset($page['redirect'])) {
-                return $this->html($this->view->render('home', ['title' => 'MMMGCI', 'site' => $this->site()], 'layouts/public'));
+                return $this->html($this->layout('home', ['title' => 'MMMGCI', 'site' => $this->site()]));
             }
             return $this->renderPage($page);
         }, fn (): Response => new Response($this->view->render('home', ['title' => 'MMMGCI'], 'layouts/public'))); // base injoignable : page d'attente, sans cache
@@ -68,16 +89,17 @@ final class SiteController
             }
             $category = $a['category_id'] === null ? null : $this->content()->category((int) $a['category_id']);
             $image = $a['featured_file_id'] === null ? null : $this->content()->fileUrl((int) $a['featured_file_id']);
-            return $this->html($this->view->render('public/pages/article', ['title' => (string) ($a['seo_title'] ?: $a['title']), 'description' => $a['seo_description'] ?: $a['excerpt'],
-                'article' => $a, 'category' => $category, 'image' => $image, 'site' => $this->site()], 'layouts/public'));
+            $og = $a['og_file_id'] === null ? null : $this->content()->fileUrl((int) $a['og_file_id']);
+            return $this->html($this->layout('public/pages/article', ['title' => (string) ($a['seo_title'] ?: $a['title']), 'description' => $a['seo_description'] ?: $a['excerpt'],
+                'article' => $a, 'category' => $category, 'image' => $image, 'ogImage' => $og ?? $image, 'ogType' => 'article', 'site' => $this->site()], $a['canonical_url'] ?? null));
         });
     }
 
     public function events(Request $r): Response
     {
-        return $this->guarded($r, fn (): Response => $this->html($this->view->render('public/pages/liste', ['title' => 'Évènements', 'kind' => 'evenements',
+        return $this->guarded($r, fn (): Response => $this->html($this->layout('public/pages/liste', ['title' => 'Évènements', 'kind' => 'evenements',
             'items' => $this->content()->events(['when' => 'upcoming', 'limit' => 50]), 'past' => $this->content()->events(['when' => 'past', 'limit' => 50]),
-            'site' => $this->site()], 'layouts/public')));
+            'site' => $this->site()])));
     }
 
     public function event(Request $r): Response
@@ -88,7 +110,7 @@ final class SiteController
                 return $this->notFound();
             }
             $image = $e['featured_file_id'] === null ? null : $this->content()->fileUrl((int) $e['featured_file_id']);
-            return $this->html($this->view->render('public/pages/evenement', ['title' => (string) $e['title'], 'event' => $e, 'image' => $image, 'site' => $this->site()], 'layouts/public'));
+            return $this->html($this->layout('public/pages/evenement', ['title' => (string) $e['title'], 'event' => $e, 'image' => $image, 'ogImage' => $image, 'site' => $this->site()]));
         });
     }
 
@@ -110,8 +132,8 @@ final class SiteController
             if ($album === null) {
                 return $this->notFound();
             }
-            return $this->html($this->view->render('public/pages/galerie', ['title' => (string) $album['title'], 'album' => $album,
-                'items' => $this->content()->galleryItems((int) $album['id']), 'site' => $this->site()], 'layouts/public'));
+            return $this->html($this->layout('public/pages/galerie', ['title' => (string) $album['title'], 'album' => $album,
+                'items' => $this->content()->galleryItems((int) $album['id']), 'site' => $this->site()]));
         });
     }
 
@@ -181,30 +203,35 @@ final class SiteController
                 'aides' => array_filter(is_array($page['blocks'] ?? null) ? $page['blocks'] : [], static fn ($b): bool => is_array($b) && ($b['type'] ?? '') === 'domaines' && !empty($b['items'])) !== []];
         }
         $forms = array_filter(is_array($page['blocks'] ?? null) ? $page['blocks'] : [], static fn ($b): bool => is_array($b) && ($b['type'] ?? '') === 'formulaire') !== [];
-        return $this->html($this->view->render($home ? 'public/pages/accueil' : 'public/pages/standard', ['title' => (string) ($page['seo_title'] ?: $page['title']), 'description' => $page['seo_description'] ?: $page['excerpt'],
-            'page' => $page, 'body' => (new PageRenderer($this->view, $this->content(), ApplyFlow::isOpen($this->settings ??= ($this->makeSettings)())))->render($page), 'ogImage' => $image, 'site' => $this->site()] + $extra, 'layouts/public'), $forms);
+        return $this->html($this->layout($home ? 'public/pages/accueil' : 'public/pages/standard', ['title' => (string) ($page['seo_title'] ?: $page['title']), 'description' => $page['seo_description'] ?: $page['excerpt'],
+            'page' => $page, 'body' => (new PageRenderer($this->view, $this->content(), ApplyFlow::isOpen($this->settings ??= ($this->makeSettings)())))->render($page), 'ogImage' => $image, 'site' => $this->site()] + $extra,
+            $page['canonical_url'] ?? null, $home ? '/' : null), $forms);
     }
 
     /** @param list<array<string,mixed>> $items */
     private function listPage(string $title, string $kind, array $items): Response
     {
-        return $this->html($this->view->render('public/pages/liste', ['title' => $title, 'kind' => $kind, 'items' => $items, 'site' => $this->site()], 'layouts/public'));
+        return $this->html($this->layout('public/pages/liste', ['title' => $title, 'kind' => $kind, 'items' => $items, 'site' => $this->site()]));
     }
 
-    /** Réponse publique en cache 5 min, ETag fort du HTML ; 304 si le navigateur a déjà cette version. */
-    /** @param bool $revalidate page à état changeant (bloc formulaire : bouton d'adhésion ouvert/fermé) : no-cache, revalidée par ETag à chaque visite */
+    /**
+     * Réponse publique en cache 5 min, ETag fort du HTML ; 304 si le navigateur a déjà cette version (comparaison faible : « W/ » accepté, « * » aussi).
+     * Le HTML ne dépend pas des paramètres d'adresse (canonique = adresse propre) : un même ETag pour /p et /p?x=1 désigne bien le même contenu.
+     * @param bool $revalidate page à état changeant (bloc formulaire : bouton d'adhésion ouvert/fermé) : no-cache, revalidée par ETag à chaque visite
+     */
     private function html(string $html, bool $revalidate = false): Response
     {
         $etag = '"' . substr(hash('sha256', $html), 0, 32) . '"';
         $headers = ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => $revalidate ? 'no-cache' : 'public, max-age=300', 'ETag' => $etag];
         $sent = $this->request?->header('If-None-Match');
-        if ($sent !== null && in_array($etag, array_map('trim', explode(',', $sent)), true)) {
+        $tags = $sent === null ? [] : array_map(static fn (string $t): string => (string) preg_replace('~^W/~', '', trim($t)), explode(',', $sent));
+        if (in_array($etag, $tags, true) || in_array('*', $tags, true)) {
             return new Response('', 304, $headers);
         }
         return new Response($html, 200, $headers);
     }
 
-    private function notFound(): Response
+    public function notFound(): Response
     {
         $html = $this->view->render('public/pages/not-found', ['title' => 'Page introuvable', 'noindex' => true, 'site' => $this->safeSite()], 'layouts/public');
         return new Response($html, 404, ['Content-Type' => 'text/html; charset=utf-8', 'Cache-Control' => 'no-store', 'X-Robots-Tag' => 'noindex']);

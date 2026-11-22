@@ -25,6 +25,8 @@ final class PublishedContent
 {
     public const ARTICLE_PATH = '/actualites/%s';
     public const EVENT_PATH = '/evenements/%s';
+    /** Chemin d'un fichier public sous /media/ : jamais de « .. », d'hôte ni de caractère spécial (défense en profondeur). */
+    private const MEDIA_PATH = '~^[A-Za-z0-9][A-Za-z0-9/_-]*\.[A-Za-z0-9]+$~D';
 
     /** @var array<string,mixed> */
     private array $memo = [];
@@ -90,7 +92,7 @@ final class PublishedContent
         return $this->memo('media:' . $mediaId, function () use ($mediaId): ?array {
             $r = $this->db->fetch("SELECT f.id, f.path, f.mime, m.alt FROM cms_media m JOIN files f ON f.id = m.file_id
                 WHERE m.id = ? AND f.disk = 'public' AND (f.mime LIKE 'image/%' OR f.mime = 'application/pdf')", [$mediaId]);
-            return $r === null ? null : $this->fileRow($r);
+            return $r === null || preg_match(self::MEDIA_PATH, (string) $r['path']) !== 1 ? null : $this->fileRow($r);
         });
     }
 
@@ -102,7 +104,7 @@ final class PublishedContent
     {
         return $this->memo('file:' . $fileId, function () use ($fileId): ?array {
             $r = $this->db->fetch("SELECT f.id, f.path, f.mime, m.alt FROM files f LEFT JOIN cms_media m ON m.file_id = f.id WHERE f.id = ? AND f.disk = 'public'", [$fileId]);
-            return $r === null ? null : $this->fileRow($r);
+            return $r === null || preg_match(self::MEDIA_PATH, (string) $r['path']) !== 1 ? null : $this->fileRow($r);
         });
     }
 
@@ -120,18 +122,23 @@ final class PublishedContent
         return $r === null ? null : ['name' => (string) $r['name'], 'slug' => (string) $r['slug']];
     }
 
-    /** @param array<string,mixed> $r @return array{url:string,alt:?string,width:?int,height:?int} */
+    /**
+     * Dimensions et variantes responsives (créées à la demande si absentes, MediaVariants) quand $uploads est fourni.
+     * @param array<string,mixed> $r @return array{url:string,alt:?string,width:?int,height:?int,variants:list<array{url:string,width:int,height:int}>}
+     */
     private function fileRow(array $r): array
     {
         $w = $h = null;
+        $variants = [];
         if ($this->uploads !== null && str_starts_with((string) $r['mime'], 'image/')) {
             try {
                 $info = @getimagesize($this->uploads->path((int) $r['id']));
                 [$w, $h] = $info === false ? [null, null] : [$info[0], $info[1]];
+                $variants = (new MediaVariants($this->db, $this->uploads))->forFile((int) $r['id']);
             } catch (\InvalidArgumentException) {
             }
         }
-        return ['url' => '/media/' . $r['path'], 'alt' => $r['alt'] === null ? null : (string) $r['alt'], 'width' => $w, 'height' => $h];
+        return ['url' => '/media/' . $r['path'], 'alt' => $r['alt'] === null ? null : (string) $r['alt'], 'width' => $w, 'height' => $h, 'variants' => $variants];
     }
 
     /** @return list<array<string,mixed>> */
@@ -162,7 +169,8 @@ final class PublishedContent
     /** @return list<array<string,mixed>> */
     public function documents(?string $category = null): array
     {
-        return $this->memo('documents:' . $category, fn (): array => $this->documents->publishedList($category));
+        return $this->memo('documents:' . $category, fn (): array => array_values(array_filter($this->documents->publishedList($category),
+            static fn (array $d): bool => preg_match(self::MEDIA_PATH, substr((string) $d['url'], 7)) === 1 && str_starts_with((string) $d['url'], '/media/'))));
     }
 
     /** @return list<array<string,mixed>> */
@@ -180,7 +188,15 @@ final class PublishedContent
     /** @return list<array<string,mixed>> */
     public function galleryItems(int $albumId): array
     {
-        return $this->memo('gallery:' . $albumId, fn (): array => $this->galleries->publishedItems($albumId));
+        return $this->memo('gallery:' . $albumId, function () use ($albumId): array {
+            $out = [];
+            foreach ($this->galleries->publishedItems($albumId) as $it) {
+                if (preg_match(self::MEDIA_PATH, (string) $it['path']) === 1) {
+                    $out[] = $this->fileRow(['id' => $it['file_id'], 'path' => $it['path'], 'mime' => $it['mime'], 'alt' => $it['alt']]) + $it;
+                }
+            }
+            return $out;
+        });
     }
 
     /** @return list<array<string,mixed>> */
@@ -191,24 +207,33 @@ final class PublishedContent
 
     /**
      * Chemins du plan du site : pages en ligne, articles et évènements publiés (pas les listes ni les fichiers /media).
-     * shortcut: 5000 articles et 5000 évènements au plus (une requête par article), passer à une requête en lot au-delà.
      * @return list<string>
      */
     public function sitemapUrls(): array
     {
+        return array_column($this->sitemapEntries(), 'path');
+    }
+
+    /**
+     * Comme sitemapUrls(), avec la date de la version en ligne (heure d'Abidjan, null si inconnue).
+     * shortcut: 5000 articles et 5000 évènements au plus (une requête par page et par article), passer à une requête en lot au-delà.
+     * @return list<array{path:string,lastmod:?string}>
+     */
+    public function sitemapEntries(): array
+    {
         return $this->memo('sitemap', function (): array {
-            $urls = [];
+            $out = [];
             $slugs = $this->pages->liveSlugs(array_map('intval', array_column($this->db->fetchAll('SELECT id FROM cms_pages ORDER BY sort_order, id'), 'id')));
-            foreach ($slugs as $slug) {
-                $urls[] = '/' . $slug;
+            foreach ($slugs as $id => $slug) {
+                $out[] = ['path' => '/' . $slug, 'lastmod' => $this->pages->liveVersion($id)['published_at'] ?? null];
             }
             foreach ($this->articles->liveList(5000) as $a) {
-                $urls[] = sprintf(self::ARTICLE_PATH, $a['slug']);
+                $out[] = ['path' => sprintf(self::ARTICLE_PATH, $a['slug']), 'lastmod' => $a['published_at'] ?? null];
             }
             foreach ($this->events->liveList(['limit' => 5000]) as $e) {
-                $urls[] = sprintf(self::EVENT_PATH, $e['slug']);
+                $out[] = ['path' => sprintf(self::EVENT_PATH, $e['slug']), 'lastmod' => $e['published_at'] ?? null];
             }
-            return $urls;
+            return $out;
         });
     }
 
