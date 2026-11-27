@@ -198,7 +198,9 @@ final class SocialScreensTest extends AdminTestCase
         $this->as($this->zoneManager); // zone B, instruction
         self::assertSame(404, $this->request('GET', "/admin/demandes-sociales/$a?onglet=examen")->status());
         self::assertSame(404, $this->request('POST', "/admin/demandes-sociales/$a/notes", ['body' => 'x'])->status());
-        self::assertStringContainsString('Contexte d&#039;examen', $this->page($b, '?onglet=examen'));
+        $exam = $this->page($b, '?onglet=examen');
+        self::assertStringContainsString('Contexte d&#039;examen', $exam);
+        self::assertStringContainsString('<dd>Actif</dd>', $exam); // libellé du statut, pas le code
         // Adhérent supprimé logiquement, compte désactivé : introuvable.
         $this->db->query('UPDATE members SET deleted_at = UTC_TIMESTAMP() WHERE id = ?', [$this->memberB]);
         self::assertSame(404, $this->request('GET', "/admin/demandes-sociales/$b?onglet=examen")->status());

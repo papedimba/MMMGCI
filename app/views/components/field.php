@@ -1,7 +1,7 @@
 <?php declare(strict_types=1);
 /** @var array<string,mixed> $props @var Closure $e */
 $type = in_array($props['type'] ?? '', ['email', 'password', 'tel', 'number', 'date', 'datetime-local', 'search', 'url', 'textarea', 'select'], true) ? $props['type'] : 'text';
-$id = 'f-' . ($props['name'] ?? '');
+$id = (string) ($props['id'] ?? 'f-' . ($props['name'] ?? '')); // id explicite quand deux champs de même nom partagent une page
 $error = (string) ($props['error'] ?? '');
 $hint = (string) ($props['hint'] ?? '');
 $required = !empty($props['required']);

@@ -12,7 +12,7 @@ $columns = [
     ['member', 'Adhérent', 'left', false, static fn (array $r): string => '<a class="who" href="/admin/adherents/' . e((string) $r['member_id']) . '"><strong>' . e($r['last_name'] . ' ' . $r['first_names']) . '</strong><span>' . e($r['member_number']) . '</span></a>'],
     ['type_name', 'Type', 'left', false, static fn (array $r): string => e($r['type_name'])],
     ['priority', 'Priorité', 'left', false, static fn (array $r): string => ui('badge', ['label' => SocialRequestService::PRIORITIES[$r['priority']] ?? $r['priority'], 'kind' => $r['priority'] === 'urgente' ? 'danger' : 'neutral'])],
-    ['status', 'Statut', 'left', false, static fn (array $r): string => ui('badge', ['label' => $cap(SocialWorkflow::LABELS[$r['status']] ?? $r['status']), 'kind' => $kinds[$r['status']] ?? 'neutral'])],
+    ['status', 'Statut', 'left', false, static fn (array $r): string => ui('badge', ['label' => $cap(SocialWorkflow::LABELS[$r['status']] ?? $r['status']), 'kind' => $kinds[$r['status']] ?? 'neutral']), 'status'],
     ['assignee_name', 'Responsable', 'left', false, static fn (array $r): string => e($r['assignee_name'] ?? 'Non affectée')],
 ];
 $create = $can('social.create') ? ['label' => 'Nouvelle demande', 'icon' => 'plus', 'href' => '/admin/demandes-sociales/nouvelle'] : null;

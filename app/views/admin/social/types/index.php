@@ -7,12 +7,20 @@ $pending = static fn (): string => ui('badge', ['label' => 'Non configuré', 'ki
 $ok = static fn (array $r): bool => $r['params_decision_ref'] !== null;
 $columns = [
     ['name', 'Type', 'left', false, static fn (array $r): string => '<strong>' . e($r['name']) . '</strong><br><span class="muted">' . e($r['action_text']) . '</span>'],
-    ['criteria', 'Critères', 'left', false, static fn (array $r): string => $ok($r) && $r['criteria_text'] !== null ? e($r['criteria_text']) : $pending()],
-    ['ceiling', 'Plafond', 'right', false, static fn (array $r): string => $ok($r) && $r['ceiling_amount'] !== null ? '<span class="nowrap">' . e(Money::format(Money::fromDecimal($r['ceiling_amount']))) . '</span>' : $pending()],
-    ['waiting', 'Carence (jours)', 'right', false, static fn (array $r): string => $ok($r) && $r['waiting_period_days'] !== null ? e((string) $r['waiting_period_days']) : $pending()],
-    ['body', 'Organe compétent', 'left', false, static fn (array $r): string => $ok($r) && $r['deciding_body'] !== null ? e($r['deciding_body']) : $pending()],
-    ['kinds', 'Sortes d\'aide', 'left', false, static fn (array $r): string => $ok($r) && $r['allowed_aid_kinds'] !== null
-        ? e(implode(', ', array_map(static fn (string $k): string => SocialTypeService::AID_KINDS[$k] ?? $k, json_decode($r['allowed_aid_kinds'], true)))) : $pending()],
+    // Une seule colonne pour les cinq paramètres : huit colonnes débordaient de l'écran à 768 px.
+    ['params', 'Paramètres', 'left', false, static function (array $r) use ($ok, $pending): string {
+        if (!$ok($r)) {
+            return $pending();
+        }
+        $kinds = $r['allowed_aid_kinds'] === null ? null : implode(', ', array_map(static fn (string $k): string => SocialTypeService::AID_KINDS[$k] ?? $k, json_decode($r['allowed_aid_kinds'], true)));
+        $lines = ['Critères' => $r['criteria_text'], 'Plafond' => $r['ceiling_amount'] === null ? null : Money::format(Money::fromDecimal($r['ceiling_amount'])),
+            'Carence (jours)' => $r['waiting_period_days'] === null ? null : (string) $r['waiting_period_days'], 'Organe compétent' => $r['deciding_body'], 'Sortes d\'aide' => $kinds];
+        $out = '';
+        foreach ($lines as $label => $value) {
+            $out .= '<span class="muted">' . e($label) . ' :</span> ' . ($value === null ? 'non configuré' : e($value)) . '<br>';
+        }
+        return $out . '<span class="muted">Décision ' . e($r['params_decision_ref']) . '</span>';
+    }],
     ['state', 'État', 'left', false, static fn (array $r): string => $r['is_active'] ? ui('badge', ['label' => 'Actif', 'kind' => 'ok']) : ui('badge', ['label' => 'Désactivé', 'kind' => 'neutral'])],
 ];
 $rowActions = $validate ? static fn (array $r): string => ui('button', ['label' => 'Paramètres', 'variant' => 'secondary', 'size' => 'sm', 'href' => '/admin/demandes-sociales/types/' . $r['id'] . '/parametres']) : null;

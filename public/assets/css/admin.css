@@ -55,7 +55,7 @@
   /* Sans JS : le menu reste empilé au-dessus du contenu. Avec JS : panneau sous la barre du haut : le bouton de menu reste visible et cliquable. Fermé, il sort du flux de tabulation (visibility). */
   html.js .side {
     position: fixed; top: 48px; bottom: 0; left: 0; z-index: 10; width: min(280px, 85vw); overflow-y: auto;
-    background: var(--frame); border-right: 1px solid var(--line);
+    background: var(--frame); border-right: 1px solid var(--line); /* taste-skill-ignore : bord du menu latéral, limite entre le cadre et la feuille (L2) */
     transform: translateX(-100%); visibility: hidden;
     transition: transform var(--dur-base) var(--ease), visibility 0s linear var(--dur-base);
   }
@@ -91,7 +91,7 @@
 .state-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s3); margin-bottom: var(--s4); }
 .delete-form { margin-top: var(--s4); }
 .panel-fieldset { border: 0; margin: 0; padding: 0; min-width: 0; }
-.panel-fieldset legend { float: left; width: 100%; padding: var(--s4) var(--s5); border-bottom: 1px solid var(--line); font: 400 var(--text-lg)/var(--leading-snug) var(--font-display); color: var(--navy-900); }
+.panel-fieldset legend { float: left; width: 100%; padding: var(--s4) var(--s5); border-bottom: 1px solid var(--line); font: 400 var(--text-lg)/var(--leading-snug) var(--font-display); color: var(--navy-900); } /* taste-skill-ignore : légende de fieldset rendue comme un en-tête de panneau, même filet que .panel-head (L2) */
 .panel-fieldset legend + .panel-body, .panel-fieldset legend + * { clear: both; }
 .check-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 0 var(--s5); }
 .check { display: flex; align-items: center; gap: var(--s3); min-height: var(--control-h); cursor: pointer; }
@@ -164,7 +164,7 @@
 .error-list { margin: var(--s1) 0 0; padding-left: var(--s5); }
 .error-list a { color: inherit; }
 .block-editor { margin: 0 0 var(--s4); padding: var(--s3) var(--s4) var(--s2); border: 1px solid var(--line-strong); border-radius: var(--r-md); background: var(--sheet); min-width: 0; scroll-margin-top: var(--s4); }
-.block-editor:target { border-color: var(--ocean-600); box-shadow: 0 0 0 2px var(--ocean-100); }
+.block-editor:target { border-color: var(--ocean-600); box-shadow: 0 0 0 2px var(--ocean-100); } /* taste-skill-ignore : anneau de focus de la cible :target, pas une ombre portée (éditeur de blocs) */
 .block-editor > legend { padding: 0 var(--s2); font-weight: 700; color: var(--navy-900); }
 .block-tools { display: flex; flex-wrap: wrap; gap: var(--s2); margin-bottom: var(--s3); }
 .block-tools .btn, .block-items .btn, .block-add .btn { min-height: var(--control-h); }
@@ -173,7 +173,7 @@
 .block-item { margin: 0 0 var(--s3); padding: var(--s2) var(--s3); border: 1px dashed var(--line-strong); border-radius: var(--r-sm); min-width: 0; }
 .block-item > legend { padding: 0 var(--s1); font-size: var(--text-sm); color: var(--ink-2); }
 .block-item-fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0 var(--s3); }
-.block-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); }
+.block-add { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s3); padding-top: var(--s3); border-top: 1px solid var(--line); } /* taste-skill-ignore : barre d'ajout de l'éditeur de blocs, séparée du dernier bloc (CMS) */
 .block-add .field { flex: 1 1 220px; margin-bottom: 0; }
 .transition-list { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s3); }
 .transition-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--s3); }
@@ -190,7 +190,7 @@
   .block-tools .btn { flex: 1 1 0; }
   .block-add .btn, .transition-form .btn { flex: 1 1 100%; }
   .inline-form .btn { min-height: var(--control-h); min-width: var(--control-h); }
-  .form-actions-sticky { position: sticky; bottom: 0; z-index: 2; margin: 0 calc(-1 * var(--s4)); padding: var(--s3) var(--s4); background: var(--sheet); border-top: 1px solid var(--line); }
+  .form-actions-sticky { position: sticky; bottom: 0; z-index: 2; margin: 0 calc(-1 * var(--s4)); padding: var(--s3) var(--s4); background: var(--sheet); border-top: 1px solid var(--line); } /* taste-skill-ignore : bord haut de la barre d'actions collante, une surcouche permise */
   .form-actions-sticky .btn { flex: 1 1 0; }
   .page-depth-1, .page-depth-2, .page-depth-3, .page-depth-4 { padding-left: var(--s3); }
 }
@@ -203,6 +203,6 @@
 
 /* Boîte de réception : formulaires de traitement empilés avec un espacement net. */
 .page-form + .page-form { margin-top: var(--s4); }
-/* Demande sociale : formulaires d'action empilés dans un même panneau */
+/* Demande sociale : formulaires d'action empilés dans un même panneau, séparés par l'espace seul */
 .stack-forms { display: grid; gap: var(--s5); }
-.stack-forms form + form { border-top: 1px solid var(--line); padding-top: var(--s5); }
+.member-facing { margin-bottom: var(--s4); } /* statut vu par l'adhérent : espace avant le premier panneau quand aucune action n'est affichée */

@@ -102,6 +102,17 @@ final class SocialExportTest extends AdminTestCase
         $v = json_decode($rows[0]['new_values'], true);
         self::assertSame(['rows' => 1, 'format' => 'csv', 'criteria' => ['q' => true, 'priority' => 'normale']], $v); // zone ignorée sans members.scope.all
         self::assertStringNotContainsString('Kouassi', $rows[0]['new_values']);
+        // Neutralisation aussi sur la référence et le libellé du type (valeurs forcées en base : la référence n'est jamais saisie, le libellé l'est par settings.validate).
+        $this->db->query("UPDATE social_requests SET reference = '+SUM(A1)' WHERE member_id = ?", [$this->memberA]);
+        $this->db->query("UPDATE social_request_types SET name = '@cmd' WHERE id = ?", [$this->typeId]);
+        $csv = $this->request('GET', '/admin/demandes-sociales/export.csv')->body();
+        self::assertStringContainsString("'+SUM(A1)", $csv);
+        self::assertStringContainsString("'@cmd", $csv);
+        self::assertDoesNotMatchRegularExpression('/(^|;|")[=+\-@]/m', explode("\r\n", $csv, 2)[1]);
+        $sheet = $this->sheet($this->request('GET', '/admin/demandes-sociales/export.xlsx')->body());
+        self::assertStringContainsString('&apos;+SUM(A1)', $sheet);
+        self::assertStringContainsString('&apos;@cmd', $sheet);
+        self::assertDoesNotMatchRegularExpression('/<t[^>]*>[=+\-@]/', $sheet);
         // Périmètre : la zone B n'apparaît jamais pour ce compte.
         $this->registerRequest(['member_id' => $this->memberB]);
         self::assertStringNotContainsString((string) $this->db->fetchValue('SELECT member_number FROM members WHERE id = ?', [$this->memberB]), $this->request('GET', '/admin/demandes-sociales/export.csv')->body());

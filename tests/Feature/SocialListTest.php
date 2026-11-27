@@ -47,6 +47,7 @@ final class SocialListTest extends AdminTestCase
         self::assertStringContainsString($refA, $body);
         self::assertStringNotContainsString($refB, $body);
         self::assertStringNotContainsString('Demande d&#039;aide', $body); // jamais la description
+        self::assertStringContainsString('cell-status', $body); // au téléphone, le statut reste sur la ligne du titre
         // Rechercher la référence d'une autre zone ne la révèle pas ; compte sans zone : rien ; compte désactivé : rien.
         self::assertStringContainsString('0 demande.', $this->list('?q=' . $refB));
         $this->as($this->socialUser('nozone', ['so_zview']));
@@ -57,6 +58,20 @@ final class SocialListTest extends AdminTestCase
         // Une demande de la zone B reste 404 pour le délégué de A (page), comme avant.
         $this->as($this->zoneViewer);
         self::assertSame(404, $this->request('GET', "/admin/demandes-sociales/$b")->status());
+    }
+
+    /** Branche « compte désactivé » de SocialSearch : un compte inactif ne lit ni n'exporte rien, même si sa zone lui ouvre encore un périmètre (MemberScope ignore is_active). */
+    public function test_inactive_account_gets_no_rows_from_search_or_stream(): void
+    {
+        $this->registerRequest();
+        $gate = new \App\Core\Gate($this->db);
+        $search = new \App\Modules\Social\SocialSearch($this->db, new \App\Modules\Members\MemberScope($this->db, $gate), $gate);
+        $on = $this->socialUser('zoneon', ['so_zone'], $this->zoneA);
+        self::assertGreaterThan(0, $search->search($on, [], 1)['total']);
+        $this->db->query('UPDATE users SET is_active = 0 WHERE id = ?', [$on]);
+        $gate->forget($on);
+        self::assertSame(0, $search->search($on, [], 1)['total']);
+        self::assertSame([], iterator_to_array($search->stream($on, [])));
     }
 
     public function test_delegate_of_zone_a_never_sees_zone_b(): void

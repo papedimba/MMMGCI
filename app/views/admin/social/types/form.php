@@ -41,12 +41,12 @@ $crumb = [['Types de demande', '/admin/demandes-sociales/types'], [$id > 0 ? 'Pa
 <input type="hidden" name="active" value="<?= $type['is_active'] ? '0' : '1' ?>">
 <?= ui('panel', ['title' => $type['is_active'] ? 'Désactiver ce type' : 'Réactiver ce type'],
     '<p>' . ($type['is_active'] ? 'Un type désactivé n\'est plus proposé pour de nouvelles demandes ; les demandes existantes le conservent.' : 'Le type sera de nouveau proposé pour les nouvelles demandes.') . '</p>'
-    . ($type['is_active'] ? '' : ui('field', ['name' => 'decision_ref', 'label' => 'Référence de la décision', 'required' => true, 'attrs' => ['maxlength' => 60]]))) ?>
+    . ($type['is_active'] ? '' : ui('field', ['name' => 'decision_ref', 'id' => 'f-activation-ref', 'label' => 'Référence de la décision', 'required' => true, 'attrs' => ['maxlength' => 60]]))) ?>
 <div class="form-actions"><?php if ($type['is_active']): ?>
 <button class="btn btn-secondary" type="submit" data-confirm-open="confirm-desactivation"><span>Désactiver</span></button>
 <?php else: ?><?= ui('button', ['label' => 'Réactiver', 'type' => 'submit', 'variant' => 'secondary']) ?><?php endif; ?></div>
 </form>
 <?php if ($type['is_active']): ?><?= ui('confirm-dialog', ['id' => 'confirm-desactivation', 'title' => 'Désactiver ce type ?', 'message' => 'Il ne sera plus proposé pour de nouvelles demandes ; les demandes existantes le conservent. La décision est consignée au journal.',
     'confirm_label' => 'Désactiver', 'form_action' => '/admin/demandes-sociales/types/' . (int) $id . '/activation', 'csrf' => $csrfToken, 'fields' => ['active' => '0'],
-    'extra_html' => ui('field', ['name' => 'decision_ref', 'label' => 'Référence de la décision', 'required' => true, 'attrs' => ['maxlength' => 60]])]) ?><?php endif; ?>
+    'extra_html' => ui('field', ['name' => 'decision_ref', 'id' => 'f-activation-ref', 'label' => 'Référence de la décision', 'required' => true, 'attrs' => ['maxlength' => 60]])]) ?><?php endif; ?>
 <?php endif; ?>

@@ -96,7 +96,12 @@ final class SocialTypesScreenTest extends AdminTestCase
     {
         $id = (int) $this->db->fetchValue("SELECT id FROM social_request_types WHERE code = 'sante'");
         $this->actingAs($this->validator);
-        self::assertStringContainsString('id="confirm-desactivation"', $this->request('GET', "/admin/demandes-sociales/types/$id/parametres")->body());
+        $html = $this->request('GET', "/admin/demandes-sociales/types/$id/parametres")->body();
+        self::assertStringContainsString('id="confirm-desactivation"', $html);
+        // Deux champs « decision_ref » (paramètres, boîte de désactivation) : identifiants distincts, chaque label désigne le sien.
+        preg_match_all('/ id="([^"]+)"/', $html, $m);
+        self::assertSame([], array_values(array_unique(array_diff_assoc($m[1], array_unique($m[1])))));
+        self::assertStringContainsString('for="f-activation-ref"', $html);
     }
 
     public function test_general_settings_screen_validates_per_key(): void

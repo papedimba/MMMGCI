@@ -114,7 +114,7 @@ if ($allowed('close')) {
 <?= ui('page-header', ['title' => 'Demande ' . $req['reference'], 'subtitle' => $req['type_name'] . ' · ' . $req['last_name'] . ' ' . $req['first_names'],
     'breadcrumbs' => [['Assistance sociale', null], [$req['reference'], null]]],
     ui('badge', ['label' => $label($st), 'kind' => $kinds[$st] ?? 'neutral'])) ?>
-<p class="page-subtitle">Ce que voit l'adhérent : <strong><?= e(SocialMemberView::statusOf($st)) ?></strong></p>
+<p class="page-subtitle member-facing">Ce que voit l'adhérent : <strong><?= e(SocialMemberView::statusOf($st)) ?></strong></p>
 <?php if ($error !== null): ?><?= ui('alert', ['kind' => 'danger', 'message' => $error]) ?><?php endif; ?>
 <?php if ($buttons !== ''): ?><div class="form-actions"><?= $buttons ?></div><?php endif; ?>
 <?php if ($forms !== ''): ?><?= ui('panel', ['title' => 'Actions'], '<div class="stack-forms">' . $forms . '</div>') ?><?php endif; ?>

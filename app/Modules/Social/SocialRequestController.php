@@ -381,6 +381,7 @@ final class SocialRequestController
         }
         if ($tab === 'examen') { // l'appelant a vérifié le périmètre (load) : context() n'en fait aucun
             $data['context'] = $this->service->context($id);
+            $data['context']['member_status'] = (string) ($this->db->fetchValue('SELECT label FROM member_statuses WHERE code = ?', [$data['context']['member_status']]) ?? $data['context']['member_status']); // libellé, pas le code
             $data['fund'] = $this->fund();
             $data['reviews'] = $this->notes->reviews($id, $uid);
             $data['notes'] = $this->notes->list($id, $uid);
