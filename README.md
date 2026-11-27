@@ -204,6 +204,80 @@ Cotisations, grand livre, circuit de décaissement à double validation, fonds d
 
 **Limites connues** : exports construits en mémoire, sans plafond de lignes (mesure : 50 000 écritures, CSV 7 s et 46 Mo, XLSX 9 s et 116 Mo : avec un `memory_limit` de 128 Mo, l'export XLSX peut échouer vers 55 000 lignes ; relever `memory_limit` ou filtrer) ; aucun paiement sans appel (pas d'avances : non défini par les instances) ; l'annulation d'un paiement ou la contre-passation d'une ressource peut rendre un solde négatif (aucun contrôle de solde à la contre-passation) ; l'approbation d'un utilisateur ensuite désactivé compte toujours (à trancher) ; pas de rejet possible depuis l'état « approuvée deux fois » (`approuve_2`) (à trancher) ; le contrôle « moins d'approbateurs que requis » applique la règle d'approbation **actuelle**, pas celle en vigueur au paiement ; budgets et engagements (T6.9) reportés ; chaîne du journal d'audit de la base de développement rompue (lignes 78, 81, 83 supprimées à la main : ignorer, ne pas réparer) ; plusieurs tests de concurrence reposent sur des verrous tenus par une seconde connexion ou des processus enfants et peuvent, très rarement, être instables (relancer ; le témoin du test d'interblocage se signale « skipped » plutôt que vert par défaut).
 
+## Demandes sociales (lot L7)
+
+Enregistrement, instruction, décision et suivi des demandes d'assistance des adhérents (art. 9 et 10 du cahier des charges). Comme en L5 et L6, **aucune règle métier dans les vues** : `SocialRequestService` décide (transaction, verrou `FOR UPDATE` de la demande avant la lecture de son état, contrôle contre la table de transitions, événement écrit, audit en dernier).
+
+**Ce que le module fait, et ce qu'il ne fait jamais**
+- Il **ne paie jamais directement**. Une décision « aide financière accordée » permet seulement de préparer un décaissement **au brouillon** (`DisbursementService::create`), qui suit ensuite le circuit L6 inchangé. Aucune route ni méthode du module n'écrit dans `financial_transactions`, `disbursement_approvals` ou `disbursement_payments`.
+- Il **ne crée aucun droit automatique à une aide** : le montant est saisi par le décideur ; il n'est borné par le plafond du type que si ce plafond est **validé** ; sinon il est libre mais le motif reste obligatoire. Aucun montant n'est pré-rempli, sauf la recopie du montant **décidé** dans le décaissement.
+- **L'adhérent ne verra jamais** les notes internes, les avis d'instruction, les noms des instructeurs et des décideurs, ni le circuit de décaissement (contrat `SocialMemberView`, voir `docs/superpowers/plans/2026-11-22-l7-decisions-et-reports.md`). L'Espace adhérent lui-même est le lot L15 : **aucun écran adhérent n'existe dans ce lot**.
+- Il n'invente ni critère d'éligibilité, ni plafond, ni carence, ni délai, ni organe : ce sont des paramètres « non configuré » (voir plus bas). Le contexte d'examen (statut du membre, appels impayés, ancienneté, carence et plafond « non configuré » s'ils ne sont pas validés) est **affiché**, jamais bloquant.
+
+**Écrans** (menu « Demandes sociales »)
+
+| Écran | Adresse | Permission |
+|---|---|---|
+| Liste, recherche, filtres, export CSV / XLSX | `/admin/demandes-sociales`, `/export.csv`, `/export.xlsx` | `social.view` ; export `social.export` |
+| Nouvelle demande (recherche de l'adhérent, canal, priorité, description, données de santé, une pièce) | `/admin/demandes-sociales/nouvelle` | `social.create` |
+| Demande (onglets Suivi, Examen, Pièces, Données de santé), affectation, pièces demandées, avis, soumission, notes | `/admin/demandes-sociales/{id}` | `social.view` ; actions `social.manage` ; notes `social.manage` ou `social.decide` ; pièces `social.manage` ou `social.create` |
+| Décision (motif, message à l'adhérent, organe et référence de décision obligatoires) | `/{id}/decision` | `social.decide` |
+| Préparation du décaissement, échec du paiement, clôture | `/{id}/decaissement`, `/{id}/decaissement/echec`, `/{id}/cloturer` | `social.manage` (la préparation exige aussi `disbursement.initiate`) |
+| Affichage des données médicales | `/{id}/medical/afficher` | `social.medical.view` |
+| Types de demande (paramètres par type) et réglages généraux | `/admin/demandes-sociales/types`, `/parametres` | lecture `social.view` ; validation `settings.validate` |
+| Onglet « Demandes d'assistance » de la fiche adhérent | `/admin/adherents/{id}?onglet=demandes` | `social.view` ; bouton « Nouvelle demande » : `social.create` |
+
+**Circuit et statuts** (table `SocialWorkflow::TRANSITIONS`, rien d'autre n'est permis, un POST forgé est refusé)
+
+| Statut interne | Ce que verrait l'adhérent (liste blanche, pour L15) | Suite possible |
+|---|---|---|
+| `recue` | Reçue | affectation |
+| `en_instruction` | En cours d'examen | pièces demandées ; soumission à décision ; avis ; réaffectation |
+| `en_attente_pieces` | Pièces demandées | reprise de l'instruction |
+| `soumise_decision` | En cours d'examen | décision (accordée ou refusée), **seulement s'il existe un avis d'instruction** |
+| `accordee` | Décision rendue | préparation du décaissement (aide financière) ; clôture (aide non financière) |
+| `refusee` | Décision rendue | clôture |
+| `en_paiement` | Décision rendue | clôture seulement si le décaissement lié est au statut `paye` ; échec du paiement : retour à `accordee` |
+| `cloturee` | Clôturée | aucune action |
+
+Une décision exige motif, message à l'adhérent, organe et référence de décision ; elle est **immuable** (aucune route de modification ni de suppression) ; il n'y en a qu'une par demande (contrainte UNIQUE).
+
+**Permissions et rôles par défaut**
+- Existantes depuis la migration `0005` : `social.view`, `social.manage`, `social.decide`, `social.medical.view`. Nouvelles (migration `0026`) : `social.create` (`gest_social`, `delegue`, `point_focal`) et `social.export` (`gest_social`).
+- `gest_social` : voit, enregistre, instruit, prépare le décaissement, lit les données médicales, exporte. `delegue` et `point_focal` : enregistrent des demandes (`social.create`) et les voient (`social.view`) **dans leur zone seulement**. `pca` détient `social.decide` depuis `0005` **à titre de suggestion** : les instances doivent confirmer qui décide.
+- **Rôles protégés** : `social.decide` et `social.medical.view` figurent parmi les permissions qui rendent un rôle protégé (`ProtectedRoles`) : seul un super administrateur (ou un administrateur qui les détient déjà) peut les attribuer. `super_admin` ne les a pas à l'installation.
+- **Personne ne reçoit `disbursement.approve` ni `disbursement.pay`** (le test `RbacSeedTest::test_no_role_can_approve_or_pay_disbursements_at_install` reste vert).
+- **Périmètre** : une demande appartient à la zone **actuelle** de l'adhérent. Un compte sans `members.scope.all` ne voit, ne liste, n'exporte et ne saisit que sa zone ; hors périmètre, adhérent supprimé logiquement, compte désactivé ou compte sans zone : **404** (pas de fuite d'existence, comme en L5).
+
+**Données médicales et journal des accès sensibles**
+- Les données de santé ne sont **jamais** dans la description, le journal d'audit, un e-mail, un export, l'objet d'un décaissement ni un journal applicatif. Elles vivent dans `social_request_medical` et dans les pièces marquées médicales.
+- Lecture réservée à `social.medical.view`. **Chaque** consultation (affichage de l'onglet par clic explicite, téléchargement d'une pièce médicale, affichage d'un libellé de pièce médicale) écrit une ligne dans `sensitive_access_logs` (groupe `donnees_medicales`) avant de rendre la donnée. Sans cette permission, une pièce médicale s'affiche « Pièce médicale (accès restreint) », sans libellé ni nom de fichier.
+- L'audit ne porte que des identifiants, statuts, références, drapeaux et montants, jamais un texte libre (description, motif, message, note, avis, libellés). **Point d'attention** : la référence de décision (`decision_ref`) est saisie librement, figure dans l'audit et dans l'objet du décaissement ; l'écran demande de n'y mettre aucune donnée de santé ni nom de personne, mais rien ne l'empêche techniquement.
+- Les accès sont visibles dans le journal des accès sensibles. Les liens d'export recopient le texte cherché dans l'URL (journaux du serveur web).
+
+**Lien avec le circuit de décaissement (L6) et le fonds de solidarité**
+- La préparation crée un décaissement **brouillon** : montant = montant décidé, bénéficiaire = l'adhérent (nom corrigeable pour un ayant droit), objet « Aide sociale AS-… — décision {référence} », compte choisi par l'agent (le fonds de solidarité actif est proposé en premier, **sans présélection**). Le montant et l'adhérent sont figés par la décision (refus de `revise`). Un seul décaissement « vivant » (ni rejeté ni annulé) par décision, garanti par un contrôle sous verrou **et** par un index unique en base (migration `0027`).
+- Puis tout suit le circuit L6 : soumission, **deux approbateurs distincts de l'initiateur**, payeur distinct de l'initiateur (par défaut), paiement unique avec justificatif.
+- **D3 à régler avant toute utilisation** : les instances doivent désigner **au moins deux approbateurs** (`disbursement.approve`) et **un payeur** (`disbursement.pay`). Sans eux le circuit L6 est inopérant : une aide financière accordée ne pourra pas être payée (voir « Finances (lot L6) »).
+- Un justificatif ne peut pas être une pièce sociale. La page du décaissement et le fonds de solidarité affichent la référence `AS-…` seulement (ni nom, ni type, ni motif).
+
+**Paramètres « non configuré »** — aucune valeur n'est inventée ; les instances les valident par `settings.validate`, **avec une référence de décision** ; tant qu'ils ne le sont pas, le logiciel n'en tire aucune conséquence automatique (bandeau « paramètre en attente de validation par les instances »).
+
+| Paramètre | Où | Effet tant qu'il n'est pas validé |
+|---|---|---|
+| `criteria_text`, `ceiling_amount`, `waiting_period_days`, `deciding_body`, `allowed_aid_kinds` | par type de demande (8 types de l'art. 9 semés, paramètres NULL), un seul jeu validé avec une référence de décision par type | affichés « Non configuré » ; aucun plafond, aucune carence appliqués ; toutes les sortes d'aide permises ; organe obligatoire à la saisie de la décision |
+| `social.reference_format` | `/admin/demandes-sociales/parametres` | bandeau seulement : la référence reste le format technique `AS-AAAA-NNNN` (**le réglage validé ne change pas encore la numérotation**) ; format à valider (V11) |
+| `social.processing_deadline_days` | idem | aucun délai de traitement, aucune alerte |
+| `social.retention_months` | idem | aucune purge ni anonymisation (non implémentées) |
+| `social.eligibility_rule` | idem | aucun contrôle d'éligibilité ; contexte affiché, jamais bloquant |
+| Canaux (`guichet`, `delegue`, `telephone`, `courrier`, `email`), priorités (`normale`, `urgente`), avis (`favorable`, `defavorable`, `reserve`), sortes d'aide (`financiere`, `orientation`, `accompagnement`, `materielle`) | contraintes `CHECK` de la migration `0025` | listes **techniques proposées** : toute évolution (par exemple un canal « espace adhérent » en L15) exige une migration |
+
+**Migrations** : `0025_social.sql` (8 tables et clé étrangère `disbursement_requests.social_decision_id`), `0026_social_permissions.sql` (permissions, 4 réglages, 8 types) et `0027_disbursement_live_social_decision.sql` (colonne générée `live_social_decision_id` + index unique `uq_dr_live_social_decision`, filet « un seul décaissement vivant par décision » ; ajoutée **en plus** de 0025 et 0026 parce que le `Migrator` refuse de modifier une migration déjà appliquée). Même modèle que la `0015` de L6. **Si la base contient déjà deux décaissements vivants pour la même décision** (très improbable : aucune route ne le permet), la `0027` **échoue** : sur MariaDB 10.11 l'erreur observée est **1834** (« Cannot delete rows from table which is parent in a foreign key constraint 'fk_da_request' »), parfois « Duplicate entry … for key 'uq_dr_live_social_decision' » ; l'échec est propre, rien n'est modifié. Diagnostic : `SELECT social_decision_id, COUNT(*) FROM disbursement_requests WHERE status NOT IN ('rejete','annule') AND social_decision_id IS NOT NULL GROUP BY 1 HAVING COUNT(*) > 1`, puis rejeter ou annuler le décaissement en trop et relancer `php bin/migrate.php`. (L'en-tête du fichier `0027` ne cite que « Duplicate entry » : migration appliquée, elle n'a pas été modifiée.) Essayée seulement sur MariaDB 10.11 ; MySQL 8.0.16 n'a pas été essayé.
+
+**Pièces et sauvegarde** : les pièces d'une demande sociale (PDF, JPG ou PNG, type réel vérifié, images ré-encodées) sont sur le **disque privé** `storage/uploads/private/`, hors de la racine web, jamais servies publiquement, téléchargées seulement par la route contrôlée (périmètre, permission, journal pour les pièces médicales). Elles ne sont **pas** dans la base : la sauvegarde doit copier la base **et** ce dossier, et la restauration doit remettre les deux en même temps. Les pièces d'une demande ne sont jamais purgées par une tâche existante : la future purge des fichiers orphelins devra **exclure** les fichiers référencés par `social_request_documents` (et ceux de `apply_draft_files`).
+
+**Limites connues** : pas d'Espace adhérent ni de dépôt de demande en ligne (lot L15, décision C38) ; pas de notification de décision à l'adhérent ; aucune purge après la durée de conservation ; pas de lien avec l'organe de gouvernance ni la réunion (lot L10) ; pas d'indicateurs « actions sociales » (lot L11) ; une demande soumise à décision ne peut pas être renvoyée à l'instruction, l'adhérent ne peut pas se désister et une décision ne peut pas être corrigée (à trancher par les instances) ; rien n'oblige l'instructeur et le décideur à être deux personnes différentes ; un enregistreur (`social.create`) ne peut déposer une pièce que sur une demande `recue` ; la recherche par référence fonctionne par préfixe ; l'e-mail d'affectation ne contient que la référence et un lien ; contrôle visuel fait par Playwright à 1440, 768 et 390 px, mais les liens de tableau et le fil d'Ariane restent sous 44 px au pointeur fin (conception existante).
+
 ## Rôles et permissions
 
 Matrice complète : [`docs/conception/03-architecture.md`](docs/conception/03-architecture.md#a6-matrice-rôles--permissions-base-de-conception-configurable), section A6. Un compte peut cumuler plusieurs rôles (ses permissions s'additionnent).
