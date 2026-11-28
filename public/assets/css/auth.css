@@ -1,0 +1,14 @@
+/* Pages hors administration : connexion, mot de passe, erreurs. Carte blanche de 400 px centrée sur le cadre teinté. */
+.auth { min-height: 100svh; display: grid; place-items: center; padding: var(--s5) var(--s4); }
+.auth-card { width: 100%; max-width: 400px; background: var(--sheet); border: 1px solid var(--line); border-radius: var(--r-lg); padding: var(--s6) var(--s5); }
+.auth-emblem { display: block; width: 80px; height: 80px; margin: 0 auto var(--s3); border-radius: 50%; }
+.auth-card h1 { text-align: center; font-size: var(--text-xl); overflow-wrap: anywhere; }
+.auth-card .auth-lead { text-align: center; color: var(--ink-3); margin: var(--s2) 0 var(--s5); }
+.auth-card form { margin-top: var(--s5); }
+.auth-card .btn { width: 100%; }
+.auth-card .auth-alt { text-align: center; margin-top: var(--s4); font-size: var(--text-sm); }
+.auth-card .auth-alt a, .auth-card .auth-back a { display: inline-flex; align-items: center; min-height: var(--control-h); }
+.auth-card .alert { margin-top: var(--s4); margin-bottom: 0; }
+.auth-card .auth-back { text-align: center; margin-top: var(--s4); }
+.auth-card p + p { margin-top: var(--s3); }
+.auth-card > h1 + p:not(.auth-lead) { text-align: center; margin-top: var(--s3); }

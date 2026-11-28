@@ -8,14 +8,14 @@ web
 
 ## Stack
 
-PHP 8.2+ / MySQL-MariaDB, hébergement mutualisé cPanel, sans Node.js ni processus permanent en production (exigence du commanditaire). Choix du framework : à valider en phase 1 (recommandation : Laravel 12, voir `docs/conception/03-architecture.md`).
+PHP 8.2+ natif sans framework ni Composer en production (décision du commanditaire du 13/11/2026 : « Laravel a trop de dépendances »), MySQL-MariaDB, hébergement mutualisé cPanel (pas encore choisi), sans Node.js ni processus permanent. Voir `docs/conception/03-architecture.md` B1.
 
 ## Users
 
 - **Responsables de la Mutuelle** (Bureau exécutif, Secrétariat général, Trésorerie, Communication, organe de contrôle) : gèrent adhérents, cotisations, demandes sociales, finances et gouvernance, principalement sur ordinateur au siège.
 - **Délégués et points focaux** : sur le terrain (ports, lieux de rassemblement), surtout sur smartphone avec connexion mobile parfois faible ; recensent, relaient, déposent des rapports.
 - **Visiteurs publics** : marins marchands, gens de mer, anciens marins, familles, partenaires (armements, centres de formation, institutions) qui découvrent la Mutuelle, demandent leur adhésion ou consultent les offres.
-- Les adhérents n'ont **pas** de compte personnel en V1 (décision du commanditaire, 2026-11-13).
+- **Adhérents** : chacun dispose d'un compte personnel dans l'« Espace adhérent » pour consulter sa fiche, ses cotisations et suivre ses demandes d'assistance (décision du commanditaire, 2026-11-14, qui remplace celle du 13/11). Usage surtout sur smartphone, parfois sans adresse e-mail.
 
 ## Product Purpose
 
@@ -37,6 +37,7 @@ Abidjan, fuseau Africa/Abidjan, devise XOF (sans décimales en pratique), langue
 
 ## Brand Commitments
 
+- Règles : le cahier des charges 2026–2027 est le seul texte de référence fourni (décision du 13/11/2026).
 - Nom : Mutuelle des Marins Marchands et Gens de Mer de Côte d'Ivoire (MMMGCI).
 - Slogan : « Un nouveau jour se lève ».
 - Logo complet obligatoire (décision du commanditaire, 2026-11-13) : emblème circulaire MMMGCI (cordage, carte d'Afrique avec la Côte d'Ivoire aux couleurs nationales, ancre, mer) **et** bandeau « Maritime Oceans and Hospitality Services — The soul sings only in the sea ». Fichier source : `docs/conception/maquettes/logo-mmmgci-mohs.jpg` (JPEG sur fond blanc ; une version vectorielle ou PNG transparente reste à fournir).

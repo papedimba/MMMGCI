@@ -1,0 +1,42 @@
+# Lot L1 — décisions et points reportés
+
+Extrait du registre d'exécution (14–15/11/2026). Commits d3a8c56..8628846. 334 tests.
+
+## Décisions (rulings)
+- Ruling: kernel signature becomes `(Config $config, bool $httpSession, array $overrides = [], ?array &$services = null)`; `$overrides` may provide 'db' (Database), 'mailer' (Mailer), 'clock' (callable(): int); `$services` is filled with the built objects (session, csrf, db closure, gate, auth, audit, mailer) so AdminTestCase can act on them — test seam without globals — cost: small signature churn.
+- Ruling: the "last active user holding users.manage" check lives once in UserService (public method `wouldLeaveNoAdmin(...)`/equivalent) and is reused by RoleService and bin/create-admin — avoids three divergent copies.
+- Ruling: Gate::zoneScope returns [] when no role grants the permission (plan silent) — no access — cost: none. Task 1 dispatched (base d3a8c56, agent aab75ca635b2c8dfa, sonnet)
+- Ruling: unknown/inactive accounts still run password_verify on a dummy hash (constant time); throttled attempts audited (auth.login_blocked) but not recorded in login_attempts. Task 3 dispatched (base 9bf4bf3, agent a86848c35551e53ae, opus)
+- Ruling: $services/$deps 'gate','auth','audit' are lazy callable factories (like 'db'); Router accepts Closure middleware built on match — keeps /sante DB-lazy — cost: none.
+- Ruling: forgot-password requests counted through LoginThrottle under key 'reset:'.email (shares 5/15 account and 20/15 IP limits); reset page sends Referrer-Policy: no-referrer. Task 5 dispatched (base f78a614, agent a31953666b2eddd7a, opus)
+- Ruling: fix via deferred work — whole sendLink() (lookup, token insert + audit, mail) runs after the response through an injected 'defer' closure (fastcgi_finish_request/litespeed_finish_request inside a shutdown function; no gain under mod_php/php -S, documented shortcut) — both paths do the same in-request work — cost: none under mod_php.
+- Ruling: minor 3 (shared IP limit for forgot requests) accepted and documented, not changed.
+- Ruling: also require https:// APP_URL outside APP_ENV=local (cheap hardening) and log user id with the exception class in the deferred job.
+- Ruling: invitation tokens valid 72 h (issue() TTL parameter), reset tokens stay 1 h; invitation mail reuses the deferred path of forgot-password. Task 6 dispatched (base 2396d0b, agent a5fec7b3f3c7c8e81, opus)
+- Ruling (design decision on your behalf): "protected role" = is_system, or carries users.manage or roles.manage, or carries any of the 7 permissions super_admin deliberately lacks (disbursement.approve/pay, social.decide, discipline.decide, settings.validate, members.documents.view, social.medical.view). Assigning a protected role, and acting on (edit/e-mail/deactivate/roles of) an account holding one, requires the actor to hold a system role (super_admin) OR every permission of that role. Cost: only the technical super administrator can designate sensitive approvers/deciders (matches A6 "le super administrateur l'attribue explicitement"); admin_general cannot create super_admin or touch their accounts.
+- Ruling for Task 7: RoleService must mirror it — adding a permission to a role requires the actor to hold it or a system role; editing a protected role requires the same pass; wouldLeaveNoAdmin generalised so RoleService reuses it (no duplicate holder query).
+- Ruling: page views of the audit screen are not audited (flood), only the verification is.
+- Ruling: fix with GET_LOCK('mmmgci.create-admin', 10) around hasActiveAdmin()+create, released in finally; refuse with French message if lock not obtained. Minors M-1 (purge boundary 24 h / 24 h−1 s) and M-2 (comment pointing to holderGrants) fixed in the same round.
+- Ruling: blocked-login audit is bounded — first block per (normalised e-mail, IP) per window is audited and recorded as a login_attempts row with succeeded=2 (not counted as failure); subsequent blocked attempts in the window write nothing — cost: attacker traffic no longer visible row-by-row (the one audited row + attempts table suffice).
+- Ruling: re-carry L0 Task 14 items (scheduler failing-task backoff, finished_at uses time()) to the next lot that registers business cron tasks (L6) — not L1.
+- Ruling: drop/recreate and migrate the dev DB (no real data) before the fix wave.
+- Rulings by implementer accepted: unknown vs vanished role share one message; ≤2 rows per simultaneous blocked burst (shortcut comment).
+- Ruling: when the per-IP limit is the cause, mark and audit the block per IP only (succeeded=2 row check on ip within window, any e-mail); keep (e-mail, IP) for the per-account limit; update README wording. Deviation from 'no second fix wave': defect in my own ruling, small, testable — cost: one extra dispatch.
+
+## Points mineurs reportés (lot indiqué quand connu)
+- Task 1: minor (deferred → Task 9 carry): regression test pinning the full 19-role matrix + permission count; zoneScope ignores scope_body_id (later lots)
+- Task 2: minor (deferred): accent-blind name check; invalid UTF-8 name TypeError (DB-sourced); short list entries unreachable
+- Task 3: minor (deferred): repeated user lookups; StartSession ignores clock override; Router docblock
+- Task 5 minors to fix now: change-password throttled via LoginThrottle; change() invalidates pending reset tokens; empty/relative APP_URL → no mail + error log; tests for other-token invalidation and 3600 s boundary; Cache-Control no-store on reset page.
+- Task 5: minor (deferred → final review/L13): SMTP failures all RuntimeException → class-only log gives no cause (add an admin "send test mail" screen later); assertion counts of full suite vary between runs (suspect AuditTest/SchedulerTest concurrency tests — check at final review); no test for the session_write_close branch (CLI has no HTTP session)
+- Task 6 minors to fix now: M1 invalidate open tokens on deactivation, M2 call LinkMailer::ready() before issuing + honest flash, M3 generalise wouldLeaveNoAdmin for role changes, M4 map only errno 1062, M5 activation requires exactly '0'/'1'. Deferred: M6 lock test only proves blocking; M8 assertion count variance (final review); M9 own e-mail change without re-auth.
+- Task 6: minor (carried INTO Task 7 dispatch): M-new-1 assertMayHandle in setActive/setRoles reads the target's roles before any lock — move it after the target-row lock with a locking read (denial-of-service race, and a trap for Task 7 callers); edit()/setActive lock order vs holder rows (rare deadlock → 500)
+- Task 6: minor (deferred): invalidateTokens uses gmdate not the clock; flash says "adresse non configurée" also for http-not-https; M6 lock test proves blocking only; M8 assertion count variance (final review); M9 own e-mail change without re-auth
+- Task 7: minor (deferred): M1 delete-role vs concurrent setRoles → 500 (PDOException 1452, data stays correct; fix: re-resolve role ids after lockHolders in UserService::setRoles) — worth fixing in the L1 final fix wave; M2 module headings raw codes (→ L2, French module names); M3 protected roles show an editable form that always 422s (read-only view, L2); M4 RoleService builds UserService internally; M5 duplicate-name race untested; M6 ProtectedRoles::grantable ignores scope_zone_id (matters when scoped roles exist, L5/L10)
+- Task 8: minor (fix in L1 final fix wave): M1 missing audit_chain row turns verification into a 500 instead of the anomaly message (set the flash before logging / catch); M2 du > au not flagged. Deferred: M3 date error text format; M4 array in query string silently dropped; M5 misleading entry number on emptied log (Audit::verify, L0); M6 test gaps; scale note: keyset paging + (action,id) index + no exact COUNT beyond ~millions of rows.
+
+## À décider par les instances (non bloquant)
+- PRODUCT NOTE for the human at the end: admin_general can still grant unprotected roles it does not fully hold to an account it controls (e.g. controleur → finance.control for oneself, tresorier_general → disbursement.initiate); single-person approve/pay stays impossible. Needs a decision by the instances.
+- NOTE: a roles.manage-only holder can remove permissions from / delete unprotected roles carrying permissions it lacks (allowed by ruling A) — surface at the end.
+- 2FA (code à usage unique) non incluse : non validée.
+- Re-reporté au lot qui enregistrera des tâches cron métier (L6) : planificateur sans temporisation pour une tâche qui échoue sans cesse ; finished_at utilise time().

@@ -1,7 +1,7 @@
 # 04 — Modélisation de la base de données
 
 > MySQL 8 / MariaDB 10.6+, InnoDB, `utf8mb4_unicode_ci`, fuseau stocké en UTC et affiché en Africa/Abidjan (identiques, UTC+0, sans heure d'été).
-> Statut : **proposition** — les migrations Laravel versionnées seront écrites à partir de ce schéma en lot L0+.
+> Statut : **proposition** — les migrations SQL versionnées (`database/migrations/NNNN_*.sql`) seront écrites à partir de ce schéma en lot L0+.
 
 ## 1. Conventions
 
@@ -11,7 +11,7 @@
 | Clés étrangères | `<table_singulier>_id`, indexées, `ON DELETE RESTRICT` par défaut ; `CASCADE` uniquement pour les tables de détail sans valeur propre (ex. `menu_items`, `role_permissions`) |
 | Horodatage | `created_at`, `updated_at` (TIMESTAMP) sur toutes les tables ; `created_by`, `updated_by` sur les tables métier |
 | Suppression | **Logique** (`deleted_at`) sur les données métier (membres, partenaires, contenus) ; **jamais** de suppression sur finances, décisions et audit |
-| Montants | `DECIMAL(15,2)`, devise `CHAR(3) DEFAULT 'XOF'` ; calculs en BCMath côté PHP |
+| Montants | `DECIMAL(15,2)`, devise `CHAR(3) DEFAULT 'XOF'` ; côté PHP, calculs en **entiers de centimes** (`int` 64 bits), jamais en flottant — aucune extension `bcmath` requise (absente de certains hébergements) |
 | Références lisibles | `reference VARCHAR(30) UNIQUE` générée par séquence (`sequences` : année + compteur, verrouillée en transaction) |
 | Énumérations métier | Statuts techniques de workflow en `VARCHAR(30)` + contrôle applicatif ; listes **métier** (VAL) en tables de référence administrables |
 | Fichiers | Une table `files` unique (chemin privé/public, MIME, taille, hachage SHA-256) référencée par les tables métier |
@@ -20,9 +20,10 @@
 
 ```mermaid
 erDiagram
-  users ||--o{ model_has_roles : has
-  roles ||--o{ role_has_permissions : grants
-  permissions ||--o{ role_has_permissions : in
+  users ||--o{ user_roles : has
+  roles ||--o{ user_roles : given
+  roles ||--o{ role_permissions : grants
+  permissions ||--o{ role_permissions : in
   members ||--o{ member_beneficiaries : has
   members ||--o{ member_documents : has
   members ||--o{ member_status_history : tracks
@@ -59,7 +60,10 @@ Le **fonds de solidarité** est un `financial_accounts` de type `solidarity_fund
 | Table | Colonnes principales | Contraintes / index |
 |---|---|---|
 | `users` | name, email, phone, password (hash), is_active, two_factor_secret (chiffré), last_login_at, member_id (nullable, si l'utilisateur est aussi membre), delegate_id (nullable) | UNIQUE(email) |
-| `roles`, `permissions`, `model_has_roles`, `role_has_permissions`, `model_has_permissions` | Schéma `spatie/laravel-permission` (équivaut à roles / permissions / user_roles / role_permissions) | UNIQUE(name, guard) |
+| `roles` | name, label, description, is_system | UNIQUE(name) |
+| `permissions` | name (`module.action`), label, module | UNIQUE(name) |
+| `role_permissions` | role_id, permission_id (CASCADE) | PK(role_id, permission_id) |
+| `user_roles` | user_id, role_id (CASCADE), scope_zone_id NULL, scope_body_id NULL | PK(user_id, role_id) ; périmètre optionnel |
 | `sessions` | id, user_id, ip, user_agent, payload, last_activity | INDEX(user_id) |
 | `login_attempts` | email, ip, succeeded, created_at | INDEX(email, created_at) |
 | `audit_logs` | user_id, action, auditable_type, auditable_id, old_values JSON, new_values JSON, ip, user_agent, reference, prev_hash, hash, created_at | **Aucun** update/delete applicatif ; INDEX(auditable_type, auditable_id), INDEX(created_at) ; utilisateur SQL applicatif sans droit `UPDATE/DELETE` sur cette table si l'hébergeur le permet |
@@ -67,7 +71,9 @@ Le **fonds de solidarité** est un `financial_accounts` de type `solidarity_fund
 | `settings` | group, key, value JSON, status (`non_configure` / `valide`), validated_by, validated_at, decision_ref | UNIQUE(group, key) — porte les paramètres VAL |
 | `files` | disk (`private`/`public`), path, original_name, mime, size, sha256, uploaded_by | INDEX(sha256) |
 | `sequences` | name, year, last_value | UNIQUE(name, year) |
-| `notifications` | Schéma Laravel (notifications internes) | — |
+| `notifications` | user_id, type, title, link, read_at | INDEX(user_id, read_at) |
+| `schema_migrations` | version, applied_at, checksum | Migrations appliquées |
+| `scheduled_runs` | task, started_at, finished_at, status | Verrou et suivi des tâches Cron |
 
 ### 3.2 CMS
 
@@ -186,6 +192,17 @@ Les coordonnées, réseaux sociaux et pied de page sont des clés de `settings` 
 | `disciplinary_observations` | case_id, author (la personne concernée ou son représentant), received_at, content, file_id |
 | `disciplinary_decisions` | case_id UNIQUE, governing_body_id, measure_id NULL (aucune mesure possible), reasoning, decided_at, decision_ref |
 
+### 3.10 Espace adhérent
+
+| Table | Colonnes principales | Notes |
+|---|---|---|
+| `member_accounts` | member_id **UNIQUE**, login_phone, login_email NULL, password (hash Argon2id), status (`en_attente`, `actif`, `verrouille`, `desactive`), activated_at, last_login_at, failed_attempts, locked_until | Séparée de `users` : deux mondes d'authentification distincts |
+| `member_activation_codes` | member_account_id, code_hash, purpose (`activation`, `reinitialisation`), delivery (`email`, `lettre`), issued_by NULL, expires_at, used_at | Usage unique ; le code en clair n'est jamais stocké |
+| `member_change_requests` | member_id, fields JSON (avant/après), status (`soumise`, `acceptee`, `refusee`), reviewed_by, reason | Corrections demandées par l'adhérent |
+| `member_messages` | member_id, title, body, link, read_at | Notifications à l'adhérent (demande avancée, reçu disponible) |
+
+Ajouts : `social_requests.channel` accepte `espace_adherent` ; `social_requests.member_visible_status` est **calculé** à partir du statut interne (table de correspondance), pour ne jamais exposer les étapes internes ; `social_decisions.member_message` est le texte de décision communiqué à l'adhérent.
+
 ## 4. Choix importants expliqués
 
 1. **Demande d'adhésion ≠ membre** : `membership_applications` stocke la saisie brute ; le membre n'existe qu'après validation (CMD § 6.3).
@@ -196,3 +213,4 @@ Les coordonnées, réseaux sociaux et pied de page sont des clés de `settings` 
 6. **Paramètres VAL avec statut** : `settings.status = non_configure` empêche l'usage d'une règle non validée et affiche un bandeau « paramètre en attente de validation par les instances ».
 7. **Pas de pouvoir par titre** : `positions` décrit une fonction, les pouvoirs viennent uniquement des permissions.
 8. **Dimensionnement** : 2 000 membres, ~24 000 appels de cotisation/an : volumes faibles pour MySQL ; les index listés suffisent.
+9. **Comptes adhérents séparés des comptes du personnel** : une faille ou une erreur de droits côté adhérent ne peut pas ouvrir l'administration ; les deux populations ont des règles de mot de passe et d'expiration distinctes.

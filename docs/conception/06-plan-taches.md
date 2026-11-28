@@ -3,13 +3,13 @@
 > Statut de toutes les tâches : **À faire** (en attente de validation de la phase 1). Suivi courant dans [`/TASKS.md`](../../TASKS.md).
 > Priorités : **P0** critique (bloque d'autres lots ou sécurité/finances) · **P1** essentiel V1 · **P2** utile V1 · **P3** finition.
 > Chaque tâche suit le cycle Superpowers : plan → tests d'abord (TDD) quand la logique est non triviale → implémentation → vérification → revue.
-> Hypothèse : option Laravel 12 retenue (D1). Si le micro-socle maison est choisi, le lot L0 double de taille.
+> Décisions du 13/11/2026 intégrées : socle PHP natif sans framework (D1), règles = cahier des charges seul (D2), pas encore d'hébergement (D4), skill Taste pour l'interface.
 
 ## Vue d'ensemble des lots
 
 | Lot | Contenu | Dépend de | Prio. | Lien plan d'action CDC |
 |---|---|---|---|---|
-| L0 | Socle technique | — | P0 | — |
+| L0 | Socle technique PHP natif (16 tâches) | — | P0 | — |
 | L1 | Authentification, RBAC, audit | L0 | P0 | Fichier sécurisé (prio. 2) |
 | L2 | Design system et gabarits d'interface | L0 | P0 | — |
 | L3 | CMS | L1, L2 | P1 | Communication |
@@ -23,24 +23,34 @@
 | L11 | Rapports, indicateurs, tableau de bord | L5–L10 | P1 | Art. 19–20 |
 | L12 | Discipline | L10 | P2 | Art. 16–18 |
 | L13 | Installation cPanel, sauvegardes, conservation des données, documentation | L0–L12 | P0 | — |
+| L15 | Espace adhérent (compte personnel) | L5, L6, L7 | P1 | Fichier des membres (prio. 2) ; demande du commanditaire |
 | L14 | Recette : E2E Playwright, sécurité, accessibilité, performance | tous | P0 | — |
 
 Chemin critique : **L0 → L1 → L5 → L6 → L7 → L11 → L13 → L14**.
-Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central utilisable pour le recensement) · **V0.2** = + L3–L4 (site en ligne) · **V0.3** = + L6–L7 · **V1.0** = tout.
+Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central utilisable pour le recensement) · **V0.2** = + L3–L4 (site en ligne) · **V0.3** = + L6–L7 · **V0.4** = + L15 (Espace adhérent) · **V1.0** = tout.
 
 ---
 
-## L0 — Socle technique
+## L0 — Socle technique (PHP natif, sans framework)
 
 | ID | Tâche | Description | Dép. | Prio. | Fichiers | Critères d'acceptation | Tests |
 |---|---|---|---|---|---|---|---|
-| T0.1 | Initialiser le projet | Laravel 12, PHP ≥ 8.2, `fr` par défaut, fuseau Africa/Abidjan, `.env.example`, `.gitignore` | D1 | P0 | racine, `config/` | `php artisan about` OK ; locale fr ; APP_DEBUG=false par défaut en prod | Test de démarrage |
-| T0.2 | Base de test MySQL + CI locale | MariaDB de dev, PHPUnit sur base dédiée, script `composer test` | T0.1 | P0 | `phpunit.xml`, `scripts/` | Suite vide verte sur MySQL (pas SQLite) | — |
-| T0.3 | Sécurité HTTP de base | Middleware en-têtes (CSP, HSTS, nosniff, frame), cookies sécurisés, HTTPS forcé en prod | T0.1 | P0 | `app/Http/Middleware` | En-têtes présents sur toutes les réponses | Test fonctionnel des en-têtes |
-| T0.4 | Service fichiers privés/publics | Table `files`, contrôle extension + MIME (finfo) + taille, nom aléatoire, SHA-256, ré-encodage images, téléchargement via contrôleur autorisé | T0.1 | P0 | `app/Services/Files` | `.php`, `.phtml`, double extension, SVG avec script refusés ; fichier privé inaccessible par URL directe | Unitaires + fonctionnels (upload malveillant) |
-| T0.5 | Montants et séquences | `Money` (BCMath, XOF), table `sequences` + générateur de références en transaction | T0.1 | P0 | `app/Support` | Aucune opération float ; références uniques sous concurrence | Unitaires (arrondis, concurrence simulée) |
-| T0.6 | Paramètres administrables | Table `settings` avec statut `non_configure/valide`, référence de décision ; helper de lecture qui refuse un paramètre non validé | T0.1 | P0 | `app/Services/Settings` | Bandeau « paramètre en attente » affiché quand requis | Unitaires |
-| T0.7 | Planificateur | Tâches planifiées via `schedule:run` (cron cPanel unique) | T0.1 | P1 | `routes/console.php` | Exécution idempotente, verrou anti-chevauchement en base | Test du planificateur |
+| T0.1 | Squelette et configuration | Arborescence B3, autoload PSR-4 maison, `config.php` lisant `.env`, fuseau Africa/Abidjan, locale fr, gestion d'erreurs (journal + page générique), `.htaccess` | — | P0 | `app/Core`, `public/`, `config/` | Page d'accueil « socle OK » ; aucun détail d'erreur affiché en production | Test de démarrage |
+| T0.2 | Environnement de test | MariaDB locale, PHPUnit (Composer, dev uniquement), script `composer test`, base de test recréée par les migrations | T0.1 | P0 | `tests/`, `phpunit.xml` | Suite vide verte sur MySQL | — |
+| T0.3 | Routeur, requête, réponse, middleware | Routes nommées, paramètres typés, groupes avec middleware, 404/405/403 propres | T0.1 | P0 | `Core/Router.php`… | Route inconnue → 404 ; méthode interdite → 405 | Unitaires |
+| T0.4 | Vues et échappement | Gabarits PHP, mises en page, partiels, `e()` par défaut, messages flash | T0.3 | P0 | `Core/View.php` | Une chaîne `<script>` affichée en texte | Unitaire XSS |
+| T0.5 | Base de données et migrations | `Core\Database` (PDO préparé seulement, transactions, `FOR UPDATE`), `Migrator` (fichiers `.sql` numérotés, sommes de contrôle, exécution depuis le web) | T0.1 | P0 | `Core/Database.php`, `Core/Migrator.php` | Migration appliquée une seule fois ; fichier modifié après application détecté | Unitaires |
+| T0.6 | Validation | Règles (requis, longueur, e-mail, téléphone CI, date, montant, fichier, unique…), messages en français | T0.3 | P0 | `Core/Validator.php` | Messages qui disent le problème et la correction | Unitaires |
+| T0.7 | Session et CSRF | Cookies `Secure`/`HttpOnly`/`SameSite`, régénération, expiration d'inactivité, jeton CSRF, jeton à usage unique pour formulaires sensibles | T0.3 | P0 | `Core/Session.php`, `Core/Csrf.php` | POST sans jeton → 419 ; rejeu d'un jeton à usage unique refusé | Unitaires + fonctionnels |
+| T0.8 | En-têtes de sécurité et HTTPS | CSP sans script en ligne, HSTS, nosniff, frame, referrer, redirection HTTPS | T0.3 | P0 | middleware | En-têtes présents partout | Fonctionnel |
+| T0.9 | Fichiers privés/publics | Table `files`, liste blanche extension + MIME (`finfo`) + taille, nom aléatoire, SHA-256, ré-encodage GD des images, téléchargement contrôlé | T0.5 | P0 | `Core/Uploads.php` | `.php`, double extension, SVG, faux MIME refusés ; fichier privé inaccessible par URL | Unitaires + fonctionnels |
+| T0.10 | Montants et références | `Money` (entiers de centimes, XOF), `sequences` + générateur de références en transaction | T0.5 | P0 | `Core/Money.php` | Aucun calcul en flottant ; références uniques | Unitaires |
+| T0.11 | Paramètres administrables | Table `settings` avec statut `non_configure`/`valide` et référence de décision | T0.5 | P0 | `Core/Settings.php` | Paramètre non validé inutilisable, bandeau affiché | Unitaires |
+| T0.12 | Audit | `Core\Audit` en ajout seul, chaîne de hachage, commande de vérification d'intégrité | T0.5 | P0 | `Core/Audit.php` | Altération d'une ligne détectée | Unitaires |
+| T0.13 | E-mail | `mail()` par défaut, SMTP minimal en option, gabarits texte | T0.1 | P1 | `Core/Mailer.php` | Envoi testé sur un serveur SMTP de test | Fonctionnel |
+| T0.14 | Cron | `bin/cron.php`, tâches enregistrées, verrou anti-chevauchement (`scheduled_runs`) | T0.5 | P1 | `bin/` | Deux exécutions simultanées → une seule travaille | Unitaire |
+| T0.15 | Utilitaires d'export | CSV UTF-8 BOM, XLSX via `ZipArchive`, pages imprimables A4/CR80, graphiques SVG | T0.4 | P1 | `Core/Export/` | Fichier ouvert sans erreur par Excel/LibreOffice ; impression nette | Fonctionnels |
+| T0.16 | Nettoyage HTML | Liste blanche `DOMDocument` (l'éditeur est en T3.9) | T0.4 | P0 | `Core/HtmlSanitizer.php` | Scripts, `on*=`, `javascript:` supprimés | Unitaires XSS |
 
 ## L1 — Authentification, RBAC, audit
 
@@ -48,10 +58,10 @@ Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central
 |---|---|---|---|---|---|---|---|
 | T1.1 | Connexion / déconnexion / mot de passe oublié | Argon2id, régénération de session, expiration d'inactivité, e-mail de réinitialisation | L0 | P0 | `Auth/` | Session régénérée ; message d'erreur neutre | Fonctionnels + E2E connexion |
 | T1.2 | Limitation des tentatives | 5 essais / 15 min par e-mail+IP, journal `login_attempts` | T1.1 | P0 | middleware | 6ᵉ tentative bloquée et journalisée | Fonctionnel |
-| T1.3 | Rôles et permissions | `spatie/laravel-permission`, seeder des 15+5 rôles proposés et permissions `module.action`, écran d'administration | T1.1 | P0 | `database/seeders`, `Admin/Roles` | Rôles modifiables ; aucune permission déduite d'un titre | Unitaires + E2E rôles |
-| T1.4 | Contrôle d'accès serveur | Policies + middleware sur toutes les routes admin ; filtrage par périmètre (zone, commission) | T1.3 | P0 | `app/Policies` | Test automatique : toute route admin sans permission → 403 | Test « balayage des routes » |
+| T1.3 | Rôles et permissions | Tables propres + `Gate`, données initiales des 15+5 rôles proposés et permissions `module.action` (sans approbateur de décaissement par défaut), écran d'administration | T1.1 | P0 | `database/seeders`, `Admin/Roles` | Rôles modifiables ; aucune permission déduite d'un titre | Unitaires + E2E rôles |
+| T1.4 | Contrôle d'accès serveur | Middleware de permission sur chaque route admin + `Gate` dans les services ; filtrage par périmètre (zone, commission) | T1.3 | P0 | `Core/Gate.php` | Test automatique : toute route admin sans permission → 403 | Test « balayage des routes » |
 | T1.5 | Gestion des utilisateurs | CRUD, activation, rôles multiples, lien éventuel membre/délégué | T1.3 | P0 | `Admin/Users` | Un utilisateur ne peut pas s'attribuer de rôle | Fonctionnels |
-| T1.6 | Journal d'audit | Observateur générique, table en ajout seul + chaîne de hachage, écran de consultation filtrable (lecture seule), commande de vérification d'intégrité | T1.1 | P0 | `app/Audit` | Aucune route d'édition ; altération détectée par la commande | Unitaires (chaîne) |
+| T1.6 | Consultation du journal d'audit | Écran filtrable en lecture seule, branchement de `Core\Audit` (T0.12) sur toutes les écritures | T1.1 | P0 | `app/Audit` | Aucune route d'édition ; altération détectée par la commande | Unitaires (chaîne) |
 | T1.7 | Journal des consultations sensibles | Pièces d'identité, données médicales | T1.6 | P1 | `app/Audit` | Chaque ouverture journalisée | Fonctionnel |
 | T1.8 | 2FA TOTP (si validée) | Pour rôles financiers et super admin | T1.1, D | P2 | `Auth/` | Accès refusé sans code | Fonctionnel |
 
@@ -59,11 +69,11 @@ Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central
 
 | ID | Tâche | Description | Dép. | Prio. | Critères | Tests |
 |---|---|---|---|---|---|---|
-| T2.1 | Jetons et CSS de base | Variables CSS, polices auto-hébergées, thèmes des surfaces navigateur (sélection, focus, barres de défilement) | L0 | P0 | Conforme à `05-design-system.md` | Contrôle visuel Playwright |
-| T2.2 | Composants Blade | Boutons, champs, alertes, badges, tableaux, panneaux, vide, pagination, téléversement, modale de confirmation | T2.1 | P0 | États complets ; clavier | axe-core sur page de démonstration |
+| T2.1 | Jetons et CSS de base | Variables CSS, polices auto-hébergées, surfaces navigateur ; style d'application tiré avec Taste (`draw.mjs --app --keep palette,type`) | L0 | P0 | Conforme à `05-design-system.md` | `inspect.mjs --app` sans FAIL |
+| T2.2 | Composants (partiels PHP) | Boutons, champs, alertes, badges, tableaux, panneaux, vide, pagination, téléversement, modale de confirmation | T2.1 | P0 | États complets ; clavier | axe-core sur page de démonstration |
 | T2.3 | Gabarit public | En-tête (logo), menu mobile, pied de page, filet national | T2.2 | P0 | 360 px sans débordement | E2E responsive |
 | T2.4 | Gabarit d'administration | Menu latéral par permissions, barre supérieure, recherche globale, notifications | T2.2, T1.4 | P0 | Menu filtré selon droits | E2E par rôle |
-| T2.5 | Gabarits PDF | Reçu, carte CR80, PV, rapport (dompdf) | T2.1 | P1 | Lisibles en impression N&B | Génération testée |
+| T2.5 | Gabarits imprimables | Reçu, carte CR80, PV, rapport (`@media print`, « Enregistrer en PDF » du navigateur) | T2.1 | P1 | Lisibles en impression N&B | Rendu PDF Playwright vérifié |
 
 ## L3 — CMS
 
@@ -77,12 +87,13 @@ Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central
 | T3.6 | Paramètres du site (coordonnées, réseaux, pied de page) | Modifiables sans code | P1 | Fonctionnel |
 | T3.7 | Formulaires reçus (contact, information, partenariat) : statuts, affectation, historique, notification interne | Message traité de bout en bout | P1 | E2E |
 | T3.8 | SEO : sitemap.xml, robots.txt, canonique, Open Graph | Sitemap valide, pages non publiées absentes | P1 | Fonctionnel |
-| T3.9 | Éditeur riche auto-hébergé + HTML Purifier | Script injecté neutralisé | P0 | Test XSS |
+| T3.9 | Éditeur minimal `contenteditable` (titres, gras, italique, listes, liens, images de la médiathèque) branché sur le nettoyage T0.16 | Script injecté neutralisé | P0 | Test XSS |
 
 ## L4 — Site public et adhésion en ligne
 
 | ID | Tâche | Critères | Prio. | Tests |
 |---|---|---|---|---|
+| T4.0 | Direction artistique Taste « La page est l'objet » (voir `05-design-system.md` §7) : inventaire, texte de chaque page, images libres de droits créditées, chose interactive | Aucun FAIL `inspect.mjs` à 1440/768/390 ; critique écrite | P1 | `inspect.mjs`, `lint.mjs` |
 | T4.1 | 18 pages et gabarits (accueil, présentation, historique, missions, gouvernance, actions sociales, fonds, adhésion, emploi, formation, partenaires, actualités, événements, documents, galerie, contact, mentions, confidentialité) | Toutes alimentées par le CMS ; états vides si pas de contenu | P1 | E2E navigation |
 | T4.2 | Accueil (héro, slogan, missions, adhésion, actualités, actions, partenaires, contacts) | Sections pilotées par le CMS | P1 | E2E |
 | T4.3 | Formulaire d'adhésion multi-étapes avec pièces (stockage privé), consentement RGPD/loi 2013-450, anti-spam (pot de miel + limite) | Crée une `membership_application` « reçue », jamais un membre ; accusé avec référence | P0 | E2E + upload |
@@ -165,7 +176,7 @@ Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central
 | T11.1 | Requêtes d'indicateurs (7 domaines de l'art. 20) | Vérifiées sur jeu de données connu | P0 | Unitaires (valeurs attendues) |
 | T11.2 | Tableau de bord par rôle | Base vide → 0 / états vides | P1 | E2E |
 | T11.3 | Rapports mensuel / trimestriel (BE, financier, par commission, par délégation), comparaisons de périodes | PDF + CSV/XLSX + impression | P1 | Fonctionnel |
-| T11.4 | Graphiques (Chart.js) accessibles (tableau de données associé) | Lisibles sans couleur | P2 | axe-core |
+| T11.4 | Graphiques SVG serveur accessibles (tableau de données associé) | Lisibles sans couleur | P2 | axe-core |
 
 ## L12 — Discipline
 
@@ -179,20 +190,36 @@ Livraisons intermédiaires proposées : **V0.1** = L0–L2 + L5 (fichier central
 
 | ID | Tâche | Critères | Prio. | Tests |
 |---|---|---|---|---|
-| T13.1 | Script d'empaquetage (`vendor/` + assets compilés, sans fichiers de dev) | Archive installable | P0 | Installation sur cPanel de recette |
+| T13.1 | Script d'empaquetage (sans `tests/`, `e2e/`, `docs/` de dev) | Archive installable | P0 | Installation sur cPanel de recette |
 | T13.2 | Installateur web (prérequis, `.env`, clé, migrations, données de référence, 1ᵉʳ super admin, verrouillage) | Fonctionne sans SSH | P0 | E2E installateur |
 | T13.3 | Page de mise à jour (migrations en attente) + mode maintenance | Sans SSH | P0 | Test |
 | T13.4 | Sauvegardes chiffrées planifiées + rotation + téléchargement | Restauration testée | P0 | Procédure jouée |
 | T13.5 | Conservation et anonymisation (durées VAL V13) | Anonymisation irréversible des données personnelles, conservation des écritures financières | P1 | Unitaire |
 | T13.6 | Documentation : README, installation cPanel, sauvegarde, restauration, mise à jour, administration, guide utilisateur par rôle, mesures de protection des données | Relue par un tiers | P0 | — |
 
+## L15 — Espace adhérent (décision du commanditaire du 14/11/2026)
+
+| ID | Tâche | Critères d'acceptation | Prio. | Tests |
+|---|---|---|---|---|
+| T15.1 | Comptes adhérents, authentification séparée (`/espace`), limitation des tentatives | Une session adhérent reçoit 403/redirection sur toute URL `/admin` | P0 | Fonctionnels + E2E |
+| T15.2 | Activation : code à usage unique (e-mail ou lettre imprimable), création du mot de passe | Code expiré ou déjà utilisé refusé ; activation possible sans e-mail | P0 | Unitaires + E2E |
+| T15.3 | Mot de passe oublié (e-mail) et réinitialisation par un gestionnaire (journalisée) | Ancien mot de passe invalidé, sessions fermées | P0 | Fonctionnels |
+| T15.4 | Accueil et « Ma fiche » (lecture, ayants droit) + demandes de correction validées côté gestion | Identité jamais modifiable directement ; correction tracée | P1 | E2E |
+| T15.5 | « Mes cotisations » et reçus imprimables | Montants identiques à la gestion | P1 | Fonctionnel |
+| T15.6 | « Ma carte » imprimable | Visible seulement si la carte est délivrée | P2 | Fonctionnel |
+| T15.7 | « Mes demandes d'assistance » : statut simplifié, décision communiquée, dépôt de pièces | Aucune donnée interne exposée (avis, notes, noms) | P0 | Fonctionnels + E2E |
+| T15.8 | Nouvelle demande d'assistance en ligne (si C38 validée) | Arrive au statut « reçue » côté gestion | P1 | E2E |
+| T15.9 | Messages à l'adhérent (et e-mail si disponible) quand un dossier avance | — | P2 | Fonctionnel |
+| T15.10 | Tests d'accès croisé : un adhérent ne peut lire aucune donnée d'un autre, quelle que soit l'URL | 100 % des routes `/espace` couvertes | P0 | Balayage automatique |
+| T15.11 | Écrans mobile d'abord (règles Taste « app screens », thème clair) | `inspect.mjs --app` sans FAIL à 390 px | P1 | Playwright 360/390 |
+
 ## L14 — Recette
 
 | ID | Tâche | Critères | Prio. |
 |---|---|---|---|
-| T14.1 | Suite Playwright : navigation publique, authentification, rôles, adhérent, cotisation, demande d'assistance, double validation, CMS, formulaires, uploads, responsive (360/768/1280), accès aux pages privées | 100 % verte, reproductible (`npm run e2e`, données de test réinitialisées) | P0 |
+| T14.1 | Suite Playwright : navigation publique, authentification (personnel et adhérent), Espace adhérent, rôles, adhérent, cotisation, demande d'assistance, double validation, CMS, formulaires, uploads, responsive (360/768/1280), accès aux pages privées | 100 % verte, reproductible (`npm run e2e`, données de test réinitialisées) | P0 |
 | T14.2 | Revue de sécurité (CSRF, XSS, IDOR, uploads, force brute, en-têtes) | Aucun défaut ouvert | P0 |
 | T14.3 | Accessibilité (axe-core + clavier) | 0 violation sérieuse | P1 |
 | T14.4 | Charge (2 000 membres, 20 000 paiements) | Écrans < 1 s serveur | P1 |
-| T14.5 | Audit Impeccable (`audit`, `polish`) des écrans clés | Corrections appliquées | P1 |
+| T14.5 | Audit Impeccable (`audit`, `polish`) et contrôle Taste (`lint.mjs`, `inspect.mjs`, critique) des écrans clés | 0 FAIL, corrections appliquées | P1 |
 | T14.6 | Recette avec le commanditaire sur hébergement de recette | PV de recette | P0 |

@@ -19,7 +19,7 @@ Légende des catégories utilisée dans tous les livrables :
 | Skill demandé | Présent ? | Emplacement / équivalent | Usage prévu |
 |---|---|---|---|
 | **Superpowers** | Oui | plugin `superpowers` (brainstorming, writing-plans, test-driven-development, systematic-debugging, requesting-code-review, verification-before-completion…) | Brainstorming utilisé pour cette phase ; `writing-plans` après validation ; TDD, débogage et revue en phase 6–7. |
-| **Task Skill** | **Pas sous ce nom** | Équivalents disponibles : skill `productivity:task-management` (fichier `TASKS.md`) et outils de suivi de tâches de Claude Code | Plan détaillé dans `06-plan-taches.md` + tableau de suivi `TASKS.md` à la racine. Aucun skill nommé « Task Skill » n'a été utilisé. |
+| **Taste skill** (remplace « Task Skill », décision du commanditaire du 13/11/2026) | Oui | skill `design-taste-frontend` (tasteskill v2) | Direction artistique du site public tirée par `draw.mjs` (voir `05-design-system.md` §7) ; règles maison et contrôle `inspect.mjs` / `lint.mjs` sur chaque page ; chapitre « app screens » pour le CMS et la gestion. Le suivi des tâches reste tenu dans `06-plan-taches.md` et `TASKS.md`. |
 | **Impeccable** | Oui | plugin `impeccable` v4.9.0 | `context` exécuté ; `PRODUCT.md` rédigé (étape *init*) ; *craft-floor* appliqué aux maquettes ; `shape`/`audit`/`polish` aux phases 4 et 7. |
 | **Playwright** | Oui | skill `playwright-cli` + Chromium/Playwright préinstallés dans l'environnement | Tests E2E (phase 7) et contrôle visuel des maquettes. Outil de développement uniquement, jamais requis en production. |
 
@@ -37,7 +37,7 @@ La plateforme demandée regroupe trois espaces partageant une base et un systèm
 2. **CMS** (pages, menus, articles, médias, formulaires, SEO, utilisateurs éditoriaux).
 3. **Espace de gestion** (adhérents, cotisations, finances, fonds de solidarité à double validation, demandes sociales, emploi/formation, partenariats, gouvernance, délégués, discipline, rapports).
 
-Ce que le CDC **ne prévoit pas** et que la plateforme ne fera pas sans décision ultérieure : remboursement d'assurance maladie, épargne, crédit aux membres, régime de retraite, sanctions automatiques, compte personnel adhérent (exclu en V1 par le commanditaire).
+Ce que le CDC **ne prévoit pas** et que la plateforme ne fera pas sans décision ultérieure : remboursement d'assurance maladie, épargne, crédit aux membres, régime de retraite, sanctions automatiques. Le **compte personnel adhérent** n'est pas dans le CDC mais il est demandé par le commanditaire (14/11/2026) : catégorie CMD.
 
 ---
 
@@ -55,7 +55,7 @@ Ce que le CDC **ne prévoit pas** et que la plateforme ne fera pas sans décisio
 | Organe de contrôle | CDC art. 3, 14–15 | Contrôle interne, lecture des journaux et états financiers. |
 | Commissions techniques | CDC art. 3, X | Mobilisation, partenariats, emploi… ; suivi par commission. |
 | Délégués et points focaux | CDC art. 4, 11, X (prio. 5) | Terrain, smartphone ; recensement, relais, rapports périodiques. |
-| Adhérent | CDC art. 5–8, 17 | Objet de la gestion (pas de compte en V1). |
+| Adhérent | CDC art. 5–8, 17 ; CMD 14/11 | Objet de la gestion **et utilisateur** de l'Espace adhérent : consulte sa fiche, ses cotisations, sa carte, suit ses demandes d'assistance. |
 | Ayant droit | CDC art. 6, 9 | Rattaché à un adhérent ; bénéficiaire possible d'un accompagnement. |
 | Ancien marin / retraité | CDC art. 2, 5, 9 | Catégorie d'adhérent avec suivi spécifique. |
 | Partenaire | CDC art. 12 | Armements, pêche industrielle, offshore, syndicats, établissements sanitaires, centres de formation, institutions, ONG. |
@@ -83,6 +83,7 @@ Ce que le CDC **ne prévoit pas** et que la plateforme ne fera pas sans décisio
 | P13 | Délégués / points focaux | CDC art. 4, 11, X (prio. 5) | Affectation zone → fiche de mission → rapports périodiques. |
 | P14 | Manquement | CDC art. 16–18 | Signalement → information de la personne → observations → examen → décision de l'organe (mesure issue des textes) → archivage. |
 | P15 | Reporting | CDC art. 15, 19–20 | Rapports mensuels/trimestriels calculés sur les données réelles. |
+| P17 | Activation et usage du compte adhérent | CMD 14/11/2026 | Validation de l'adhésion → code d'activation (e-mail ou lettre remise) → création du mot de passe → consultation, demandes de correction, suivi des demandes. |
 | P16 | Publication de contenus | CDC art. 4 (communication) ; CMD § 7 | Rédaction → relecture → publication (« informations officielles validées »). |
 
 ---
@@ -97,12 +98,23 @@ PHP ≥ 8.2, MySQL/MariaDB, PDO préparé, hébergement mutualisé cPanel, pas d
 
 Classés par impact sur le fonctionnement. **Aucun ne bloque la phase de développement du socle** ; les paramètres concernés seront livrés « non configurés ».
 
-### 6.1 Décisions structurantes (attendues avant développement)
+### 6.0 Réponses du commanditaire (13/11/2026)
+
+| # | Décision | Conséquence dans les livrables |
+|---|---|---|
+| D1 | **Pas de Laravel** (« trop de dépendances ») | Socle PHP maison sans framework ni Composer en production (`03-architecture.md` B1) ; lot L0 agrandi. |
+| D2 | **Les règles = le cahier des charges** (pas d'autres textes à intégrer) | Les listes de référence sont pré-remplies avec ce que le CDC énumère (art. 3, 5, 6, 9, 13, 20) ; tout ce que le CDC ne fixe pas reste un paramètre « non configuré » (§6.2). |
+| D3 | Pas de réponse | Aucun rôle ne reçoit la permission d'approuver un décaissement à l'installation : le super administrateur l'attribue explicitement à au moins deux personnes. |
+| D4 | Pas encore d'hébergement | Conception pour un cPanel générique ; recette locale (Apache + PHP-FPM + MariaDB) ; procédure d'installation testée dès qu'un hébergement existe. |
+| Logo | Pas de réponse | Solution de repli retenue : logo complet sur ordinateur, pied de page, carte et documents ; emblème seul en en-tête mobile et dans la gestion. Une version horizontale/SVG reste souhaitable. |
+| Skills | « Taste skill » à la place de « Task Skill » | Voir §1. |
+
+### 6.1 Décisions structurantes (historique de la question posée)
 
 | # | Question | Pourquoi c'est bloquant | Proposition neutre |
 |---|---|---|---|
-| D1 | Framework PHP : Laravel 12 ou micro-socle maison ? | Conditionne tout le code. | **Laravel 12** (voir `03-architecture.md` §2). |
-| D2 | Les statuts et le règlement intérieur peuvent-ils être fournis ? | Ils définissent organes, pouvoirs, catégories de membres, sanctions, éligibilité. | Développer avec listes paramétrables vides ; intégrer les textes dès réception. |
+| D1 | Framework PHP : Laravel 12 ou micro-socle maison ? | Conditionne tout le code. | **Tranché : socle maison** (voir 6.0). |
+| D2 | Les statuts et le règlement intérieur peuvent-ils être fournis ? | Ils définissent organes, pouvoirs, catégories de membres, sanctions, éligibilité. | **Tranché : on s'en tient au cahier des charges** (voir 6.0). |
 | D3 | Qui sont les approbateurs des décaissements (fonctions) et faut-il un ordre imposé (ex. Trésorier puis PCA) ? | Circuit P7. | Permission `disbursement.approve` attribuable par rôle ; 2 approbateurs distincts, ordre libre, configurable. |
 | D4 | Nom de domaine, hébergeur, adresse e-mail d'envoi (SMTP). | Déploiement, notifications. | — |
 
@@ -149,9 +161,13 @@ Classés par impact sur le fonctionnement. **Aucun ne bloque la phase de dévelo
 | R5 | Perte de données (pas de sauvegarde testée) | Moyenne | Très élevé | Sauvegarde quotidienne cPanel + export applicatif chiffré, procédure de restauration testée. |
 | R6 | Faible appropriation par des utilisateurs peu familiers de l'informatique | Moyenne | Élevé | Interface sobre, mobile, formations, guide utilisateur illustré. |
 | R7 | Connexion mobile faible des délégués | Haute | Moyen | Pages légères (< 200 Ko hors images), pas de framework JS lourd, formulaires tolérants (brouillon). |
-| R8 | Dépendance à un seul administrateur technique | Moyenne | Élevé | Framework standard largement connu (Laravel), documentation complète. |
+| R8 | Dépendance à un seul administrateur technique ; socle maison moins connu qu'un framework | Moyenne | Élevé | Socle volontairement petit et lisible (PHP natif, aucune magie), conventions documentées, tests automatisés couvrant le socle, documentation développeur. |
+| R11 | Failles dans le socle de sécurité écrit sur mesure (CSRF, sessions, uploads) | Moyenne | Très élevé | Fonctions natives de PHP uniquement (`password_hash`, `random_bytes`, `hash_equals`, PDO préparé, `finfo`), tests dédiés à chaque protection, revue de sécurité au lot L14. |
 | R9 | Usurpation de comptes à privilèges | Moyenne | Très élevé | Limitation des tentatives, mots de passe robustes, 2FA TOTP proposée pour les rôles financiers (TECH, à valider). |
 | R10 | Le CDC n'est pas encore adopté et peut changer | Moyenne | Moyen | Traçabilité CDC ↔ fonctionnalités ; paramétrage plutôt que code. |
+| R12 | Un adhérent voit les données d'un autre (accès par identifiant deviné) | Moyenne | Très élevé | Toute requête de l'Espace adhérent filtrée par le membre de la session, jamais par un identifiant de l'URL ; tests d'accès croisé automatiques. |
+| R13 | Charge de support (mots de passe oubliés, adhérents sans e-mail) | Haute | Moyen | Connexion par numéro de membre ou téléphone ; réinitialisation par le gestionnaire ou le délégué via un nouveau code ; guide illustré d'une page. |
+| R14 | Prise de contrôle d'un compte adhérent | Moyenne | Élevé | Mot de passe ≥ 10 caractères, limitation des tentatives, code d'activation à usage unique et à durée limitée, alerte au gestionnaire après verrouillage. |
 
 ---
 

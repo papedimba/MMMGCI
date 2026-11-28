@@ -1,7 +1,7 @@
 # 02 — Matrice de traçabilité
 
 > Chaque exigence est reliée à sa source, à sa catégorie (CDC / CMD / TECH / VAL), au module qui la réalise, au lot de développement (`06-plan-taches.md`) et au test d'acceptation prévu.
-> Modules : **SOC** socle · **AUTH** authentification/RBAC · **CMS** · **PUB** site public · **ADH** adhérents · **COT** cotisations · **FIN** finances · **FDS** fonds de solidarité · **SOC-AS** demandes sociales · **EMP** emploi · **FOR** formation & anciens marins · **PART** partenariats · **GOV** gouvernance · **DEL** délégués · **DISC** discipline · **RAP** rapports.
+> Modules : **SOC** socle · **AUTH** authentification/RBAC · **CMS** · **PUB** site public · **ADH** adhérents · **COT** cotisations · **FIN** finances · **FDS** fonds de solidarité · **SOC-AS** demandes sociales · **EMP** emploi · **FOR** formation & anciens marins · **PART** partenariats · **GOV** gouvernance · **DEL** délégués · **DISC** discipline · **RAP** rapports · **ESP** espace adhérent.
 
 ## 1. Exigences issues du cahier des charges
 
@@ -77,14 +77,17 @@
 | C33 | Conservation, anonymisation, traçabilité des consultations, sauvegarde/restauration | § 22 | CMD + VAL | SOC/ADH | L13 | Anonymisation testée |
 | C34 | Installation cPanel, cron, sauvegarde, mise à jour, sans SSH | § 3.2, § 26 ph. 8 | CMD | SOC | L13 | Installation sur cPanel de recette |
 | C35 | Tests Playwright des parcours listés | § 4.4 | CMD | Tous | L14 | Suite E2E verte |
+| C36 | Compte personnel adhérent : fiche, cotisations, suivi des demandes d'assistance | Commanditaire, 14/11/2026 | CMD | ESP | L15 | Un adhérent activé consulte ses données et uniquement les siennes |
+| C37 | Activation sans e-mail obligatoire (lettre de code remise) | Proposition liée à C36 | TECH | ESP | L15 | Activation réussie avec le seul code imprimé |
+| C38 | Dépôt d'une demande d'assistance et de pièces complémentaires en ligne | Proposition liée à C36 | TECH (à valider) | ESP/SOC-AS | L15 | Demande créée au statut « reçue », jamais de droit automatique |
 
 ## 3. Propositions techniques (TECH)
 
 | ID | Proposition | Justification |
 |---|---|---|
-| T01 | Laravel 12 (PHP 8.2+) livré avec `vendor/` | Sécurité éprouvée (CSRF, hash, validation, policies), migrations versionnées, communauté locale — à valider (D1) |
-| T02 | Assets compilés en développement, servis statiques | Aucun Node en production |
-| T03 | Planificateur Laravel déclenché par une seule tâche Cron cPanel | Pas de processus permanent |
+| T01 | Socle PHP 8.2+ maison, sans framework ni Composer en production | Décision du commanditaire (D1) : zéro dépendance PHP tierce ; protections écrites avec les fonctions natives de PHP |
+| T02 | CSS et JS écrits à la main, servis statiques, sans étape de compilation | Aucun Node en production ni en développement pour l'application |
+| T03 | Script `bin/cron.php` déclenché par une seule tâche Cron cPanel | Pas de processus permanent |
 | T04 | Stockage privé `storage/app/private`, téléchargement via contrôleur autorisé | Pièces confidentielles hors web |
 | T05 | Journal d'audit en ajout seul (+ chaîne de hachage) | Inaltérabilité vérifiable |
 | T06 | 2FA TOTP pour les rôles financiers et super admin | Risque R9 — à valider |

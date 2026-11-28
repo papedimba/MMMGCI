@@ -6,29 +6,46 @@ Suivi des lots de la plateforme MMMGCI. Détail de chaque tâche (description, d
 - [ ] **Phase 1 — Validation de la conception** - commanditaire - livrables dans `docs/conception/`
 
 ## Waiting On
-- [ ] **D1 Choix du framework (Laravel 12 recommandé)** - commanditaire
-- [ ] **D2 Statuts et règlement intérieur** - Mutuelle
-- [ ] **D3 Approbateurs des décaissements** - instances
-- [ ] **D4 Domaine, hébergeur cPanel, SMTP** - commanditaire
+- [ ] **Question art. 8 pour les instances (L7)** : le libellé du type de demande (« Maladie », « Santé »…) est visible par tout détenteur de `social.view` (liste, onglet de la fiche adhérent) et figure dans l'export ; le rôle `lecture_seule` (`finance.view`, `solidarity.view`, sans `social.view`) voit sur la page d'un décaissement et sur celle du fonds de solidarité la référence « Aide sociale AS-… », le nom du bénéficiaire et le montant. Faut-il restreindre l'un ou l'autre ?
+- [ ] **Suites de L2** : logo PNG/SVG transparent (le JPEG laisse un cadre clair sur les fonds colorés, en-tête et pied public) ; points de conduite (« dotted leaders ») et emplacement photo des fiches pour L4 ; vraies photos et animations de la page publique (L4) ; pastilles de statut d'état `validation-steps` à relier aux circuits de L6 ; tableau de bord enrichi quand les modules existeront
+- [ ] **Paramètres L5 à valider par les instances** : format du numéro de membre (V11), liste des statuts (V8), durée de validité de la carte (V5), conditions de délivrance, durée de conservation (`members.retention_months`), pièces exigées pour un dossier complet
+- [ ] **Reports de L5** : (demandes en ligne : faites en L4, origine « En ligne », instruites comme les autres) ; Espace adhérent → L15 ; anonymisation après la durée de conservation validée ; droits de modification des délégués à décider par les instances ; suppression de pièce ou de photo et purge des fichiers orphelins ; sous-zones dans le périmètre ; impression CR80 à vérifier sur imprimante
+- [ ] **Délégués et création directe** : `delegue` et `point_focal` détiennent `members.create` et peuvent créer un adhérent actif et numéroté sans validation (`/admin/adherents/nouveau`) ; les instances doivent dire si c'est voulu (sinon ne leur laisser que la saisie de demandes)
+- [ ] **D3 Approbateurs des décaissements** - instances : désigner au moins deux approbateurs distincts (`disbursement.approve`) et un payeur tiers (`disbursement.pay`) avant toute utilisation (le module refuse de fonctionner sinon)
+- [ ] **Paramètres L6 à valider par les instances** : politique de solde insuffisant, payeur = initiateur, règle « à jour », génération automatique des appels, début d'exercice, tranches d'approbation (`approval_rules`), montants, périodicités et autorisations des types de cotisation, population des appels en lot
+- [ ] **Décisions L6 à trancher** : approbation d'un utilisateur désactivé ensuite ; rejet depuis `approuve_2` ; contre-passation pouvant rendre un solde négatif ; double contrôle des annulations et contre-passations ; dépenses courantes hors décaissement
+- [ ] **Reports de L6** : budgets et engagements (T6.9) ; rapports financiers → L11 ; exports en flux ; purge des fichiers orphelins (exclure `apply_draft_files` : pièces d'adhésion en ligne en cours, voir les reports de L4) ; pagination du filtre « à approuver par moi »
+- [ ] **Paramètres L7 à valider par les instances** (`settings.validate`, avec référence de décision) : par type de demande, `criteria_text`, `ceiling_amount`, `waiting_period_days`, `deciding_body`, `allowed_aid_kinds` ; `social.reference_format` (V11 : la référence reste `AS-AAAA-NNNN` tant que la numérotation n'est pas branchée sur ce réglage), `social.processing_deadline_days` (délais), `social.retention_months` (conservation), `social.eligibility_rule` (règle d'éligibilité) ; listes techniques proposées : canaux, priorités, avis, sortes d'aide ; `pca` détient `social.decide` à titre de suggestion : confirmer qui décide
+- [ ] **Décisions L7 à trancher par les instances** : séparer l'instructeur et le décideur (non prévu par le cahier des charges, rien ne l'impose aujourd'hui) ; renvoyer une demande soumise à décision vers l'instruction ; désistement de l'adhérent ; correction d'une décision (immuable aujourd'hui) ; `social.create` limité aux demandes « reçue » ; confirmer que le nom du bénéficiaire d'un décaissement lié reste modifiable ; D3 (approbateurs et payeur) reste un préalable pour payer une aide financière
+- [ ] **Reports de L7** : liens `governing_body_id` et `meeting_id` (organe et réunion de la décision) → L10 ; dépôt de demande en ligne et « Mes demandes » (C38, T15.7–T15.8, `SocialMemberView`) → L15 ; indicateurs « actions sociales » → L11 ; purge ou anonymisation après la durée de conservation → L13 ; **purge des fichiers orphelins : exclure les fichiers référencés par `social_request_documents`** (en plus de `apply_draft_files`) ; notification de décision à l'adhérent ; mineurs parqués des revues : voir docs/superpowers/plans/2026-11-22-l7-decisions-et-reports.md
+- [ ] **Décisions L3 à trancher par les instances** : textes et coordonnées publics à valider (`site.*`), consentement des témoignages et durée de conservation des formulaires/pièces, séparation saisie/validation d'un réglage, hébergement : interdire PHP sous `/media` si nginx
+- [ ] **Reports de L3** : version relue sur écran des menus (dernier enregistrement gagne) ; images du texte riche non verrouillées dans tous les cas ; listes d'administration plafonnées à 200 (SEO avancé T3.8, rendu public, adhésion en ligne, slash final, double slash et 301 des variantes de casse : faits au lot L4)
+- [ ] **À fournir par la Mutuelle pour ouvrir le site (L4)** : relecture et publication des 11 pages semées en brouillon (cahier non adopté) ; texte de consentement (`site.consent_text`) puis ouverture (`site.adhesion_open`), deux réglages à valider ; coordonnées et réseaux sociaux à valider ; mot du Président, historique, mentions légales, confidentialité, photos et galerie
+- [ ] **Reports de L4** : étude de sites comparables (réseau bloqué) ; logo transparent pour l'en-tête ; vraies photos ; voir docs/superpowers/plans/2026-11-16-l4-decisions-et-reports.md
+- [ ] **C38 Dépôt de demandes d'assistance en ligne par l'adhérent : oui/non** - commanditaire
+- [ ] **D4 Domaine, SMTP et ouverture de l'hébergement chez Likuid** - commanditaire (hébergeur choisi : Likuid, 22/11/2026 ; à vérifier au lot L13 sur l'offre réellement souscrite : cPanel oui/non, version PHP ≥ 8.2, MariaDB/MySQL, extension GD, tâches cron, SMTP, LiteSpeed ou Apache, `post_max_size`/`upload_max_filesize`, sauvegardes proposées)
 - [ ] **Logo horizontal + version SVG/PNG transparente** - commanditaire
 
 ## Someday
-- [ ] **L0 Socle technique** (T0.1–T0.7)
-- [ ] **L1 Authentification, RBAC, audit** (T1.1–T1.8)
-- [ ] **L2 Design system et gabarits** (T2.1–T2.5)
-- [ ] **L5 Adhérents** (T5.1–T5.9) → livraison V0.1
-- [ ] **L3 CMS** (T3.1–T3.9)
-- [ ] **L4 Site public + adhésion en ligne** (T4.1–T4.6) → V0.2
-- [ ] **L6 Cotisations, finances, double validation, fonds** (T6.1–T6.10)
-- [ ] **L7 Demandes sociales** (T7.1–T7.5) → V0.3
 - [ ] **L9 Partenariats** (T9.1–T9.3)
 - [ ] **L8 Emploi, formation, anciens marins** (T8.1–T8.5)
 - [ ] **L10 Gouvernance, délégués** (T10.1–T10.6)
 - [ ] **L11 Rapports et indicateurs** (T11.1–T11.4)
 - [ ] **L12 Discipline** (T12.1–T12.3)
 - [ ] **L13 Installation, exploitation, documentation** (T13.1–T13.6)
+- [ ] **L15 Espace adhérent** (T15.1–T15.11) → V0.4
 - [ ] **L14 Recette** (T14.1–T14.6) → V1.0
 
 ## Done
+- [x] ~~L7 Demandes sociales (T7.1 types de demande et paramètres « non configuré », T7.2 dossier, pièces, notes et données de santé journalisées, T7.3 circuit, avis, décision motivée et immuable, T7.4 lien décision → décaissement au brouillon (circuit L6 inchangé, filet 0027), T7.5 clôture, historique, liste, recherche, export ; documentation)~~ (27/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-22-l7-decisions-et-reports.md
+- [x] ~~L4 Site public et adhésion en ligne (T4.0 direction visuelle « La page est l'objet » et gabarits, T4.1 pages servies depuis le CMS et contenu du cahier semé en brouillon (11 pages ; actualités, évènements, documents et galeries en listes fixes ; 5 rubriques « à fournir »), T4.2 accueil, T4.3 adhésion en ligne en 5 étapes avec pièces sur disque privé, T4.4 contact et partenariat, T4.5 vérification de carte (livrée en L5 ; rayon unifié ici), T4.6 performance mobile ; T3.8 SEO avancé fait ici ; parcours de bout en bout, contrôle qualité, documentation)~~ (22/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-16-l4-decisions-et-reports.md
+- [x] ~~L3 CMS (T3.1 schéma, T3.2 médiathèque, T3.3 texte riche, T3.4 pages à blocs et circuit de publication, T3.5 menus, T3.6 articles, catégories et étiquettes, T3.7 évènements, documents, galeries, bannières, témoignages, T3.8 lectures publiques et réglages/formulaires reçus (le SEO avancé passe au lot L4), T3.9 parcours de bout en bout, contrôle qualité, documentation)~~ (21/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-16-l3-decisions-et-reports.md
+- [x] ~~L6 Cotisations, finances, double validation, fonds (T6.1–T6.10 : schéma financier, grand livre, types et appels, encaissements et reçus, impayés, circuit de décaissement, écrans, fonds de solidarité, contrôle, parcours de bout en bout et documentation ; T6.9 budgets/engagements reportés)~~ (15/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-15-l6-decisions-et-reports.md
+- [x] ~~L5 Adhérents (T5.1–T5.9 : schéma et référentiels, service et doublons, liste et recherche, fiche, création/modification/ayants droit/pièces, instruction des demandes saisies, changements de statut, exports, carte et vérification publique, contrôle qualité)~~ (15/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-15-l5-decisions-et-reports.md
+- [x] ~~L2 Design system et gabarits (7 tâches : jetons, kit ui(), gabarit d'administration, écrans restylés, gabarit public, gabarit d'impression, contrôle qualité ; noms français des modules et rôles protégés en lecture seule inclus)~~ (15/11/2026) — documentation : docs/conception/05-design-system.md §8
+- [x] ~~L1 Authentification, rôles et permissions, administration des utilisateurs et des rôles, journal d'audit (9 tâches, revue d'ensemble faite, 334 tests)~~ (15/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-15-l1-decisions-et-reports.md
+- [x] ~~L0 Socle technique (16 tâches, revue d'ensemble faite, 213 tests)~~ (14/11/2026) — décisions et reports : docs/superpowers/plans/2026-11-14-l0-decisions-et-reports.md
+- [x] ~~D1 Socle : PHP natif sans framework~~ (13/11/2026)
+- [x] ~~D2 Règles : cahier des charges seul~~ (13/11/2026)
 - [x] ~~Lecture et analyse du cahier des charges~~ (13/11/2026)
 - [x] ~~Livrables de conception phase 1~~ (13/11/2026)

@@ -1,0 +1,34 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Utilisateurs — MMMGCI</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Marcellus&family=Source+Sans+3:wght@400;600;700&display=swap" rel="stylesheet"><link rel="stylesheet" href="preview.css"></head><body><svg style="display:none"><symbol id="s" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol><symbol id="m" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M4 6h16M4 12h16M4 18h16"/></symbol><symbol id="u" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></symbol><symbol id="h" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10.5 12 3l9 7.5V21H3z"/><path d="M9 21v-7h6v7"/></symbol><symbol id="k" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="m9 12 2 2 4-4"/></symbol><symbol id="f" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/></symbol><symbol id="p" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></symbol></svg>
+<div class="app">
+<aside class="side" aria-label="Menu d'administration">
+  <div class="brand"><img src="emblem.png" alt=""><b>MMMGCI</b></div>
+  <a href="#" aria-current="page"><svg class="icon"><use href="#h"/></svg>Tableau de bord</a>
+  <div class="grp">Administration</div>
+  <a href="#"><svg class="icon"><use href="#u"/></svg>Utilisateurs</a>
+  <a href="#"><svg class="icon"><use href="#k"/></svg>Rôles</a>
+  <a href="#"><svg class="icon"><use href="#f"/></svg>Journal d'audit</a>
+</aside>
+<div class="main">
+  <div class="top"><button class="menu-btn" aria-label="Ouvrir le menu"><svg class="icon" style="width:24px;height:24px"><use href="#m"/></svg></button>
+    <span></span><div class="who"><span class="name">Secrétariat général</span><span class="avatar">SG</span></div></div>
+  <main class="sheet">
+    <div class="crumbs"><a href="#">Administration</a> / Utilisateurs</div>
+    <div class="head"><div><h1>Utilisateurs</h1><p>Comptes du personnel de la Mutuelle et leurs rôles.</p></div>
+      <a class="btn btn-primary" href="#"><svg class="icon"><use href="#p"/></svg>Nouvel utilisateur</a></div>
+    <nav class="tabs" aria-label="Filtre"><a href="#" aria-current="page">Actifs</a><a href="#">Désactivés</a><a href="#">Invitations en attente</a></nav>
+    <div class="tools"><div class="search"><svg class="icon"><use href="#s"/></svg><input type="search" placeholder="Rechercher un nom ou une adresse e-mail" aria-label="Rechercher"></div><span class="count-line">5 utilisateurs</span></div>
+    <table><thead><tr><th>Nom</th><th>Rôles</th><th>Statut</th><th>Dernière connexion</th></tr></thead><tbody>
+      <tr><td class="who-cell"><b>Aminata Traoré</b><span>a.traore@exemple.ci</span></td><td><div class="roles"><span class="pill">Secrétaire général</span></div></td><td><span class="badge b-ok">Actif</span></td><td class="num">14/11/2026 09:42</td></tr>
+      <tr><td class="who-cell"><b>Yao Kouassi</b><span>y.kouassi@exemple.ci</span></td><td><div class="roles"><span class="pill">Trésorier général</span></div></td><td><span class="badge b-ok">Actif</span></td><td class="num">13/11/2026 17:05</td></tr>
+      <tr><td class="who-cell"><b>Paul N'Guessan</b><span>p.nguessan@exemple.ci</span></td><td><div class="roles"><span class="pill">Gestionnaire des adhérents</span><span class="pill">Lecture seule</span></div></td><td><span class="badge b-ok">Actif</span></td><td class="num">12/11/2026 11:20</td></tr>
+      <tr><td class="who-cell"><b>Aïcha Koné</b><span>a.kone@exemple.ci</span></td><td><div class="roles"><span class="pill">Rédacteur</span></div></td><td><span class="badge b-warn">Invitation envoyée</span></td><td class="num">—</td></tr>
+      <tr><td class="who-cell"><b>Marc Bamba</b><span>m.bamba@exemple.ci</span></td><td><div class="roles"><span class="pill">Contrôleur</span></div></td><td><span class="badge b-neutral">Désactivé</span></td><td class="num">02/10/2026 08:15</td></tr>
+    </tbody></table>
+    <div class="cards">
+      <div class="item"><div class="l1"><b>Aminata Traoré</b><span class="badge b-ok">Actif</span></div><div class="l2">a.traore@exemple.ci · connectée le 14/11/2026</div><div class="roles"><span class="pill">Secrétaire général</span></div></div>
+      <div class="item"><div class="l1"><b>Yao Kouassi</b><span class="badge b-ok">Actif</span></div><div class="l2">y.kouassi@exemple.ci · connecté le 13/11/2026</div><div class="roles"><span class="pill">Trésorier général</span></div></div>
+      <div class="item"><div class="l1"><b>Paul N'Guessan</b><span class="badge b-ok">Actif</span></div><div class="l2">p.nguessan@exemple.ci · connecté le 12/11/2026</div><div class="roles"><span class="pill">Gestionnaire des adhérents</span><span class="pill">Lecture seule</span></div></div>
+      <div class="item"><div class="l1"><b>Aïcha Koné</b><span class="badge b-warn">Invitation envoyée</span></div><div class="l2">a.kone@exemple.ci · jamais connectée</div><div class="roles"><span class="pill">Rédacteur</span></div></div>
+    </div>
+  </main>
+</div></div></body></html>
