@@ -10,7 +10,7 @@ final class ModuleLabels
         'admin' => 'Administration', 'cms' => 'Site web', 'members' => 'Adhérents', 'contributions' => 'Cotisations',
         'finance' => 'Finances', 'solidarity' => 'Fonds de solidarité', 'social' => "Demandes d'assistance",
         'employment' => 'Emploi et formation', 'partners' => 'Partenariats', 'governance' => 'Gouvernance',
-        'delegates' => 'Délégués et points focaux', 'discipline' => 'Discipline', 'reports' => 'Rapports',
+        'delegates' => 'Délégués et points focaux', 'discipline' => 'Discipline', 'reports' => 'Rapports', 'espace' => 'Espace adhérent',
     ];
 
     public static function label(string $module): string
