@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace Tests\Support;
 
+use App\Core\Database;
 use App\Core\Http\Response;
 use App\Modules\Auth\PasswordPolicy;
 use App\Modules\Espace\MemberAccountService;
@@ -75,5 +76,28 @@ trait EspaceFixtures
     {
         $this->app();
         return array_map(static fn (array $m): array => ['to' => $m['to'], 'subject' => $m['subject'], 'text' => base64_decode(str_replace("\r\n", '', $m['body']))], $this->mail->messages);
+    }
+
+    /**
+     * Course à deux processus : $parent s'exécute dans une transaction laissée ouverte pendant que le fils
+     * (activation_worker.php, arguments $args) attend un verrou ; la transaction est validée, puis la sortie du fils est rendue.
+     *
+     * @param list<string> $args
+     */
+    protected function race(callable $parent, array $args): string
+    {
+        [$proc, $pipes] = $this->db->transaction(function () use ($parent, $args): array {
+            $parent();
+            $proc = proc_open([PHP_BINARY, dirname(__DIR__) . '/Support/activation_worker.php', ...$args], [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+            $observer = Database::connect(self::config(), test: true);
+            for ($i = 0; $i < 200 && (int) $observer->fetchValue("SELECT COUNT(*) FROM information_schema.PROCESSLIST WHERE ID <> CONNECTION_ID() AND (INFO LIKE '%FOR UPDATE%' OR INFO LIKE 'UPDATE%')") === 0; $i++) {
+                usleep(25_000); // le fils attend un verrou tenu par la transaction du parent
+            }
+            $this->assertLessThan(200, $i, 'Le processus fils aurait dû attendre un verrou du parent.');
+            return [$proc, $pipes];
+        });
+        $output = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
+        proc_close($proc);
+        return $output;
     }
 }

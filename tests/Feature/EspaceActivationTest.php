@@ -3,7 +3,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
-use App\Core\Database;
 use App\Core\Http\Response;
 use App\Modules\Espace\MemberAccountService;
 use Tests\Support\AdminTestCase;
@@ -131,19 +130,9 @@ final class EspaceActivationTest extends AdminTestCase
     {
         $p = $this->pending();
         $svc = $this->accounts();
-        [$proc, $pipes] = $this->db->transaction(function () use ($svc, $p): array {
-            $this->assertSame($p['account'], $svc->activate($p['number'], self::BIRTH_DATE, $p['code'], self::NEW_MEMBER_PASSWORD, self::NEW_MEMBER_PASSWORD, '10.0.0.1', time()));
-            $proc = proc_open([PHP_BINARY, dirname(__DIR__) . '/Support/activation_worker.php', $p['number'], self::BIRTH_DATE, $p['code'], 'phrase du second processus', '10.0.0.2'],
-                [1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
-            $observer = Database::connect(self::config(), test: true);
-            for ($i = 0; $i < 200 && (int) $observer->fetchValue("SELECT COUNT(*) FROM information_schema.PROCESSLIST WHERE ID <> CONNECTION_ID() AND INFO LIKE '%FOR UPDATE%'") === 0; $i++) {
-                usleep(25_000); // le fils attend le verrou du compte tant que cette activation n'est pas validée
-            }
-            $this->assertLessThan(200, $i, 'Le processus fils aurait dû attendre le verrou du compte.');
-            return [$proc, $pipes];
-        });
-        $output = stream_get_contents($pipes[1]) . stream_get_contents($pipes[2]);
-        proc_close($proc);
+        $output = $this->race(fn () => $this->assertSame($p['account'], $svc->activate($p['number'], self::BIRTH_DATE, $p['code'],
+            self::NEW_MEMBER_PASSWORD, self::NEW_MEMBER_PASSWORD, '10.0.0.1', time())),
+            ['activate', $p['number'], self::BIRTH_DATE, $p['code'], 'phrase du second processus', '10.0.0.2']);
         $this->assertSame(MemberAccountService::FAILED, $output);
         $this->assertTrue(password_verify(self::NEW_MEMBER_PASSWORD, (string) $this->db->fetchValue('SELECT password FROM member_accounts WHERE id = ?', [$p['account']])));
         $this->assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE action = 'espace.activated' AND auditable_id = ?", [$p['account']]));
@@ -165,5 +154,33 @@ final class EspaceActivationTest extends AdminTestCase
         $this->overrides = ['clock' => static fn (): int => time() + 3 * 86400 + 60];
         $this->forgetApp();
         $this->assertNeutral($this->activateVia($p['number'], $p['code']), 'après 3 jours');
+    }
+
+    public function test_activation_refuses_disabled_account_even_with_open_code(): void
+    {
+        $p = $this->pending();
+        // Défense en profondeur : la désactivation ferme les codes, mais un code resté ouvert ne doit pas suffire.
+        $this->db->query("UPDATE member_accounts SET status = 'desactive' WHERE id = ?", [$p['account']]);
+        $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM member_activation_codes WHERE member_account_id = ? AND used_at IS NULL', [$p['account']]));
+        $this->assertNeutral($this->activateVia($p['number'], $p['code']), 'compte désactivé, code ouvert');
+        $this->assertSame('desactive', $this->accountStatus($p['account']));
+        $this->assertNull($this->db->fetchValue('SELECT password FROM member_accounts WHERE id = ?', [$p['account']]));
+    }
+
+    public function test_manager_reset_during_activation_with_old_code_succeeds_once(): void
+    {
+        $p = $this->pending();
+        $this->assertSame(302, $this->activateVia($p['number'], $p['code'])->status());
+        $old = (string) $this->accounts()->resetByManager($p['member'], 'lettre', true, $this->manager, null);
+        // Le gestionnaire délivre un nouveau code pendant que l'adhérent saisit l'ancien : l'ancien doit être refusé.
+        $new = '';
+        $output = $this->race(function () use ($p, &$new): void {
+            $new = (string) $this->accounts()->resetByManager($p['member'], 'lettre', true, $this->manager, null);
+        }, ['activate', $p['number'], self::BIRTH_DATE, $old, 'phrase du second processus', '10.0.0.3']);
+        $this->assertSame(MemberAccountService::FAILED, $output);
+        $this->assertNull($this->db->fetchValue('SELECT password FROM member_accounts WHERE id = ?', [$p['account']]), 'aucun mot de passe posé par l\'ancien code');
+        $this->assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE action = 'espace.password_reset' AND auditable_id = ?", [$p['account']]));
+        $this->forgetApp();
+        $this->assertSame(302, $this->activateVia($p['number'], $new, self::BIRTH_DATE, 'phrase après la course 42')->status(), 'le nouveau code reste valable');
     }
 }

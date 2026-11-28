@@ -313,4 +313,17 @@ final class EspacePasswordTest extends AdminTestCase
         AuthMaintenance::purgeMemberForgotTokens($this->db, time());
         $this->assertSame($keep, array_map('intval', array_column($this->db->fetchAll('SELECT id FROM member_activation_codes WHERE member_account_id = ? ORDER BY id', [$a['account']]), 'id')));
     }
+
+    public function test_two_simultaneous_reset_links_succeed_once(): void
+    {
+        $a = $this->active(['email' => 'course.lien@x.test']);
+        $this->forgot('course.lien@x.test');
+        $token = $this->tokenFromLastMail();
+        $svc = $this->accounts();
+        $output = $this->race(fn () => $this->assertSame($a['account'], $svc->resetWithToken($token, self::OTHER_PASSWORD, self::OTHER_PASSWORD, '10.0.0.1', time())),
+            ['reset', $token, 'phrase du second processus', '10.0.0.2']);
+        $this->assertSame(MemberAccountService::INVALID_LINK, $output);
+        $this->assertTrue(password_verify(self::OTHER_PASSWORD, (string) $this->db->fetchValue('SELECT password FROM member_accounts WHERE id = ?', [$a['account']])));
+        $this->assertSame(1, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE action = 'espace.password_reset' AND auditable_id = ?", [$a['account']]));
+    }
 }
