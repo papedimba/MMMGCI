@@ -100,6 +100,6 @@ return static function (Router $router, View $view, Csrf $csrf, callable $db, ar
     $router->get('/galeries/{slug}', static fn (Request $r): Response => $site()->gallery($r));
 
     // Attrape-tout : pages à l'adresse plate /{slug} (et anciennes adresses → 301). TOUJOURS la dernière route.
-    // Jamais sous /admin : une adresse d'administration inconnue garde la 404 standard, et un GET sur une route POST seule, sa 405.
-    $router->get('/{chemin:(?!admin(?:/|$)).+}', static fn (Request $r): Response => $site()->show($r));
+    // Jamais sous /admin ni /espace : une adresse d'administration inconnue garde la 404 standard, et un GET sur une route POST seule, sa 405.
+    $router->get('/{chemin:(?!admin(?:/|$)|espace(?:/|$)).+}', static fn (Request $r): Response => $site()->show($r));
 };

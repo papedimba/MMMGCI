@@ -6,7 +6,8 @@ namespace App\Core;
 final class Session
 {
     /** @param array<string,mixed> $store $_SESSION en production, tableau local en test */
-    public function __construct(private array &$store, private readonly int $idleMinutes, private readonly string $name = 'mmmgci_sid')
+    public function __construct(private array &$store, private readonly int $idleMinutes, private readonly string $name = 'mmmgci_sid',
+        private readonly string $path = '/')
     {
     }
 
@@ -20,7 +21,7 @@ final class Session
         // Le ramasse-miettes ne doit pas supprimer une session encore dans son délai d'inactivité.
         ini_set('session.gc_maxlifetime', (string) max((int) ini_get('session.gc_maxlifetime'), $this->idleMinutes * 60));
         session_name($this->name);
-        session_set_cookie_params(['lifetime' => 0, 'path' => '/', 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax']);
+        session_set_cookie_params(['lifetime' => 0, 'path' => $this->path, 'secure' => $secure, 'httponly' => true, 'samesite' => 'Lax']);
         session_start();
         $this->store = &$_SESSION;
     }

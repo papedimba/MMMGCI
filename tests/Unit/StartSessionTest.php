@@ -56,4 +56,27 @@ final class StartSessionTest extends TestCase
         $mw->handle(new Request('GET', '/adhesion-en-ligne/etape/1'), $next);
         $this->assertArrayHasKey('_last_activity', $store);
     }
+
+    public function test_staff_and_member_sessions_open_only_on_their_own_prefixes(): void
+    {
+        [$staffStore, $memberStore] = [[], []];
+        $staff = new StartSession(new Session($staffStore, 30), false, [], ['/admin', '/admin/', '/adhesion-en-ligne', '/adhesion-en-ligne/', '/contact', '/partenariat']);
+        $member = new StartSession(new Session($memberStore, 30, 'mmmgci_esp', '/espace'), false, [], ['/espace', '/espace/']);
+        $next = static fn (Request $r): Response => new Response('ok');
+        $run = static fn (string $p) => $staff->handle(new Request('GET', $p), static fn (Request $r): Response => $member->handle($r, $next));
+        foreach (['/', '/espacex', '/espace-presse', '/actualites/espace'] as $p) {
+            $run($p);
+            $this->assertSame([[], []], [$staffStore, $memberStore], $p);
+        }
+        foreach (['/espace', '/espace/connexion'] as $p) {
+            $memberStore = [];
+            $run($p);
+            $this->assertSame([], $staffStore, $p);
+            $this->assertArrayHasKey('_last_activity', $memberStore, $p);
+        }
+        $memberStore = [];
+        $run('/admin/connexion');
+        $this->assertArrayHasKey('_last_activity', $staffStore);
+        $this->assertSame([], $memberStore);
+    }
 }

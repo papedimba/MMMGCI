@@ -7,6 +7,7 @@ require __DIR__ . '/DatabaseTestCase.php';
 require __DIR__ . '/Support/AdminTestCase.php';
 require __DIR__ . '/Support/DisbursementFixtures.php';
 require __DIR__ . '/Support/SocialFixtures.php';
+require __DIR__ . '/Support/EspaceFixtures.php';
 
 // AuditLogController::verify() pose set_time_limit(60) qui persisterait pour tout le processus PHPUnit.
 set_time_limit(0);

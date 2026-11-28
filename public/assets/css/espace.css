@@ -1,0 +1,16 @@
+/* Espace adhérent (lot L15) : téléphone d'abord, jetons existants seulement. */
+.espace { margin: 0; background: var(--frame); color: var(--ink); }
+.esp-top { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: var(--s2) var(--s4); background: var(--navy-900); color: #fff; }
+.esp-brand { display: inline-flex; align-items: center; gap: var(--s2); min-height: var(--control-h); color: #fff; font-family: var(--font-display); font-size: var(--text-lg); text-decoration: none; }
+.esp-brand:focus-visible, .esp-top .btn:focus-visible { outline: var(--focus-ring-on-dark); outline-offset: 2px; }
+.esp-logout { margin: 0; }
+.esp-nav { background: var(--sheet); border-bottom: 1px solid var(--line); overflow-x: auto; }
+.esp-nav ul { display: flex; gap: var(--s1); margin: 0 auto; padding: 0 var(--s2); max-width: 72rem; list-style: none; }
+.esp-nav a { display: inline-flex; align-items: center; min-height: var(--control-h); padding: 0 var(--s3); color: var(--ink-2); white-space: nowrap; text-decoration: none; border-bottom: 3px solid transparent; }
+.esp-nav a:hover { color: var(--navy-800); }
+.esp-nav a[aria-current="page"] { color: var(--navy-900); font-weight: 600; border-bottom-color: var(--gold-400); }
+.esp-main { margin: 0 auto; padding: var(--s5) var(--s4) var(--s7); max-width: 72rem; }
+.esp-main:focus { outline: none; }
+.esp-main h1 { font-family: var(--font-display); font-size: var(--text-xl); line-height: var(--leading-snug); margin: 0 0 var(--s4); }
+@media (max-width: 30rem) { .esp-top .btn span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; } }
+@media (min-width: 48rem) { .esp-main h1 { font-size: var(--text-2xl); } }

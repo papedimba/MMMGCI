@@ -553,7 +553,7 @@ final class PublicPagesTest extends AdminTestCase
     public function test_specific_routes_still_win_over_the_catch_all(): void
     {
         $patterns = array_column($this->app() ? $this->services['router']->routes() : [], 'pattern');
-        $this->assertSame('/{chemin:(?!admin(?:/|$)).+}', end($patterns), 'l\'attrape-tout est la dernière route');
+        $this->assertSame('/{chemin:(?!admin(?:/|$)|espace(?:/|$)).+}', end($patterns), 'l\'attrape-tout est la dernière route');
         $this->assertSame(405, $this->request('GET', '/admin/deconnexion')->status(), 'route POST seule : 405, pas une page publique');
         $unknown = $this->request('GET', '/admin/inexistante');
         $this->assertSame(404, $unknown->status());

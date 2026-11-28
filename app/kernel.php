@@ -8,6 +8,7 @@ use App\Core\Csrf;
 use App\Core\Database;
 use App\Core\Gate;
 use App\Core\Http\ForceHttps;
+use App\Core\Http\Middleware;
 use App\Core\Http\Request;
 use App\Core\Http\Response;
 use App\Core\Http\Router;
@@ -17,9 +18,14 @@ use App\Core\Http\StartSession;
 use App\Core\Http\VerifyCsrf;
 use App\Core\Mailer;
 use App\Core\Session;
+use App\Core\Settings;
 use App\Core\Uploads;
 use App\Core\View;
 use App\Modules\Auth\Auth;
+use App\Modules\Espace\MemberAccess;
+use App\Modules\Espace\MemberAuth;
+use App\Modules\Espace\RequireMember;
+use App\Modules\Espace\RequireMemberWrite;
 
 /**
  * Assemble l'application ; $httpSession = false pour la construire sans session PHP (tests, CLI).
@@ -34,6 +40,10 @@ return static function (Config $config, bool $httpSession, array $overrides = []
     $store = [];
     $session = new Session($store, (int) $config->get('SESSION_IDLE_MINUTES', 30));
     $csrf = new Csrf($session);
+    // Espace adhérent : second monde de session (cookie mmmgci_esp au chemin /espace, jamais envoyé à /admin), jeton CSRF propre.
+    $memberStore = [];
+    $memberSession = new Session($memberStore, (int) $config->get('SESSION_IDLE_MINUTES', 30), 'mmmgci_esp', '/espace');
+    $memberCsrf = new Csrf($memberSession);
 
     // Connexion paresseuse : une base en panne ne casse ni les autres routes ni les pages d'erreur.
     $database = $overrides['db'] ?? null;
@@ -75,7 +85,11 @@ return static function (Config $config, bool $httpSession, array $overrides = []
             }
         });
     };
-    $services = compact('config', 'session', 'csrf', 'db', 'gate', 'auth', 'audit', 'mailer', 'defer', 'clock', 'view', 'uploads');
+    $memberAuth = $once(static fn (): MemberAuth => new MemberAuth($memberSession, $db(), new MemberAccess(new Settings($db()))));
+    $services = compact('config', 'session', 'csrf', 'db', 'gate', 'auth', 'audit', 'mailer', 'defer', 'clock', 'view', 'uploads') + [
+        'member_session' => $memberSession, 'member_csrf' => $memberCsrf, 'member_auth' => $memberAuth,
+        'require_member' => new RequireMember($memberAuth), 'require_member_write' => new RequireMemberWrite($view, $memberCsrf),
+    ];
 
     $titles = [400 => 'Requête invalide', 403 => 'Accès refusé', 404 => 'Page introuvable', 405 => 'Méthode non autorisée', 419 => 'Session expirée'];
     $errors = static function (int $status, Request $r) use ($view, $titles): Response {
@@ -92,11 +106,20 @@ return static function (Config $config, bool $httpSession, array $overrides = []
     $services['router'] = $router;
     // Administration d'abord : le site public se termine par une route attrape-tout (GET /{chemin}) qui doit rester la dernière.
     (require dirname(__DIR__) . '/routes/admin.php')($router, $services);
+    (require dirname(__DIR__) . '/routes/espace.php')($router, $services);
     (require dirname(__DIR__) . '/routes/web.php')($router, $view, $csrf, $db, $services);
 
     return new App($config, $router, [
         new ForceHttps((string) $config->get('APP_ENV', 'production')),
         new SecurityHeaders(),
+        // Toute réponse sous /espace (redirections et erreurs comprises) : jamais en cache partagé, jamais indexée.
+        new class implements Middleware {
+            public function handle(Request $r, callable $next): Response
+            {
+                $res = $next($r);
+                return VerifyCsrf::isEspace($r->path()) ? $res->withHeader('Cache-Control', 'private, no-store')->withHeader('X-Robots-Tag', 'noindex') : $res;
+            }
+        },
         // Session (donc cookie) seulement pour l'administration et les futurs formulaires publics (adhésion, contact, partenariat) : tout le reste du site est sans cookie.
         // Adhésion en ligne fermée : aucune session ni cookie (la garde n'est qu'une lecture des réglages ; base injoignable = fermée).
         new StartSession($session, $httpSession, [], ['/admin', '/admin/', '/adhesion-en-ligne', '/adhesion-en-ligne/', '/contact', '/partenariat'],
@@ -122,7 +145,9 @@ return static function (Config $config, bool $httpSession, array $overrides = []
                     return true;
                 }
             }),
-        new VerifyCsrf($csrf, $view, $router),
+        // Espace adhérent : sa propre session, seulement sous /espace (la liste ci-dessus reste inchangée).
+        new StartSession($memberSession, $httpSession, [], ['/espace', '/espace/']),
+        new VerifyCsrf($csrf, $view, $router, $memberCsrf),
         new ShareLayoutData($view, $router),
     ]);
 };

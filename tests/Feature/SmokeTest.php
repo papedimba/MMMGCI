@@ -46,6 +46,33 @@ final class SmokeTest extends DatabaseTestCase
         });
     }
 
+    public function test_member_cookie_name_and_path_are_espace_only(): void
+    {
+        self::serve(dirname(__DIR__, 2) . '/public', function (int $port): void {
+            [$headers] = self::fetch($port, '/espace/connexion');
+            $all = implode("\n", $headers);
+            $this->assertStringContainsString('200 OK', $headers[0]);
+            $this->assertMatchesRegularExpression('/^Set-Cookie: mmmgci_esp=\w+; path=\/espace; HttpOnly; SameSite=Lax$/mi', $all);
+            $this->assertStringNotContainsString('mmmgci_sid', $all);
+            $this->assertStringContainsString('Cache-Control: private, no-store', $all);
+            $this->assertStringContainsString('X-Robots-Tag: noindex', $all);
+            [$headers] = self::fetch($port, '/admin/connexion');
+            $all = implode("\n", $headers);
+            $this->assertMatchesRegularExpression('/^Set-Cookie: mmmgci_sid=\w+; path=\/; HttpOnly; SameSite=Lax$/mi', $all);
+            $this->assertStringNotContainsString('mmmgci_esp', $all);
+        });
+    }
+
+    public function test_public_site_sets_no_cookie(): void
+    {
+        self::serve(dirname(__DIR__, 2) . '/public', function (int $port): void {
+            foreach (['/', '/statuts', '/actualites', '/espacex', '/espace-presse'] as $path) {
+                [$headers] = self::fetch($port, $path);
+                $this->assertStringNotContainsStringIgnoringCase('Set-Cookie', implode("\n", $headers), $path);
+            }
+        });
+    }
+
     public function test_exception_while_booting_is_logged_and_renders_french_500_with_security_headers(): void
     {
         $root = dirname(__DIR__, 2);
