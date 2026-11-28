@@ -64,6 +64,21 @@ final class UiTest extends TestCase
         $this->assertStringContainsString('<a href="#">Ok</a>', ui('page-header', ['title' => 'T'], '<a href="#">Ok</a>'));
     }
 
+    /** Mode `form` (L7) : pas de formulaire propre ni de csrf ; « Confirmer » envoie le formulaire de la page par l'attribut form ; tout est échappé. */
+    public function test_confirm_dialog_form_mode_submits_the_page_form(): void
+    {
+        $x = '"><script>x</script>';
+        $html = ui('confirm-dialog', ['id' => 'confirm-close', 'title' => $x, 'message' => $x, 'confirm_label' => 'Clôturer', 'form' => 'close-form']);
+        $this->assertStringContainsString('<dialog class="dialog" id="confirm-close"', $html);
+        $this->assertStringNotContainsString('<form', $html);
+        $this->assertStringNotContainsString('_csrf', $html);
+        $this->assertMatchesRegularExpression('/<button class="btn btn-danger" type="submit" form="close-form"><span>Clôturer<\/span><\/button>/', $html);
+        $this->assertStringContainsString('data-confirm-close', $html);
+        $this->assertStringNotContainsString('<script>x', $html);
+        $this->assertStringContainsString('aria-labelledby="confirm-close-title"', $html);
+        $this->assertStringContainsString('form="&quot;&gt;', ui('confirm-dialog', ['id' => 'd', 'title' => 'T', 'message' => 'M', 'form' => '">']));
+    }
+
     public function test_confirm_dialog_requires_csrf(): void
     {
         $this->expectException(InvalidArgumentException::class);

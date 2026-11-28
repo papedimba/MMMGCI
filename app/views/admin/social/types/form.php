@@ -27,7 +27,7 @@ $crumb = [['Types de demande', '/admin/demandes-sociales/types'], [$id > 0 ? 'Pa
 <?= ui('panel', ['title' => 'Paramètres décidés par les instances'],
     ui('field', ['name' => 'criteria_text', 'label' => 'Critères d\'éligibilité', 'type' => 'textarea', 'value' => $v('criteria_text')])
     . ui('field', ['name' => 'ceiling_amount', 'label' => 'Plafond (XOF)', 'value' => $v('ceiling_amount'), 'inputmode' => 'decimal', 'hint' => 'Vide = non configuré (aucun plafond appliqué).'])
-    . ui('field', ['name' => 'waiting_period_days', 'label' => 'Délai de carence (jours)', 'value' => $v('waiting_period_days'), 'inputmode' => 'numeric'])
+    . ui('field', ['name' => 'waiting_period_days', 'label' => 'Délai de carence (jours)', 'value' => $v('waiting_period_days'), 'inputmode' => 'numeric', 'hint' => 'Information affichée à l\'examen : la carence ne bloque jamais une demande, même une fois validée.'])
     . ui('field', ['name' => 'deciding_body', 'label' => 'Organe compétent', 'value' => $v('deciding_body'), 'attrs' => ['maxlength' => 160]])
     . '<fieldset class="field"><legend>Sortes d\'aide autorisées</legend><p class="field-hint">Aucune case cochée = non configuré (aucune restriction).</p>' . $kindChecks . '</fieldset>'
     . ui('field', ['name' => 'decision_ref', 'label' => 'Référence de la décision', 'value' => $v('decision_ref'), 'required' => true, 'attrs' => ['maxlength' => 60], 'hint' => 'Obligatoire : procès-verbal ou décision des instances.'])) ?>

@@ -214,11 +214,11 @@ Enregistrement, instruction, décision et suivi des demandes d'assistance des ad
 - **L'adhérent ne verra jamais** les notes internes, les avis d'instruction, les noms des instructeurs et des décideurs, ni le circuit de décaissement (contrat `SocialMemberView`, voir `docs/superpowers/plans/2026-11-22-l7-decisions-et-reports.md`). L'Espace adhérent lui-même est le lot L15 : **aucun écran adhérent n'existe dans ce lot**.
 - Il n'invente ni critère d'éligibilité, ni plafond, ni carence, ni délai, ni organe : ce sont des paramètres « non configuré » (voir plus bas). Le contexte d'examen (statut du membre, appels impayés, ancienneté, carence et plafond « non configuré » s'ils ne sont pas validés) est **affiché**, jamais bloquant.
 
-**Écrans** (menu « Demandes sociales »)
+**Écrans** (groupe de menu « Assistance sociale »)
 
 | Écran | Adresse | Permission |
 |---|---|---|
-| Liste, recherche, filtres, export CSV / XLSX | `/admin/demandes-sociales`, `/export.csv`, `/export.xlsx` | `social.view` ; export `social.export` |
+| Liste, recherche, filtres, export CSV / XLSX | `/admin/demandes-sociales`, `/export.csv`, `/export.xlsx` | `social.view` ; export `social.view` **et** `social.export` |
 | Nouvelle demande (recherche de l'adhérent, canal, priorité, description, données de santé, une pièce) | `/admin/demandes-sociales/nouvelle` | `social.create` |
 | Demande (onglets Suivi, Examen, Pièces, Données de santé), affectation, pièces demandées, avis, soumission, notes | `/admin/demandes-sociales/{id}` | `social.view` ; actions `social.manage` ; notes `social.manage` ou `social.decide` ; pièces `social.manage` ou `social.create` |
 | Décision (motif, message à l'adhérent, organe et référence de décision obligatoires) | `/{id}/decision` | `social.decide` |
@@ -261,15 +261,15 @@ Une décision exige motif, message à l'adhérent, organe et référence de déc
 - **D3 à régler avant toute utilisation** : les instances doivent désigner **au moins deux approbateurs** (`disbursement.approve`) et **un payeur** (`disbursement.pay`). Sans eux le circuit L6 est inopérant : une aide financière accordée ne pourra pas être payée (voir « Finances (lot L6) »).
 - Un justificatif ne peut pas être une pièce sociale. La page du décaissement et le fonds de solidarité affichent la référence `AS-…` seulement (ni nom, ni type, ni motif).
 
-**Paramètres « non configuré »** — aucune valeur n'est inventée ; les instances les valident par `settings.validate`, **avec une référence de décision** ; tant qu'ils ne le sont pas, le logiciel n'en tire aucune conséquence automatique (bandeau « paramètre en attente de validation par les instances »).
+**Paramètres « non configuré »** — aucune valeur n'est inventée ; les instances les valident par `settings.validate`, **avec une référence de décision** ; tant qu'ils ne le sont pas, le logiciel n'en tire aucune conséquence automatique (bandeau « paramètre en attente de validation par les instances »). **Une fois validés, seuls le plafond, les sortes d'aide autorisées et l'organe compétent d'un type s'imposent à la décision.** La carence, le délai de traitement, la durée de conservation et la règle d'éligibilité restent de l'information affichée : le logiciel ne bloque, n'alerte et ne purge rien sur leur base, **même validés**.
 
-| Paramètre | Où | Effet tant qu'il n'est pas validé |
-|---|---|---|
-| `criteria_text`, `ceiling_amount`, `waiting_period_days`, `deciding_body`, `allowed_aid_kinds` | par type de demande (8 types de l'art. 9 semés, paramètres NULL), un seul jeu validé avec une référence de décision par type | affichés « Non configuré » ; aucun plafond, aucune carence appliqués ; toutes les sortes d'aide permises ; organe obligatoire à la saisie de la décision |
-| `social.reference_format` | `/admin/demandes-sociales/parametres` | bandeau seulement : la référence reste le format technique `AS-AAAA-NNNN` (**le réglage validé ne change pas encore la numérotation**) ; format à valider (V11) |
-| `social.processing_deadline_days` | idem | aucun délai de traitement, aucune alerte |
-| `social.retention_months` | idem | aucune purge ni anonymisation (non implémentées) |
-| `social.eligibility_rule` | idem | aucun contrôle d'éligibilité ; contexte affiché, jamais bloquant |
+| Paramètre | Où | Effet non validé | Effet une fois validé |
+|---|---|---|---|
+| `criteria_text`, `ceiling_amount`, `waiting_period_days`, `deciding_body`, `allowed_aid_kinds` | par type de demande (8 types de l'art. 9 semés, paramètres NULL), un seul jeu validé avec une référence de décision par type | affichés « Non configuré » ; aucun plafond, aucune carence appliqués ; toutes les sortes d'aide permises ; organe obligatoire à la saisie de la décision | plafond, sortes d'aide et organe s'imposent à la décision ; critères et carence **affichés seulement**, jamais bloquants |
+| `social.reference_format` | `/admin/demandes-sociales/parametres` | bandeau seulement : la référence reste le format technique `AS-AAAA-NNNN` (**le réglage validé ne change pas encore la numérotation**) ; format à valider (V11) | aucun : la numérotation n'est pas branchée sur ce réglage |
+| `social.processing_deadline_days` | idem | aucun délai de traitement, aucune alerte | aucun : information seulement |
+| `social.retention_months` | idem | aucune purge ni anonymisation (non implémentées) | aucun : purge non implémentée (L13) |
+| `social.eligibility_rule` | idem | aucun contrôle d'éligibilité ; contexte affiché, jamais bloquant | aucun : texte affiché, aucun contrôle automatique |
 | Canaux (`guichet`, `delegue`, `telephone`, `courrier`, `email`), priorités (`normale`, `urgente`), avis (`favorable`, `defavorable`, `reserve`), sortes d'aide (`financiere`, `orientation`, `accompagnement`, `materielle`) | contraintes `CHECK` de la migration `0025` | listes **techniques proposées** : toute évolution (par exemple un canal « espace adhérent » en L15) exige une migration |
 
 **Migrations** : `0025_social.sql` (8 tables et clé étrangère `disbursement_requests.social_decision_id`), `0026_social_permissions.sql` (permissions, 4 réglages, 8 types) et `0027_disbursement_live_social_decision.sql` (colonne générée `live_social_decision_id` + index unique `uq_dr_live_social_decision`, filet « un seul décaissement vivant par décision » ; ajoutée **en plus** de 0025 et 0026 parce que le `Migrator` refuse de modifier une migration déjà appliquée). Même modèle que la `0015` de L6. **Si la base contient déjà deux décaissements vivants pour la même décision** (très improbable : aucune route ne le permet), la `0027` **échoue** : sur MariaDB 10.11 l'erreur observée est **1834** (« Cannot delete rows from table which is parent in a foreign key constraint 'fk_da_request' »), parfois « Duplicate entry … for key 'uq_dr_live_social_decision' » ; l'échec est propre, rien n'est modifié. Diagnostic : `SELECT social_decision_id, COUNT(*) FROM disbursement_requests WHERE status NOT IN ('rejete','annule') AND social_decision_id IS NOT NULL GROUP BY 1 HAVING COUNT(*) > 1`, puis rejeter ou annuler le décaissement en trop et relancer `php bin/migrate.php`. (L'en-tête du fichier `0027` ne cite que « Duplicate entry » : migration appliquée, elle n'a pas été modifiée.) Essayée seulement sur MariaDB 10.11 ; MySQL 8.0.16 n'a pas été essayé.

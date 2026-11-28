@@ -14,7 +14,7 @@ return [
     ['Finances', 'Décaissements', '/admin/decaissements', ['finance.view', 'finance.control', 'disbursement.initiate', 'disbursement.approve', 'disbursement.pay'], 'file'],
     ['Finances', 'Contrôle', '/admin/controle', 'finance.control', 'shield'],
     ['Finances', 'Fonds de solidarité', '/admin/solidarite', 'solidarity.view', 'heart'],
-    ['Assistance sociale', 'Demandes sociales', '/admin/demandes-sociales', 'social.view', 'heart'], // lien affiché dès que la liste (tâche 7) existe
+    ['Assistance sociale', 'Demandes sociales', '/admin/demandes-sociales', 'social.view', 'heart'],
     ['Assistance sociale', 'Nouvelle demande', '/admin/demandes-sociales/nouvelle', 'social.create', 'plus'],
     ['Assistance sociale', 'Types de demande', '/admin/demandes-sociales/types', 'social.view', 'heart'],
     ['Site web', 'Pages', '/admin/site/pages', ['cms.pages.manage', 'cms.publish'], 'file'],

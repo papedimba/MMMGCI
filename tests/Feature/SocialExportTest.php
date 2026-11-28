@@ -59,6 +59,20 @@ final class SocialExportTest extends AdminTestCase
         }
     }
 
+    /** social.export seul ne suffit pas : l'export est une lecture, il exige aussi social.view (art. 8). */
+    public function test_export_alone_without_social_view_is_refused(): void
+    {
+        $this->registerRequest();
+        $this->db->query("INSERT IGNORE INTO roles (name, label) VALUES ('so_export_only', 'so_export_only')");
+        $this->db->query("INSERT IGNORE INTO role_permissions (role_id, permission_id) SELECT r.id, p.id FROM roles r, permissions p WHERE r.name = 'so_export_only' AND p.name IN ('social.export', 'members.scope.all')");
+        $only = $this->socialUser('exportonly', ['so_export_only']);
+        $this->as($only);
+        foreach (['csv', 'xlsx'] as $f) {
+            self::assertSame(403, $this->request('GET', "/admin/demandes-sociales/export.$f")->status(), $f);
+        }
+        self::assertSame(0, (int) $this->db->fetchValue("SELECT COUNT(*) FROM audit_logs WHERE action = 'social.exported' AND user_id = ?", [$only]));
+    }
+
     public function test_export_columns_are_fixed_and_contain_no_sensitive_text(): void
     {
         $id = $this->requestIn('cloturee');

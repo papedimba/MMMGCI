@@ -102,6 +102,11 @@ final class SocialTypesScreenTest extends AdminTestCase
         preg_match_all('/ id="([^"]+)"/', $html, $m);
         self::assertSame([], array_values(array_unique(array_diff_assoc($m[1], array_unique($m[1])))));
         self::assertStringContainsString('for="f-activation-ref"', $html);
+        // Aucun texte ne laisse croire qu'un paramètre seulement affiché s'appliquerait une fois validé.
+        self::assertStringContainsString('la carence ne bloque jamais une demande, même une fois validée', html_entity_decode($html, ENT_QUOTES));
+        $settings = html_entity_decode($this->request('GET', '/admin/demandes-sociales/parametres')->body(), ENT_QUOTES);
+        self::assertSame(3, substr_count($settings, 'même une fois valid'));
+        self::assertStringNotContainsString('tant qu\'il n\'est pas validé.', $settings);
     }
 
     public function test_general_settings_screen_validates_per_key(): void

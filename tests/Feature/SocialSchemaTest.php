@@ -7,12 +7,13 @@ use Tests\DatabaseTestCase;
 
 final class SocialSchemaTest extends DatabaseTestCase
 {
-    private function expectSqlError(string $sql, array $params = []): void
+    /** @param list<int> $codes erreurs MariaDB/MySQL attendues (par défaut, un CHECK : 4025 MariaDB, 3819 MySQL) */
+    private function expectSqlError(string $sql, array $params = [], array $codes = [3819, 4025]): void
     {
         try {
             $this->db->query($sql, $params);
-        } catch (\PDOException) {
-            $this->addToAssertionCount(1);
+        } catch (\PDOException $e) {
+            self::assertContains((int) ($e->errorInfo[1] ?? 0), $codes, $e->getMessage()); // une faute de SQL ou une autre contrainte ne prouve rien
             return;
         }
         $this->fail('Contrainte attendue : ' . $sql);
@@ -71,7 +72,7 @@ final class SocialSchemaTest extends DatabaseTestCase
         [$u, $r] = $this->fixtures();
         $sql = "INSERT INTO social_decisions (social_request_id, decision, deciding_body, decision_ref, reason, member_message, decided_at, recorded_by) VALUES (?, 'refusee', 'o', 'ref', 'm', 'msg', '2026-01-06', ?)";
         $this->db->query($sql, [$r, $u]);
-        $this->expectSqlError($sql, [$r, $u]);
+        $this->expectSqlError($sql, [$r, $u], [1062]);
     }
 
     public function test_amount_checks_reject_zero_and_negative(): void
@@ -90,7 +91,7 @@ final class SocialSchemaTest extends DatabaseTestCase
         $n = bin2hex(random_bytes(4));
         $a = $this->insert('INSERT INTO financial_accounts (name) VALUES (?)', ["Cpt $n"]);
         $c = $this->insert('INSERT INTO financial_categories (name, direction) VALUES (?, ?)', ["Dep $n", 'depense']);
-        $this->expectSqlError("INSERT INTO disbursement_requests (reference, account_id, category_id, amount, beneficiary_name, purpose, social_decision_id, initiated_by) VALUES (?, ?, ?, 10, 'b', 'p', 999999999, ?)", ["D-$n", $a, $c, $u]);
+        $this->expectSqlError("INSERT INTO disbursement_requests (reference, account_id, category_id, amount, beneficiary_name, purpose, social_decision_id, initiated_by) VALUES (?, ?, ?, 10, 'b', 'p', 999999999, ?)", ["D-$n", $a, $c, $u], [1452]);
     }
 
     public function test_social_settings_are_non_configure(): void

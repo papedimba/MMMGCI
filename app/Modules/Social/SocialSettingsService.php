@@ -17,9 +17,9 @@ final class SocialSettingsService
     /** clé => [libellé, type, aide] */
     public const KEYS = [
         'reference_format' => ['Format de la référence des demandes', 'format', 'Format technique à valider ; doit contenir {NNNN} (numéro), éventuellement {YYYY} (année).'],
-        'processing_deadline_days' => ['Délai de traitement (jours)', 'int', 'Entier strictement positif. Aucun délai n\'est appliqué tant qu\'il n\'est pas validé.'],
-        'retention_months' => ['Durée de conservation (mois)', 'int', 'Entier strictement positif. Aucune purge n\'est faite tant qu\'elle n\'est pas validée.'],
-        'eligibility_rule' => ['Règle d\'éligibilité', 'text', 'Texte adopté par les instances (2000 caractères au maximum). Aucun contrôle automatique n\'en est tiré.'],
+        'processing_deadline_days' => ['Délai de traitement (jours)', 'int', 'Entier strictement positif. Information seulement : aucun délai ni aucune alerte n\'est appliqué, même une fois validé.'],
+        'retention_months' => ['Durée de conservation (mois)', 'int', 'Entier strictement positif. Information seulement : aucune purge ni anonymisation n\'est faite, même une fois validée (non implémentées).'],
+        'eligibility_rule' => ['Règle d\'éligibilité', 'text', 'Texte adopté par les instances (2000 caractères au maximum). Aucun contrôle automatique n\'en est tiré, même une fois validé.'],
     ];
 
     private Settings $settings;

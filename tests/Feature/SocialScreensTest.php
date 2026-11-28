@@ -101,7 +101,7 @@ final class SocialScreensTest extends AdminTestCase
     {
         $this->app();
         $id = '/admin/demandes-sociales/{id:\d+}';
-        $expected = ['GET /admin/demandes-sociales' => 'social.view', 'GET /admin/demandes-sociales/export.csv' => 'social.export', 'GET /admin/demandes-sociales/export.xlsx' => 'social.export',
+        $expected = ['GET /admin/demandes-sociales' => 'social.view', 'GET /admin/demandes-sociales/export.csv' => 'social.view+social.export', 'GET /admin/demandes-sociales/export.xlsx' => 'social.view+social.export',
             'GET /admin/demandes-sociales/nouvelle' => 'social.create', 'POST /admin/demandes-sociales/nouvelle' => 'social.create',
             "GET $id" => 'social.view', "GET $id/pieces/{docId:\\d+}" => 'social.view', "POST $id/affecter" => 'social.manage', "POST $id/pieces-demandees" => 'social.manage',
             "POST $id/reprendre" => 'social.manage', "POST $id/avis" => 'social.manage', "POST $id/soumettre" => 'social.manage',
@@ -111,8 +111,8 @@ final class SocialScreensTest extends AdminTestCase
         $found = [];
         foreach ($this->services['router']->routes() as $r) {
             if (str_starts_with($r['pattern'], '/admin/demandes-sociales') && !preg_match('#^/admin/demandes-sociales/(types|parametres)#', $r['pattern'])) {
-                $g = array_values(array_filter($r['middleware'], static fn ($m) => $m instanceof PermissionGuard))[0];
-                $found["{$r['method']} {$r['pattern']}"] = implode('|', [$g->permission, ...$g->alternatives]);
+                $guards = array_values(array_filter($r['middleware'], static fn ($m) => $m instanceof PermissionGuard));
+                $found["{$r['method']} {$r['pattern']}"] = implode('+', array_map(static fn ($g): string => implode('|', [$g->permission, ...$g->alternatives]), $guards)); // + : toutes exigées
             }
         }
         ksort($expected);
