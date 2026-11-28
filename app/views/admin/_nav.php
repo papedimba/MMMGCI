@@ -6,6 +6,8 @@
 return [
     ['', 'Tableau de bord', '/admin', null, 'home'],
     ['Adhérents', 'Adhérents', '/admin/adherents', 'members.view', 'users'],
+    ['Adhérents', 'Espace adhérent', '/admin/espace/comptes', 'espace.accounts.manage', 'users'],
+    ['Adhérents', "Paramètres de l'Espace", '/admin/espace/parametres', ['espace.accounts.manage', 'settings.validate'], 'file'],
     ['Adhérents', 'Référentiels', '/admin/adherents/referentiels', 'settings.manage', 'anchor'],
     ['Cotisations', 'Types', '/admin/cotisations/types', 'contributions.view', 'coins'],
     ['Cotisations', 'Appels', '/admin/cotisations/appels', 'contributions.view', 'file'],

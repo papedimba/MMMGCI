@@ -52,3 +52,8 @@ body.print { background: var(--frame); color: #000; font-size: 11pt; line-height
 /* Liste des adhérents : le numéro (MMMGCI-AAAA-NNNNN) ne doit pas se couper sur deux lignes. */
 .doc-body .list-print { font-size: 10pt; }
 .doc-body .list-print th:first-child, .doc-body .list-print td:first-child { white-space: nowrap; }
+
+/* Lettre d'accès à l'Espace adhérent : code lisible sans ambiguïté, recopié à la main. */
+.doc-body .activation-code { margin: 2mm 0 3mm; font: 700 22pt/1.2 ui-monospace, "Courier New", monospace; letter-spacing: .12em; overflow-wrap: anywhere; }
+.doc-body .letter-steps li { margin-bottom: 2mm; }
+.doc-body .letter-warning { margin-top: 6mm; padding: 3mm; border: .75pt solid #000; }

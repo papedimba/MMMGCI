@@ -25,6 +25,8 @@ use App\Modules\Contributions\PaymentController;
 use App\Modules\Contributions\PaymentService;
 use App\Modules\Contributions\ReceiptService;
 use App\Modules\Disbursements\DisbursementController;
+use App\Modules\Espace\AccountAdminController;
+use App\Modules\Espace\EspaceSettingsService;
 use App\Modules\Disbursements\DisbursementGate;
 use App\Modules\Disbursements\DisbursementService;
 use App\Modules\Cms\ArticleController;
@@ -97,11 +99,14 @@ return static function (Router $r, array $deps): void {
     $journal = static fn (): AuditLogController => new AuditLogController($view, $csrf, $session, $db(), $gate(), $audit(),
         new AuditQuery($db()), new SensitiveAccess($db()));
     $referentials = static fn (): ReferentialController => new ReferentialController($view, $csrf, $session, $db(), $gate(), new Referentials($db(), $audit()));
+    $espaceAdmin = static fn (): AccountAdminController => new AccountAdminController($view, $csrf, $session, $db(), $gate(), new MemberScope($db(), $gate()),
+        $deps['member_accounts'], new EspaceSettingsService($db(), $audit(), $gate()), $links(), (string) $config->get('APP_URL', ''));
     $arrearsService = static fn (): ArrearsService => new ArrearsService($db(), new MemberScope($db(), $gate()), new Settings($db()), $audit());
     $members = static fn (): MemberController => new MemberController($view, $csrf, $session, $db(), $gate(), new MemberSearch($db(), new MemberScope($db(), $gate())),
         new MemberScope($db(), $gate()), new SensitiveAccess($db()),
         new MemberService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), $uploads(), $audit(),
-        new StatusService($db(), $audit(), new MemberScope($db(), $gate())), $arrearsService());
+        new StatusService($db(), $audit(), new MemberScope($db(), $gate())), $arrearsService(),
+        static fn (int $member, int $user): array => $espaceAdmin()->tab($member, $user));
     $documents = static fn (): DocumentController => new DocumentController($db(), $session, new MemberScope($db(), $gate()), new SensitiveAccess($db()), $uploads(), $audit());
     $cards = static fn (): CardController => new CardController($view, $csrf, $session, $db(), $gate(), new MemberScope($db(), $gate()),
         new CardService($db(), $audit(), new Settings($db()), new Sequence($db()), new MemberScope($db(), $gate())), (string) $config->get('APP_URL', ''), $config->get('APP_ENV', 'production') === 'production');
@@ -212,6 +217,16 @@ return static function (Router $r, array $deps): void {
     $r->post('/admin/adherents/{id:\d+}/ayants-droit', static fn (Request $q): Response => $members()->addBeneficiary($q), $updateMembers);
     $r->post('/admin/adherents/{id:\d+}/ayants-droit/{bid:\d+}/supprimer', static fn (Request $q): Response => $members()->deleteBeneficiary($q), $updateMembers);
     $documentsView = [$requireAuth, $permission('members.documents.view')];
+    // Accès à l'Espace adhérent (L15) : le service revérifie droit et périmètre ; les routes qui délivrent un code exigent un jeton à usage unique.
+    $espaceManage = [$requireAuth, $permission('espace.accounts.manage')];
+    $r->post('/admin/adherents/{id:\d+}/espace', static fn (Request $q): Response => $espaceAdmin()->open($q), $espaceManage);
+    $r->post('/admin/adherents/{id:\d+}/espace/code', static fn (Request $q): Response => $espaceAdmin()->reissue($q), $espaceManage);
+    $r->post('/admin/adherents/{id:\d+}/espace/reinitialiser', static fn (Request $q): Response => $espaceAdmin()->reset($q), [$requireAuth, $permission('espace.accounts.reset')]);
+    $r->post('/admin/adherents/{id:\d+}/espace/desactiver', static fn (Request $q): Response => $espaceAdmin()->disable($q), $espaceManage);
+    $r->post('/admin/adherents/{id:\d+}/espace/reactiver', static fn (Request $q): Response => $espaceAdmin()->enable($q), $espaceManage);
+    $r->get('/admin/espace/comptes', static fn (Request $q): Response => $espaceAdmin()->index($q), $espaceManage);
+    $r->get('/admin/espace/parametres', static fn (Request $q): Response => $espaceAdmin()->settings($q), [$requireAuth, $permission('espace.accounts.manage', 'settings.validate')]);
+    $r->post('/admin/espace/parametres/{key:[a-z0-9_]+}', static fn (Request $q): Response => $espaceAdmin()->validateSetting($q), [$requireAuth, $permission('settings.validate')]);
     $r->post('/admin/adherents/{id:\d+}/pieces', static fn (Request $q): Response => $documents()->upload($q), $documentsView);
     $r->post('/admin/adherents/demandes/{id:\d+}/pieces', static fn (Request $q): Response => $applications()->upload($q), $documentsView);
     $r->get('/admin/adherents/demandes/{id:\d+}/pieces/{fid:\d+}', static fn (Request $q): Response => $applications()->download($q), $documentsView);

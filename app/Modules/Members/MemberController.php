@@ -21,7 +21,7 @@ use DomainException;
 final class MemberController
 {
     public const TABS = ['identite' => 'Identité', 'profession' => 'Profession', 'ayants-droit' => 'Ayants droit', 'pieces' => 'Pièces',
-        'cotisations' => 'Cotisations', 'demandes' => 'Demandes d\'assistance', 'historique' => 'Historique'];
+        'cotisations' => 'Cotisations', 'demandes' => 'Demandes d\'assistance', 'espace' => 'Espace adhérent', 'historique' => 'Historique'];
     private const FIELDS = ['last_name', 'first_names', 'sex', 'birth_date', 'birth_place', 'nationality', 'phone', 'phone_alt', 'email', 'address',
         'zone_id', 'category_id', 'profession_id', 'specialty_id', 'employment_status', 'employer', 'joined_at'];
     /** Pièce d'identité et livret : réservés à members.documents.view (absents du formulaire sinon, valeurs existantes conservées). */
@@ -30,7 +30,9 @@ final class MemberController
 
     public function __construct(private View $view, private Csrf $csrf, private Session $session, private Database $db,
         private Gate $gate, private MemberSearch $search, private MemberScope $scope, private SensitiveAccess $sensitive,
-        private MemberService $members, private Uploads $uploads, private Audit $audit, private StatusService $statuses, private ?\App\Modules\Contributions\ArrearsService $arrears = null)
+        private MemberService $members, private Uploads $uploads, private Audit $audit, private StatusService $statuses, private ?\App\Modules\Contributions\ArrearsService $arrears = null,
+        /** @var ?\Closure(int $memberId, int $userId): array<string,mixed> données de l'onglet « Espace adhérent » (L15) */
+        private ?\Closure $espaceTab = null)
     {
     }
 
@@ -133,7 +135,9 @@ final class MemberController
         $docs = $this->gate->allows($userId, 'members.documents.view');
         $contrib = $this->gate->allows($userId, 'contributions.view');
         $social = $this->gate->allows($userId, 'social.view');
-        $tabs = array_filter(self::TABS, static fn (string $k): bool => ($k !== 'pieces' || $docs) && ($k !== 'cotisations' || $contrib) && ($k !== 'demandes' || $social), ARRAY_FILTER_USE_KEY);
+        $espace = $this->espaceTab !== null && ($this->gate->allows($userId, 'espace.accounts.manage') || $this->gate->allows($userId, 'espace.accounts.reset'));
+        $tabs = array_filter(self::TABS, static fn (string $k): bool => ($k !== 'pieces' || $docs) && ($k !== 'cotisations' || $contrib) && ($k !== 'demandes' || $social)
+            && ($k !== 'espace' || $espace), ARRAY_FILTER_USE_KEY);
         $tab = $forceTab ?? $r->input('onglet');
         $tab = is_string($tab) && isset($tabs[$tab]) ? $tab : 'identite';
         $data = ['m' => $m, 'tab' => $tab, 'tabs' => $tabs, 'canDocuments' => $docs, 'revealed' => []] + $extra;
@@ -153,6 +157,8 @@ final class MemberController
             // Périmètre garanti par assertMayAccess plus haut ; ni description ni donnée de santé.
             $data['requests'] = $this->db->fetchAll('SELECT r.id, r.reference, r.received_at, r.status, t.name AS type_name FROM social_requests r JOIN social_request_types t ON t.id = r.type_id
                 WHERE r.member_id = ? ORDER BY r.received_at DESC, r.id DESC', [$id]);
+        } elseif ($tab === 'espace') {
+            $data += ($this->espaceTab)($id, $userId);
         } elseif ($tab === 'historique') {
             $data['rows'] = $this->db->fetchAll(
                 'SELECT h.from_status, h.to_status, h.reason, h.decision_ref, h.created_at, u.name AS author, f.label AS from_label, t.label AS to_label
