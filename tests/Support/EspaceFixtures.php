@@ -5,6 +5,7 @@ namespace Tests\Support;
 
 use App\Core\Http\Response;
 use App\Modules\Auth\PasswordPolicy;
+use App\Modules\Espace\MemberAccountService;
 
 /** Membres et comptes adhérents de test, requêtes avec le jeton CSRF de l'Espace (pour une classe AdminTestCase). */
 trait EspaceFixtures
@@ -43,5 +44,36 @@ trait EspaceFixtures
     protected function memberNumber(int $memberId): string
     {
         return (string) $this->db->fetchValue('SELECT member_number FROM members WHERE id = ?', [$memberId]);
+    }
+
+    protected const BIRTH_DATE = '1980-05-17';
+    protected const NEW_MEMBER_PASSWORD = 'voile hissée vers grand-bassam';
+
+    /** Fiche sans compte, avec date de naissance (sauf surcharge). @param array<string,mixed> $member */
+    protected function memberForAccess(array $member = []): int
+    {
+        static $n = 0;
+        $n++;
+        return $this->db->insert('members', $member + ['member_number' => 'ACC-' . getmypid() . "-$n", 'last_name' => 'Kouadio', 'first_names' => 'Aya',
+            'birth_date' => self::BIRTH_DATE, 'status' => 'actif']);
+    }
+
+    protected function accounts(): MemberAccountService
+    {
+        $this->app();
+        return $this->services['member_accounts']();
+    }
+
+    protected function activateVia(string $identifier, string $code, string $birthDate = self::BIRTH_DATE, string $password = self::NEW_MEMBER_PASSWORD): Response
+    {
+        return $this->espacePost('/espace/activer', ['identifiant' => $identifier, 'date_naissance' => $birthDate, 'code' => $code,
+            'password' => $password, 'password_confirmation' => $password]);
+    }
+
+    /** @return list<array{to: string, subject: string, text: string}> */
+    protected function mails(): array
+    {
+        $this->app();
+        return array_map(static fn (array $m): array => ['to' => $m['to'], 'subject' => $m['subject'], 'text' => base64_decode(str_replace("\r\n", '', $m['body']))], $this->mail->messages);
     }
 }

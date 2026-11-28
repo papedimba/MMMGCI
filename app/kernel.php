@@ -22,10 +22,14 @@ use App\Core\Settings;
 use App\Core\Uploads;
 use App\Core\View;
 use App\Modules\Auth\Auth;
+use App\Modules\Auth\LinkMailer;
+use App\Modules\Auth\LoginThrottle;
 use App\Modules\Espace\MemberAccess;
+use App\Modules\Espace\MemberAccountService;
 use App\Modules\Espace\MemberAuth;
 use App\Modules\Espace\RequireMember;
 use App\Modules\Espace\RequireMemberWrite;
+use App\Modules\Members\MemberScope;
 
 /**
  * Assemble l'application ; $httpSession = false pour la construire sans session PHP (tests, CLI).
@@ -86,8 +90,12 @@ return static function (Config $config, bool $httpSession, array $overrides = []
         });
     };
     $memberAuth = $once(static fn (): MemberAuth => new MemberAuth($memberSession, $db(), new MemberAccess(new Settings($db()))));
+    $memberAccounts = $once(static fn (): MemberAccountService => new MemberAccountService($db(), $audit(), $gate(), new MemberScope($db(), $gate()),
+        $memberAuth(), new Settings($db()), new LoginThrottle($db()),
+        new LinkMailer($mailer, (string) $config->get('APP_URL', ''), !in_array($config->get('APP_ENV', 'production'), ['local', 'testing'], true)),
+        Closure::fromCallable($defer), (string) $config->get('APP_KEY'), Closure::fromCallable($clock)));
     $services = compact('config', 'session', 'csrf', 'db', 'gate', 'auth', 'audit', 'mailer', 'defer', 'clock', 'view', 'uploads') + [
-        'member_session' => $memberSession, 'member_csrf' => $memberCsrf, 'member_auth' => $memberAuth,
+        'member_session' => $memberSession, 'member_csrf' => $memberCsrf, 'member_auth' => $memberAuth, 'member_accounts' => $memberAccounts,
         'require_member' => new RequireMember($memberAuth), 'require_member_write' => new RequireMemberWrite($view, $memberCsrf),
     ];
 

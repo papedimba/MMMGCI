@@ -39,13 +39,13 @@ final class LinkMailer
      * @param array{id: int|string, email: string} $user
      * @param Closure(string $link): string $body texte de l'e-mail autour du lien
      */
-    public function send(array $user, string $token, string $subject, Closure $body): void
+    public function send(array $user, string $token, string $subject, Closure $body, string $path = '/admin/reinitialiser/'): void
     {
         if (!$this->ready()) {
             return;
         }
         try {
-            $link = rtrim($this->appUrl, '/') . '/admin/reinitialiser/' . $token;
+            $link = rtrim($this->appUrl, '/') . $path . $token;
             ($this->mailer)()->send($user['email'], $subject, $body($link));
         } catch (Throwable $e) {
             // Classe et utilisateur seulement : le message pourrait contenir le lien ou un secret SMTP.

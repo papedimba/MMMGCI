@@ -79,9 +79,10 @@ final class EspaceSessionIsolationTest extends AdminTestCase
             $this->assertSame(302, $res->status(), "{$r['method']} {$r['pattern']}");
             $this->assertStringStartsWith('/espace/connexion', $res->headers()['Location']);
         }
-        // Toute route /espace autre que la connexion est protégée.
+        // Toute route /espace autre que la connexion, l'activation, l'oubli et le lien de réinitialisation est protégée.
+        $open = ['/espace/connexion', '/espace/activer', '/espace/mot-de-passe-oublie', '/espace/reinitialiser/{token:[a-f0-9]{64}}'];
         foreach ($this->services['router']->routes() as $r) {
-            if (str_starts_with($r['pattern'], '/espace') && $r['pattern'] !== '/espace/connexion') {
+            if (str_starts_with($r['pattern'], '/espace') && !in_array($r['pattern'], $open, true)) {
                 $this->assertContains($r, $protected, "{$r['method']} {$r['pattern']} sans RequireMember");
             }
         }

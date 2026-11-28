@@ -129,9 +129,9 @@ final class CreateAdminTest extends DatabaseTestCase
 
         $scheduler = new Scheduler($this->db);
         AuthMaintenance::register($scheduler, $this->db);
-        $this->assertSame(['login_attempts.purge' => 'ran', 'password_resets.purge' => 'ran'], $scheduler->run($now));
+        $this->assertSame(['login_attempts.purge' => 'ran', 'password_resets.purge' => 'ran', 'member_forgot_tokens.purge' => 'ran'], $scheduler->run($now));
         $this->assertSame([$keepOpen, $keepRecent], array_map('intval', array_column($this->db->fetchAll('SELECT id FROM password_resets ORDER BY id'), 'id')));
         $this->assertSame(1, (int) $this->db->fetchValue('SELECT COUNT(*) FROM login_attempts'));
-        $this->assertSame(['login_attempts.purge' => 'skipped_not_due', 'password_resets.purge' => 'skipped_not_due'], $scheduler->run($now + 60));
+        $this->assertSame(['login_attempts.purge' => 'skipped_not_due', 'password_resets.purge' => 'skipped_not_due', 'member_forgot_tokens.purge' => 'skipped_not_due'], $scheduler->run($now + 60));
     }
 }
