@@ -11,7 +11,6 @@ use App\Core\Http\Response;
 use App\Core\IpKey;
 use App\Core\View;
 use App\Modules\Auth\LoginThrottle;
-use App\Modules\Members\MemberService;
 use Closure;
 
 /** Connexion, déconnexion et accueil provisoire de l'Espace adhérent. L'audit ne porte jamais l'identifiant saisi. */
@@ -46,25 +45,31 @@ final class LoginController
         $password = is_string($password) ? $password : '';
         $retour = self::safeReturn($r->post('retour'));
         [$ip, $ua, $now] = [IpKey::of($r->ip()), $r->header('User-Agent'), ($this->clock)()];
-        $key = self::throttleKey($identifier);
+        $key = MemberAuth::throttleKey('espace:', $identifier);
 
-        $limit = $this->throttle->blockedBy($key, $ip, $now);
-        if ($limit !== null) {
-            $this->db->transaction(function () use ($key, $ip, $now, $limit, $r, $ua): void {
-                if ($this->throttle->markBlocked($key, $ip, $now, $limit)) {
-                    $this->audit->log(null, 'espace.login_blocked', 'member_account', null, null, ['scope' => $limit], null, $r->ip(), $ua);
+        // Sérialisé par IP : des tentatives simultanées ne lisent jamais le même compteur (verrou non obtenu = bloqué).
+        [$blocked, $account] = $this->throttle->serialized($ip, function () use ($identifier, $password, $key, $ip, $now, $r, $ua): array {
+            $limit = $this->throttle->blockedBy($key, $ip, $now);
+            if ($limit !== null) {
+                $this->db->transaction(function () use ($key, $ip, $now, $limit, $r, $ua): void {
+                    if ($this->throttle->markBlocked($key, $ip, $now, $limit)) {
+                        $this->audit->log(null, 'espace.login_blocked', 'member_account', null, null, ['scope' => $limit], null, $r->ip(), $ua);
+                    }
+                });
+                return [true, null];
+            }
+            return [false, $this->db->transaction(function () use ($identifier, $password, $key, $ip, $now, $r, $ua): ?array {
+                $account = $this->auth->attempt($identifier, $password, $now);
+                $this->throttle->record($key, $ip, $account !== null, $now);
+                if ($account !== null) {
+                    $this->audit->log(null, 'espace.login', 'member_account', (int) $account['id'], null, null, null, $r->ip(), $ua);
                 }
-            });
+                return $account;
+            })];
+        }) ?? [true, null];
+        if ($blocked) {
             return $this->form($retour, $identifier, self::BLOCKED);
         }
-        $account = $this->db->transaction(function () use ($identifier, $password, $key, $ip, $now, $r, $ua): ?array {
-            $account = $this->auth->attempt($identifier, $password, $now);
-            $this->throttle->record($key, $ip, $account !== null, $now);
-            if ($account !== null) {
-                $this->audit->log(null, 'espace.login', 'member_account', (int) $account['id'], null, null, null, $r->ip(), $ua);
-            }
-            return $account;
-        });
         if ($account === null) {
             return $this->form($retour, $identifier, self::FAILED);
         }
@@ -85,16 +90,6 @@ final class LoginController
     {
         return new Response($this->view->render('espace/home-placeholder', ['title' => 'Accueil', 'member' => $r->attribute('member'),
             'csrfToken' => $this->csrf->token()], 'layouts/espace'));
-    }
-
-    /** Clé du limiteur : « espace: » + identifiant normalisé (un même téléphone écrit de plusieurs façons = une seule clé). */
-    public static function throttleKey(string $identifier): string
-    {
-        $id = mb_strtolower(trim($identifier));
-        if (!str_contains($id, '@') && preg_match('/^[+\d\s.\-()]+$/', $id) === 1) {
-            $id = MemberService::normalizePhone($id) ?? $id;
-        }
-        return 'espace:' . $id;
     }
 
     /** Chemin interne à /espace/ uniquement : ni hôte externe (//, \), ni segment .. (même encodé), ni caractère de contrôle. */

@@ -22,6 +22,37 @@ final class MemberAuth
     {
     }
 
+    private const PHONE = '/^[+\d .\-()]+$/';
+
+    /**
+     * Forme canonique d'un identifiant, partagée par la recherche et par la clé du limiteur (connexion, activation, oubli) :
+     * deux saisies qui désignent la même fiche par la même voie ont la même clé. ASCII imprimable seulement (la collation
+     * de la base confondrait pleine chasse, accents et casse) ; sinon null = inconnu.
+     *
+     * @return array{0: 'email'|'phone'|'number', 1: string, 2: string}|null voie, valeur cherchée, saisie nettoyée
+     */
+    public static function canonical(string $identifier): ?array
+    {
+        $id = trim($identifier);
+        if ($id === '' || strlen($id) > 190 || preg_match('/^[\x20-\x7E]+$/D', $id) !== 1) {
+            return null;
+        }
+        if (str_contains($id, '@')) {
+            return ['email', strtolower($id), $id];
+        }
+        if (preg_match(self::PHONE, $id) === 1) {
+            $phone = MemberService::normalizePhone($id);
+            return $phone === null ? null : ['phone', $phone, $id];
+        }
+        return ['number', strtoupper($id), $id];
+    }
+
+    /** Clé de LoginThrottle : préfixe (« espace: », « espace-activation: », « espace-oubli: ») + forme canonique. */
+    public static function throttleKey(string $prefix, string $identifier): string
+    {
+        return $prefix . (self::canonical($identifier)[1] ?? '?'); // saisie invalide : jamais un compte, une seule clé
+    }
+
     /**
      * Compte désigné par l'identifiant : numéro de membre exact, sinon e-mail ou téléphone d'une seule fiche non supprimée ayant
      * un compte (aucune ou plusieurs : inconnu, pour qu'un téléphone partagé n'ouvre jamais le compte d'un autre).
@@ -30,23 +61,19 @@ final class MemberAuth
      */
     public function resolve(string $identifier): ?array
     {
-        $id = trim($identifier);
-        if ($id === '' || mb_strlen($id) > 190) {
+        $c = self::canonical($identifier);
+        if ($c === null) {
             return null;
         }
-        $row = $this->db->fetch(self::ROW . ' WHERE m.member_number = ? AND m.deleted_at IS NULL', [$id]);
-        if ($row !== null) {
-            return $row;
-        }
-        if (str_contains($id, '@')) {
-            [$where, $value] = ['m.email = ?', mb_strtolower($id)];
-        } else {
-            [$where, $value] = ['m.phone = ?', MemberService::normalizePhone($id)];
-            if ($value === null) {
-                return null;
+        [$kind, $value, $raw] = $c;
+        if ($kind !== 'email') {
+            // Numéro saisi tel quel ; pour une saisie « téléphone », seul le texte exact peut aussi être un numéro (même clé).
+            $row = $this->db->fetch(self::ROW . ' WHERE m.member_number = ? AND m.deleted_at IS NULL', [$kind === 'number' ? $value : $raw]);
+            if ($row !== null || $kind === 'number') {
+                return $row;
             }
         }
-        $rows = $this->db->fetchAll(self::ROW . " WHERE $where AND m.deleted_at IS NULL LIMIT 2", [$value]);
+        $rows = $this->db->fetchAll(self::ROW . ' WHERE ' . ($kind === 'email' ? 'm.email' : 'm.phone') . ' = ? AND m.deleted_at IS NULL LIMIT 2', [$value]);
         return count($rows) === 1 ? $rows[0] : null;
     }
 

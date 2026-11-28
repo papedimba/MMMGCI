@@ -42,22 +42,28 @@ final class LoginController
         $values = filter_var($email, FILTER_VALIDATE_EMAIL) !== false ? ['email' => $email] : ['email' => null, 'email_invalid' => true];
         $log = fn (string $action) => $this->audit->log($userId, $action, 'user', $userId, null, $values, null, $ip, $ua);
 
-        // Seul le premier blocage par fenêtre est noté et journalisé (par ip si la limite par ip bloque) : l'audit ne se purge pas.
-        $limit = $this->throttle->blockedBy($email, $ip, $now);
-        if ($limit !== null) {
-            $this->db->transaction(function () use ($email, $ip, $now, $log, $limit): void {
-                if ($this->throttle->markBlocked($email, $ip, $now, $limit)) {
-                    $log('auth.login_blocked');
-                }
-            });
+        // Sérialisé par IP : des tentatives simultanées ne lisent jamais le même compteur (verrou non obtenu = bloqué).
+        [$blocked, $user] = $this->throttle->serialized($ip, function () use ($email, $password, $ip, $now, $log): array {
+            // Seul le premier blocage par fenêtre est noté et journalisé (par ip si la limite par ip bloque) : l'audit ne se purge pas.
+            $limit = $this->throttle->blockedBy($email, $ip, $now);
+            if ($limit !== null) {
+                $this->db->transaction(function () use ($email, $ip, $now, $log, $limit): void {
+                    if ($this->throttle->markBlocked($email, $ip, $now, $limit)) {
+                        $log('auth.login_blocked');
+                    }
+                });
+                return [true, null];
+            }
+            return [false, $this->db->transaction(function () use ($email, $password, $ip, $now, $log): ?array {
+                $user = $this->auth->attempt($email, $password, $ip, $now);
+                $this->throttle->record($email, $ip, $user !== null, $now);
+                $log($user !== null ? 'auth.login_succeeded' : 'auth.login_failed');
+                return $user;
+            })];
+        }) ?? [true, null];
+        if ($blocked) {
             return $this->form($retour, $email, self::BLOCKED);
         }
-        $user = $this->db->transaction(function () use ($email, $password, $ip, $now, $log): ?array {
-            $user = $this->auth->attempt($email, $password, $ip, $now);
-            $this->throttle->record($email, $ip, $user !== null, $now);
-            $log($user !== null ? 'auth.login_succeeded' : 'auth.login_failed');
-            return $user;
-        });
         if ($user === null) {
             return $this->form($retour, $email, self::FAILED);
         }

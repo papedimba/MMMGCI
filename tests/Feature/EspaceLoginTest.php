@@ -5,6 +5,7 @@ namespace Tests\Feature;
 
 use App\Core\Http\Response;
 use App\Modules\Espace\LoginController;
+use App\Modules\Espace\MemberAuth;
 use App\Modules\Espace\RequireMember;
 use App\Modules\Espace\RequireMemberWrite;
 use Tests\Support\AdminTestCase;
@@ -146,6 +147,42 @@ final class EspaceLoginTest extends AdminTestCase
         $this->assertNull($this->loggedAccount());
         $now += 901;
         $this->assertSame(302, $this->espaceLogin($this->memberNumber($ids['member']))->status());
+    }
+
+    public function test_throttle_key_follows_identifier_resolution(): void
+    {
+        $now = 1_800_000_000;
+        $this->overrides['clock'] = static function () use (&$now): int {
+            return $now;
+        };
+        $number = 'ESP-2304-' . getmypid();
+        $ids = $this->memberWithAccount(['phone' => '0744444444', 'email' => 'casse@x.test', 'member_number' => $number]);
+        $fullWidth = mb_convert_kana($number, 'A'); // ＥＳＰ－２３０４－…
+        // Ni lettre ajoutée, ni séparateur hors liste, ni pleine chasse, ni espace insécable, ni accent : inconnu, même avec le bon mot de passe.
+        foreach (['0744444444a', '0744444444z', '07/44/44/44/44', '07_44_44_44_44', "07\u{00A0}44 44 44 44", $fullWidth, $number . "\u{0301}", 'cassé@x.test', 'casse@x.test' . "\u{200B}"] as $variant) {
+            $this->assertRefused($this->espaceLogin($variant), $variant);
+        }
+        // Les variantes qui ouvrent le compte partagent une seule clé par forme d'identifiant.
+        $keys = static fn (array $v) => array_values(array_unique(array_map(static fn ($x) => MemberAuth::throttleKey('espace:', $x), $v)));
+        $this->assertSame(['espace:0744444444'], $keys(['0744444444', ' +225 07 44 44 44 44', '07.44.44.44.44', '(07)44-44-44-44', '002250744444444']));
+        $this->assertSame(['espace:' . $number], $keys([$number, mb_strtolower($number), ' ' . ucfirst(mb_strtolower($number))]));
+        $this->assertSame(['espace:casse@x.test'], $keys(['casse@x.test', 'CASSE@X.TEST', ' Casse@x.Test ']));
+        $this->assertSame('espace-activation:0744444444', MemberAuth::throttleKey('espace-activation:', '07 44 44 44 44'));
+        $this->assertSame('espace-oubli:casse@x.test', MemberAuth::throttleKey('espace-oubli:', 'CASSE@x.test'));
+
+        foreach ([[$number, mb_strtolower($number)], ['CASSE@X.TEST', 'casse@x.test'], ['07 44 44 44 44', '0744444444']] as [$wrong, $right]) {
+            $now += 901;
+            $this->forgetApp();
+            for ($i = 0; $i < 5; $i++) {
+                $this->espaceLogin($i % 2 ? $wrong : " $wrong ", 'mauvais mot de passe long');
+            }
+            $this->assertStringContainsString(self::BLOCKED, $this->espaceLogin($right)->body(), $right);
+            $this->assertNull($this->loggedAccount());
+        }
+        $now += 901;
+        $this->forgetApp();
+        $this->assertSame(302, $this->espaceLogin(mb_strtolower($number))->status());
+        $this->assertSame($ids['account'], $this->loggedAccount());
     }
 
     public function test_first_blocked_attempt_audited_once_without_identifier(): void

@@ -67,6 +67,29 @@ final class LoginThrottle
         return true;
     }
 
+    /**
+     * Exécute $fn (contrôle des limites, vérification du mot de passe, enregistrement) seul pour cette IP : sans cela, des
+     * tentatives simultanées lisent toutes le même compteur avant que l'une l'incrémente et dépassent chaque limite.
+     * Verrou nommé du serveur (GET_LOCK, MariaDB et MySQL), lié à la connexion, libéré même en cas d'exception.
+     * $fn doit valider sa transaction avant de rendre la main. Verrou non obtenu dans le délai : null, sans rien exécuter.
+     *
+     * @template T
+     * @param callable(): T $fn
+     * @return T|null
+     */
+    public function serialized(string $ip, callable $fn, int $timeoutSeconds = 10): mixed
+    {
+        $name = 'mmmgci_login:' . sha1($this->ip($ip)); // 53 caractères : MySQL refuse un nom de plus de 64
+        if ((int) $this->db->fetchValue('SELECT GET_LOCK(?, ?)', [$name, $timeoutSeconds]) !== 1) {
+            return null;
+        }
+        try {
+            return $fn();
+        } finally {
+            $this->db->fetchValue('SELECT RELEASE_LOCK(?)', [$name]);
+        }
+    }
+
     public function purge(int $now): void
     {
         $this->db->query('DELETE FROM login_attempts WHERE created_at < ?', [gmdate('Y-m-d H:i:s', $now - 86400)]);

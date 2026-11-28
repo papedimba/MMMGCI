@@ -101,15 +101,22 @@ final class PasswordController
         $id = (int) $user['id'];
         [$ip, $ua, $now] = [$r->ip(), $r->header('User-Agent'), ($this->clock)()];
         // Partage la limite de 5 échecs / 15 min du couple (e-mail, IP) avec la connexion.
-        if ($this->throttle->tooManyAttempts((string) $user['email'], $ip, $now)) {
-            return $this->accountPage($user, self::BLOCKED);
-        }
-        if (!password_verify(self::str($r->post('current_password')), $user['password'])) {
-            $this->db->transaction(function () use ($user, $id, $ip, $ua, $now): void {
-                $this->throttle->record((string) $user['email'], $ip, false, $now);
-                $this->audit->log($id, 'auth.password_change_failed', 'user', $id, null, null, null, $ip, $ua);
-            });
-            return $this->accountPage($user, self::WRONG_CURRENT);
+        // Sérialisé par IP (LoginThrottle::serialized) : des essais simultanés ne dépassent pas la limite.
+        $error = $this->throttle->serialized($ip, function () use ($user, $id, $ip, $ua, $now, $r): string {
+            if ($this->throttle->tooManyAttempts((string) $user['email'], $ip, $now)) {
+                return self::BLOCKED;
+            }
+            if (!password_verify(self::str($r->post('current_password')), $user['password'])) {
+                $this->db->transaction(function () use ($user, $id, $ip, $ua, $now): void {
+                    $this->throttle->record((string) $user['email'], $ip, false, $now);
+                    $this->audit->log($id, 'auth.password_change_failed', 'user', $id, null, null, null, $ip, $ua);
+                });
+                return self::WRONG_CURRENT;
+            }
+            return '';
+        }) ?? self::BLOCKED; // verrou non obtenu : comme une limite atteinte
+        if ($error !== '') {
+            return $this->accountPage($user, $error);
         }
         $password = self::str($r->post('password'));
         $error = $this->newPasswordError($password, self::str($r->post('password_confirmation')), $user);
